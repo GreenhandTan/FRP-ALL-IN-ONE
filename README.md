@@ -40,6 +40,21 @@ http://your_server_ip
 
 就是这么简单！🎉
 
+### 低内存服务器部署（512MB-1GB）
+
+如果服务器内存不足 1GB，需要先配置 Swap：
+
+```bash
+# 运行 Swap 配置脚本
+chmod +x setup-swap.sh
+sudo ./setup-swap.sh
+
+# 然后正常部署
+docker-compose up -d --build
+```
+
+> **提示**: 即使有 1GB 内存，也建议配置 Swap 以确保构建稳定。
+
 ## 🎮 使用流程
 
 ### 1️⃣ 首次注册

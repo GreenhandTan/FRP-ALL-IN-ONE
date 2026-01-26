@@ -23,7 +23,7 @@ services:
     ports:
       - "80:80"  # 宿主机80端口 -> 容器80端口
     depends_on:
-      - backend
+      - backend  # 串行构建，避免内存叠加
 
   # 3. FRP Server (官方镜像)
   frps:
