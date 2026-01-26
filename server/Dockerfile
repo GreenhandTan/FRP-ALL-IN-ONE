@@ -1,8 +1,10 @@
 FROM docker.1ms.run/library/python:3.9-slim
 
-# 安装 Docker CLI（用于重启 FRPS 容器）
-RUN apt-get update && apt-get install -y \
-    docker.io \
+# 使用阿里云镜像源（国内加速）
+RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+        docker.io \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
