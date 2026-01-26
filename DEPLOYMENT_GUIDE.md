@@ -46,7 +46,7 @@ apt update && apt install -y python3 python3-pip nodejs npm nginx git
 **方式一：Git 克隆 (推荐)**
 ```bash
 cd /opt
-git clone git@github.com:GreenhandTan/FRP-ALL-IN-ONE.git frp-manager
+git clone https://github.com/GreenhandTan/FRP-ALL-IN-ONE.git frp-manager
 cd frp-manager
 ```
 
