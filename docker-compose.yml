@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  # 1. 核心管理后台 (Python API)
+  backend:
+    build: ./server
+    container_name: frp-manager-backend
+    restart: always
+    user: root  # 需要 root 权限创建文件和启动进程
+    volumes:
+      - ./data:/app/data        # 数据库持久化
+      - frp-data:/opt/frp       # FRP 文件持久化
+      - ./frps.toml:/app/frps.toml  # FRPS 配置文件（可读写）
+      - /var/run/docker.sock:/var/run/docker.sock  # Docker Socket（允许重启容器）
+    environment:
+      - SQLITE_DB_PATH=/app/data/frp_manager.db
+
+  # 2. Web 界面 (Nginx + React)
+  frontend:
+    build: ./frontend
+    container_name: frp-manager-web
+    restart: always
+    ports:
+      - "80:80"  # 宿主机80端口 -> 容器80端口
+    depends_on:
+      - backend
+
+  # 3. FRP Server (官方镜像)
+  frps:
+    image: docker.1ms.run/snowdreamtech/frps:latest
+    container_name: frps
+    restart: always
+    volumes:
+      - ./frps.toml:/etc/frp/frps.toml
+    ports:
+      - "7000:7000"          # FRP 通信端口
+      - "6000-6010:6000-6010" # 开放给客户端使用的端口范围 (按需调整)
+
+# 命名卷，确保重启后数据不丢失
+volumes:
+  frp-data:

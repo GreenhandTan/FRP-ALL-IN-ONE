@@ -1,0 +1,6 @@
+bindPort = 7000
+auth.token = "change_this_token_in_production"
+
+# Dashboard removed as requested
+# webServer.addr = "0.0.0.0"
+# webServer.port = 7500

@@ -24,7 +24,7 @@ class Tunnel(TunnelBase):
     client_id: str
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class ClientBase(BaseModel):
     name: str
@@ -40,4 +40,15 @@ class Client(ClientBase):
     tunnels: List[Tunnel] = []
 
     class Config:
-        orm_mode = True
+        from_attributes = True
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class TokenData(BaseModel):
+    username: Optional[str] = None
+
+class UserCreate(BaseModel):
+    username: str
+    password: str

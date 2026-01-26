@@ -20,6 +20,28 @@ class Client(Base):
 
     tunnels = relationship("Tunnel", back_populates="client", cascade="all, delete-orphan")
 
+class Admin(Base):
+    __tablename__ = "admins"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True)
+    hashed_password = Column(String)
+
+class SystemConfig(Base):
+    __tablename__ = "system_config"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    key = Column(String, unique=True, index=True)  # 配置键
+    value = Column(String)  # 配置值
+
+# 常用配置键常量
+class ConfigKeys:
+    IS_INITIALIZED = "is_initialized"  # 系统是否已初始化
+    FRPS_VERSION = "frps_version"      # FRPS 版本
+    FRPS_PORT = "frps_port"            # FRPS 端口
+    FRPS_AUTH_TOKEN = "frps_auth_token"  # FRPS 认证 Token
+    SERVER_PUBLIC_IP = "server_public_ip"  # 服务器公网 IP
+
 class Tunnel(Base):
     __tablename__ = "tunnels"
 
