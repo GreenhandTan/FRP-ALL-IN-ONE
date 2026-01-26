@@ -46,14 +46,14 @@ apt update && apt install -y python3 python3-pip nodejs npm nginx git
 **方式一：Git 克隆 (推荐)**
 ```bash
 cd /opt
-git clone <your_repo_url> frp-manager
+git clone git@github.com:GreenhandTan/FRP-ALL-IN-ONE.git frp-manager
 cd frp-manager
 ```
 
 **方式二：SCP 上传**
 ```bash
 # 本地执行
-scp -r /Users/tanxin/Documents/AIProjects/FRP-ALL-IN-ONE root@your_server_ip:/opt/frp-manager
+scp -r /Users/xx/FRP-ALL-IN-ONE root@your_server_ip:/opt/frp-manager
 ```
 
 ### 2.3 部署后端 API
