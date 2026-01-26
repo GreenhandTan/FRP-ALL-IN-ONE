@@ -25,15 +25,15 @@ def get_remote_config():
         return None
 
 def generate_toml(config_data):
-    # Basic TOML generation from the JSON response
-    # This assumes the 'common' section is already in the file or we append?
-    # Strategy: Read existing file to keep 'serverAddr' etc, and replace 'proxies'.
-    # OR: The server manages EVERYTHING.
+    # 从JSON响应生成基本的TOML配置
+    # 假设 'common' 部分已经在文件中，或者我们追加？
+    # 策略：读取现有文件以保留 'serverAddr' 等，并替换 'proxies'。
+    # 或者：服务器管理一切。
     
-    # For this MVP, let's assume we append proxies to a base template or overwrite specific sections.
-    # Simpler: Generate the WHOLE 'proxies' part.
+    # 对于此 MVP，我们假设追加 proxies 到基础模板或覆盖特定部分。
+    # 更简单：生成完整的 'proxies' 部分。
     
-    # But frpc.toml structure is:
+    # 但是 frpc.toml 结构是：
     # serverAddr = "..."
     # [[proxies]]
     # name = "..."
@@ -56,8 +56,8 @@ def generate_toml(config_data):
     return "\n".join(lines)
 
 def update_config_file(new_toml_content):
-    # Read existing file first to preserve strict common config?
-    # A robust agent would merge. For now, let's read the 'common' part and append.
+    # 首先读取现有文件以保留严格的通用配置？
+    # 一个健壮的Agent会进行合并。目前，我们读取 'common' 部分并追加。
     
     common_part = ""
     if os.path.exists(FRPC_CONFIG_PATH):
@@ -83,7 +83,7 @@ def update_config_file(new_toml_content):
 
 def reload_frpc():
     print("Reloading frpc...")
-    # Requires frpc admin port enabled or using 'frpc reload' command
+    # 需要启用 frpc admin端口 或使用 'frpc reload' 命令
     # 'frpc reload -c frpc.toml'
     try:
         subprocess.run(["frpc", "reload", "-c", FRPC_CONFIG_PATH], check=True)

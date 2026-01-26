@@ -55,16 +55,16 @@ def get_client_config(client_id: str, db: Session = Depends(get_db)):
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
     
-    # Generate Config Content
+    # 生成配置内容
     config_lines = []
     
-    # Common section (This usually comes from server global config, hardcoded for now or passed from Agent)
-    # Actually, Agent manages its own common section (server_addr, etc) usually, 
-    # BUT for full management, we might want to dictate it.
-    # For now, we only return the 'proxies' part or specific config.
+    # 通用部分 (通常来自服务端全局配置，目前硬编码或由Agent传递)
+    # 实际上，Agent通常管理自己的通用部分 (如 server_addr 等)，
+    # 但为了全面管理，我们可能希望强制下发。
+    # 目前，我们仅返回 'proxies' 部分或特定配置。
     
-    # Strategy: Return a JSON structure that the Agent converts to TOML or return raw TOML string.
-    # New FRPC uses TOML.
+    # 策略：返回一个JSON结构，由Agent转换为TOML或直接返回原始TOML字符串。
+    # 新版 FRPC 使用 TOML。
     
     config_data = {
         "proxies": []
