@@ -1,4 +1,4 @@
-FROM python:3.9-slim
+FROM docker.1ms.run/library/python:3.9-slim
 
 # 安装 Docker CLI（用于重启 FRPS 容器）
 RUN apt-get update && apt-get install -y \
