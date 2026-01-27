@@ -50,6 +50,7 @@ const translations = {
             autoDetected: '已自动检测',
             detectingIp: '正在检测公网 IP',
             ipDetectFailed: '无法自动检测公网 IP，请手动输入',
+            retryDetect: '重新检测',
             pleaseEnterIp: '请输入您的服务器公网 IP 地址',
             serverIpRequired: '请输入公网 IP 地址',
             optional: '可选',
@@ -220,6 +221,7 @@ const translations = {
             autoDetected: 'Auto-detected',
             detectingIp: 'Detecting public IP...',
             ipDetectFailed: 'Cannot auto-detect public IP, please enter manually',
+            retryDetect: 'Retry',
             pleaseEnterIp: 'Please enter public IP',
             serverIpRequired: 'Public IP is required',
 

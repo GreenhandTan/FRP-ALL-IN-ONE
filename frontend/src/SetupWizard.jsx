@@ -10,6 +10,7 @@ export default function SetupWizard({ onSetupComplete }) {
     const [serverIp, setServerIp] = useState(""); // 公网 IP
     const [ipAutoDetected, setIpAutoDetected] = useState(false); // 是否自动检测成功
     const [ipLoading, setIpLoading] = useState(true); // IP 检测中
+    const [ipDetectMessage, setIpDetectMessage] = useState(""); // 检测失败原因
     const [loading, setLoading] = useState(false);
     const [deployResult, setDeployResult] = useState(null);
     const [clientScript, setClientScript] = useState("");
@@ -20,18 +21,25 @@ export default function SetupWizard({ onSetupComplete }) {
     // 页面加载时自动获取公网 IP
     useEffect(() => {
         const fetchPublicIp = async () => {
+            setIpLoading(true);
+            setIpDetectMessage("");
             try {
                 const response = await api.get('/api/system/public-ip');
-                if (response.data.success) {
-                    setServerIp(response.data.ip);
+                if (response.data.success && response.data.ip) {
+                    setServerIp(response.data.ip.trim());
                     setIpAutoDetected(true);
                 } else {
                     setServerIp("");
                     setIpAutoDetected(false);
+                    const errs = response.data.errors || [];
+                    if (errs.length) {
+                        setIpDetectMessage(errs.slice(0, 2).join(" | "));
+                    }
                 }
             } catch (err) {
                 console.error("获取公网 IP 失败", err);
                 setIpAutoDetected(false);
+                setIpDetectMessage(err.response?.data?.detail || err.message);
             } finally {
                 setIpLoading(false);
             }
@@ -208,6 +216,36 @@ export default function SetupWizard({ onSetupComplete }) {
                                     {ipAutoDetected && (
                                         <span className="ml-2 text-emerald-400 text-xs">✓ {t('setup.autoDetected')}</span>
                                     )}
+                                    {!ipLoading && (
+                                        <button
+                                            type="button"
+                                            onClick={async () => {
+                                                setIpLoading(true);
+                                                setIpDetectMessage("");
+                                                try {
+                                                    const response = await api.get('/api/system/public-ip');
+                                                    if (response.data.success && response.data.ip) {
+                                                        setServerIp(response.data.ip.trim());
+                                                        setIpAutoDetected(true);
+                                                    } else {
+                                                        setServerIp("");
+                                                        setIpAutoDetected(false);
+                                                        const errs = response.data.errors || [];
+                                                        if (errs.length) setIpDetectMessage(errs.slice(0, 2).join(" | "));
+                                                    }
+                                                } catch (err) {
+                                                    setIpAutoDetected(false);
+                                                    setIpDetectMessage(err.response?.data?.detail || err.message);
+                                                } finally {
+                                                    setIpLoading(false);
+                                                }
+                                            }}
+                                            className="ml-3 inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg bg-slate-800/50 border border-white/10 text-slate-200 hover:bg-slate-700/50 transition-colors"
+                                        >
+                                            <RefreshCw size={12} />
+                                            {t('setup.retryDetect')}
+                                        </button>
+                                    )}
                                 </label>
 
                                 {ipLoading ? (
@@ -219,7 +257,10 @@ export default function SetupWizard({ onSetupComplete }) {
                                         {!ipAutoDetected && (
                                             <div className="bg-amber-500/20 border border-amber-500/50 text-amber-200 px-4 py-2 rounded-lg mb-3 text-sm flex items-center gap-2">
                                                 <AlertTriangle size={16} />
-                                                {t('setup.ipDetectFailed')}
+                                                <span>
+                                                    {t('setup.ipDetectFailed')}
+                                                    {ipDetectMessage ? `（${ipDetectMessage}）` : ''}
+                                                </span>
                                             </div>
                                         )}
                                         <input

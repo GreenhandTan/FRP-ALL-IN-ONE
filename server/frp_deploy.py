@@ -2,6 +2,9 @@ import subprocess
 import requests
 import secrets
 from typing import Dict
+import ipaddress
+import os
+import re
 
 # FRP 配置文件路径（映射到宿主机项目根目录）
 # Backend 容器中 /app/frps.toml 映射到宿主机 ./frps.toml
@@ -32,13 +35,91 @@ def get_latest_frp_version() -> str:
         print(f"获取 FRP 最新版本失败: {e}")
     return DEFAULT_FRP_VERSION
 
-def get_public_ip() -> str:
-    """获取服务器公网 IP"""
+def _is_public_ip(ip_str: str) -> bool:
     try:
-        response = requests.get('https://api.ipify.org?format=json', timeout=5)
-        return response.json()['ip']
-    except:
-        return "未知"
+        ip = ipaddress.ip_address(ip_str)
+    except Exception:
+        return False
+    if ip.version == 4 and str(ip).startswith("0."):
+        return False
+    return not (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_multicast
+        or ip.is_reserved
+    )
+
+def _extract_ip(text: str):
+    if not text:
+        return None
+    m4 = re.search(r"\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d?\d)\b", text)
+    if m4 and _is_public_ip(m4.group(0)):
+        return m4.group(0)
+    m6 = re.search(r"\b([0-9a-fA-F]{1,4}:){2,7}[0-9a-fA-F]{1,4}\b", text)
+    if m6 and _is_public_ip(m6.group(0)):
+        return m6.group(0)
+    return None
+
+def get_public_ip_details() -> Dict:
+    urls_env = os.environ.get("PUBLIC_IP_URLS", "").strip()
+    if urls_env:
+        urls = [u.strip() for u in urls_env.split(",") if u.strip()]
+    else:
+        urls = [
+            "https://4.ipw.cn",
+            "https://ip.3322.net",
+            "https://api.ipify.org?format=json",
+            "https://api64.ipify.org?format=json",
+            "https://myip.ipip.net",
+            "https://ipinfo.io/ip",
+            "https://icanhazip.com",
+            "https://ifconfig.me/ip",
+            "https://api.ip.sb/ip",
+        ]
+
+    headers = {
+        "User-Agent": "FRP-ALL-IN-ONE/1.0 (public-ip)",
+        "Accept": "application/json,text/plain,*/*",
+    }
+
+    errors = []
+    for url in urls:
+        try:
+            resp = requests.get(url, timeout=(3, 6), headers=headers)
+            if resp.status_code != 200:
+                errors.append(f"{url}: http {resp.status_code}")
+                continue
+
+            ip = None
+            content_type = (resp.headers.get("content-type") or "").lower()
+            if "application/json" in content_type or url.endswith("format=json"):
+                try:
+                    data = resp.json()
+                    ip = data.get("ip") or data.get("IP")
+                except Exception:
+                    ip = None
+            if not ip:
+                ip = _extract_ip(resp.text.strip())
+
+            if ip and _is_public_ip(ip):
+                version = 4 if ipaddress.ip_address(ip).version == 4 else 6
+                return {
+                    "success": True,
+                    "ip": ip,
+                    "ip_version": version,
+                    "source": url,
+                    "errors": errors,
+                }
+
+            errors.append(f"{url}: invalid response")
+        except Exception as e:
+            errors.append(f"{url}: {type(e).__name__}")
+
+    return {"success": False, "ip": "未知", "ip_version": None, "source": None, "errors": errors}
+
+def get_public_ip() -> str:
+    return get_public_ip_details().get("ip") or "未知"
 
 def generate_frps_config(port: int = 7000, auth_token: str = None, server_ip: str = None, disabled_ports: list = None) -> Dict:
     """

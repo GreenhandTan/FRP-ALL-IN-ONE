@@ -293,9 +293,7 @@ async def agent_heartbeat(payload: dict, db: Session = Depends(get_db)):
 @app.get("/api/system/public-ip")
 async def get_public_ip(current_user: models.Admin = Depends(get_current_user)):
     """获取服务器公网 IP"""
-    import frp_deploy
-    ip = frp_deploy.get_public_ip()
-    return {"ip": ip, "success": ip != "未知"}
+    return frp_deploy.get_public_ip_details()
 
 # 获取 FRPS 实时状态（从 FRPS Dashboard API）
 @app.get("/api/frp/server-status")
