@@ -1,5 +1,5 @@
 # Build Stage
-FROM docker.1ms.run/library/node:22-alpine as builder
+FROM docker.1ms.run/library/node:22-slim as builder
 
 # 使用淘宝 npm 镜像源（国内加速）
 RUN npm config set registry https://registry.npmmirror.com
@@ -10,14 +10,15 @@ ENV NODE_OPTIONS="--max-old-space-size=512"
 WORKDIR /app
 COPY package*.json ./
 
-# 优化 npm install：跳过审计和可选依赖
-RUN npm install --prefer-offline --no-audit --omit=optional
+# 清理缓存并重新安装（解决 Rollup 原生模块问题）
+RUN rm -rf package-lock.json node_modules && \
+    npm install --prefer-offline --no-audit
 
 COPY . .
 RUN npm run build
 
 # Production Stage
-FROM docker.1ms.run/library/nginx:alpine
+FROM docker.1ms.run/library/nginx:stable-alpine
 # 复制构建产物
 COPY --from=builder /app/dist /usr/share/nginx/html
 # 复制 Nginx 配置
