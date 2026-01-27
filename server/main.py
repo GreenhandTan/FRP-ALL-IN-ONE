@@ -20,12 +20,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 数据库自动初始化
+# 数据库自动初始化 + 默认管理员
 @app.on_event("startup")
 def init_database():
-    """确保所有表都已创建"""
+    """确保所有表都已创建，并创建默认管理员"""
     models.Base.metadata.create_all(bind=engine)
-    print("✅ 数据库表已初始化")
+    
+    # 创建默认管理员（如果不存在）
+    db = SessionLocal()
+    try:
+        if not crud.is_system_initialized(db):
+            default_admin = schemas.UserCreate(username="admin", password="123456")
+            crud.create_admin(db, default_admin)
+            print("[OK] 默认管理员已创建 (admin / 123456)")
+        else:
+            print("[OK] 管理员账号已存在")
+    finally:
+        db.close()
+    
+    print("[OK] 数据库表已初始化")
 
 # 依赖项
 def get_db():
@@ -59,39 +72,32 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
 # 系统状态接口（无需认证）
 @app.get("/api/system/status")
 def get_system_status(db: Session = Depends(get_db)):
-    """
-    返回系统初始化状态
-    """
-    is_init = crud.is_system_initialized(db)
+    """返回系统状态"""
     frps_deployed = crud.get_config(db, models.ConfigKeys.FRPS_VERSION) is not None
-    
     return {
-        "initialized": is_init,
+        "initialized": True,  # 系统总是已初始化（有默认管理员）
         "frps_deployed": frps_deployed
     }
 
-# 用户注册接口（仅在未初始化时可用）
-@app.post("/api/auth/register", response_model=schemas.Token)
-async def register_admin(user: schemas.UserCreate, db: Session = Depends(get_db)):
-    """
-    首次注册管理员账户
-    """
-    # 检查是否已有管理员
-    if crud.is_system_initialized(db):
+# 修改密码接口
+@app.post("/api/auth/change-password")
+async def change_password(
+    old_password: str,
+    new_password: str,
+    db: Session = Depends(get_db),
+    current_user: models.Admin = Depends(get_current_user)
+):
+    """修改当前用户密码"""
+    # 验证旧密码
+    if not auth.verify_password(old_password, current_user.hashed_password):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="System already initialized. Registration is disabled."
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="旧密码不正确"
         )
     
-    # 创建管理员
-    admin = crud.create_admin(db, user)
-    
-    # 自动登录，返回 Token
-    access_token_expires = timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = auth.create_access_token(
-        data={"sub": admin.username}, expires_delta=access_token_expires
-    )
-    return {"access_token": access_token, "token_type": "bearer"}
+    # 更新密码
+    crud.update_admin_password(db, current_user.id, new_password)
+    return {"message": "密码修改成功"}
 
 @app.post("/token", response_model=schemas.Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):

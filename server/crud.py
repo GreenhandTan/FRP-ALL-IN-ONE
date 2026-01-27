@@ -34,6 +34,15 @@ def create_admin(db: Session, admin: schemas.UserCreate):
     db.refresh(db_admin)
     return db_admin
 
+def update_admin_password(db: Session, admin_id: int, new_password: str):
+    """更新管理员密码"""
+    admin = db.query(models.Admin).filter(models.Admin.id == admin_id).first()
+    if admin:
+        admin.hashed_password = auth.get_password_hash(new_password)
+        db.commit()
+        return True
+    return False
+
 def get_client(db: Session, client_id: str):
     return db.query(models.Client).filter(models.Client.id == client_id).first()
 

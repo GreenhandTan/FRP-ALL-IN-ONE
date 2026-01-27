@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { getClients, createClient, createTunnel, api } from './api';
-import { RefreshCw, Plus, Server, CheckCircle, Terminal, Network, LogOut } from 'lucide-react';
+import { RefreshCw, Plus, Server, CheckCircle, Terminal, Network, LogOut, Key } from 'lucide-react';
 import Login from './Login';
-import Register from './Register';
 import SetupWizard from './SetupWizard';
+import ChangePassword from './ChangePassword';
 
 function App() {
   const [systemStatus, setSystemStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   const [clients, setClients] = useState([]);
   const [newClientName, setNewClientName] = useState("");
@@ -25,7 +26,7 @@ function App() {
     }
   };
 
-  // 检查用户登录状态（仅在系统已初始化后检查）
+  // 检查用户登录状态
   const checkAuth = () => {
     const token = localStorage.getItem('token');
     if (token) {
@@ -36,22 +37,8 @@ function App() {
 
   useEffect(() => {
     checkSystemStatus();
+    checkAuth();
   }, []);
-
-  // 系统状态加载后，根据状态决定是否检查 token
-  useEffect(() => {
-    if (systemStatus) {
-      if (!systemStatus.initialized) {
-        // 系统未初始化，清除可能存在的旧 token
-        localStorage.removeItem('token');
-        delete api.defaults.headers.common['Authorization'];
-        setIsAuthenticated(false);
-      } else {
-        // 系统已初始化，检查登录状态
-        checkAuth();
-      }
-    }
-  }, [systemStatus]);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -97,15 +84,7 @@ function App() {
     );
   }
 
-  // 1. 系统未初始化 -> 强制注册页面（清除旧 token）
-  if (systemStatus && !systemStatus.initialized) {
-    return <Register onRegisterSuccess={() => {
-      setIsAuthenticated(true);
-      checkSystemStatus(); // 重新检查状态
-    }} />;
-  }
-
-  // 2. 系统已初始化但未登录 -> 登录页面
+  // 1. 未登录 -> 登录页面
   if (!isAuthenticated) {
     return <Login onLoginSuccess={() => {
       setIsAuthenticated(true);
@@ -144,6 +123,13 @@ function App() {
               >
                 <RefreshCw size={16} className={`text-slate-400 group-hover:text-indigo-500 transition-colors ${loading ? "animate-spin" : ""}`} />
                 刷新
+              </button>
+              <button
+                onClick={() => setShowChangePassword(true)}
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-amber-50 border border-amber-200 text-sm font-medium text-amber-600 hover:bg-amber-100 transition-all"
+                title="修改密码"
+              >
+                <Key size={16} />
               </button>
               <button
                 onClick={handleLogout}
@@ -224,6 +210,14 @@ function App() {
           )}
         </div>
       </main>
+
+      {/* 修改密码弹窗 */}
+      {showChangePassword && (
+        <ChangePassword
+          onClose={() => setShowChangePassword(false)}
+          onSuccess={() => setShowChangePassword(false)}
+        />
+      )}
     </div>
   );
 }
