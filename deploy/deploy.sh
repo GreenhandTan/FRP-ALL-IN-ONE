@@ -111,9 +111,9 @@ deploy_services() {
         exit 1
     fi
     
-    # 停止旧服务（如果存在）
-    echo "[STOP] 停止旧服务..."
-    docker-compose down 2>/dev/null || true
+    # 停止并清理旧服务（如果存在）
+    echo "[CLEAN] 清理旧容器和数据卷..."
+    docker-compose down -v --remove-orphans 2>/dev/null || true
     
     # 构建并启动服务
     echo "[BUILD] 构建并启动服务（可能需要几分钟）..."
@@ -131,12 +131,9 @@ show_info() {
     echo "=========================================="
     echo ""
     
-    # 获取公网 IP
-    public_ip=$(curl -s https://api.ipify.org || echo "未知")
-    
     echo "[访问地址]"
-    echo "   Web 管理界面: http://${public_ip}"
-    echo "   FRP 服务端口: ${public_ip}:7000"
+    echo "   Web 管理界面: http://Your Server IP"
+    echo "   FRP 服务端口: Your Server IP:7000"
     echo ""
     echo "[下一步]"
     echo "   1. 访问 Web 界面进行首次注册"
