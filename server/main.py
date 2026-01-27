@@ -216,33 +216,134 @@ async def generate_frpc_script(
             detail="FRPS 尚未部署，请先完成服务端配置"
         )
     
-    # 生成 Shell 脚本
-    script = f"""#!/bin/bash
+    # 生成 Shell 脚本（添加架构检测）
+    script = f'''#!/bin/bash
+# ============================================
 # FRP Client 自动部署脚本
-# 生成时间: $(date)
+# 服务端地址: {server_ip}:{port}
+# FRP 版本: {version}
+# ============================================
 
 set -e
 
-echo "开始部署 FRP Client..."
+# 颜色定义
+RED='\\033[0;31m'
+GREEN='\\033[0;32m'
+YELLOW='\\033[1;33m'
+NC='\\033[0m' # No Color
 
-# 1. 下载 FRP
+echo_info() {{ echo -e "${{GREEN}}[INFO]${{NC}} $1"; }}
+echo_warn() {{ echo -e "${{YELLOW}}[WARN]${{NC}} $1"; }}
+echo_error() {{ echo -e "${{RED}}[ERROR]${{NC}} $1"; }}
+
+# 检查 root 权限
+if [ "$EUID" -ne 0 ]; then
+    echo_error "请以 root 用户运行此脚本"
+    exit 1
+fi
+
+# 检测系统架构
+detect_arch() {{
+    local arch=$(uname -m)
+    case "$arch" in
+        x86_64|amd64)
+            echo "amd64"
+            ;;
+        aarch64|arm64)
+            echo "arm64"
+            ;;
+        armv7l|armv7)
+            echo "arm"
+            ;;
+        i386|i686)
+            echo "386"
+            ;;
+        mips)
+            echo "mips"
+            ;;
+        mipsle)
+            echo "mipsle"
+            ;;
+        *)
+            echo_error "不支持的架构: $arch"
+            exit 1
+            ;;
+    esac
+}}
+
+# 检测操作系统
+detect_os() {{
+    local os=$(uname -s | tr '[:upper:]' '[:lower:]')
+    case "$os" in
+        linux)
+            echo "linux"
+            ;;
+        darwin)
+            echo "darwin"
+            ;;
+        freebsd)
+            echo "freebsd"
+            ;;
+        *)
+            echo_error "不支持的操作系统: $os"
+            exit 1
+            ;;
+    esac
+}}
+
+echo_info "开始部署 FRP Client..."
+
+# 1. 检测系统
+OS=$(detect_os)
+ARCH=$(detect_arch)
+echo_info "检测到系统: $OS, 架构: $ARCH"
+
+# 2. 设置变量
 FRP_VERSION="{version}"
-DOWNLOAD_URL="https://github.com/fatedier/frp/releases/download/v${{FRP_VERSION}}/frp_${{FRP_VERSION}}_linux_amd64.tar.gz"
 INSTALL_DIR="/opt/frp"
+DOWNLOAD_URL="https://github.com/fatedier/frp/releases/download/v${{FRP_VERSION}}/frp_${{FRP_VERSION}}_${{OS}}_${{ARCH}}.tar.gz"
 
-echo "正在下载 FRP v${{FRP_VERSION}}..."
-wget -O /tmp/frp.tar.gz $DOWNLOAD_URL
+echo_info "下载地址: $DOWNLOAD_URL"
 
-# 2. 解压
-echo "正在解压..."
+# 3. 检查必要工具
+for cmd in wget tar; do
+    if ! command -v $cmd &> /dev/null; then
+        echo_error "缺少必要工具: $cmd"
+        echo "请先安装: apt install $cmd 或 yum install $cmd"
+        exit 1
+    fi
+done
+
+# 4. 下载 FRP
+echo_info "正在下载 FRP v${{FRP_VERSION}}..."
+wget -q --show-progress -O /tmp/frp.tar.gz "$DOWNLOAD_URL" || {{
+    echo_error "下载失败，请检查网络或手动下载"
+    exit 1
+}}
+
+# 5. 解压
+echo_info "正在解压..."
 mkdir -p $INSTALL_DIR
 tar -xzf /tmp/frp.tar.gz -C /tmp/
-cp -r /tmp/frp_${{FRP_VERSION}}_linux_amd64/* $INSTALL_DIR/
-rm -rf /tmp/frp.tar.gz /tmp/frp_${{FRP_VERSION}}_linux_amd64
+cp -r /tmp/frp_${{FRP_VERSION}}_${{OS}}_${{ARCH}}/* $INSTALL_DIR/
+rm -rf /tmp/frp.tar.gz /tmp/frp_${{FRP_VERSION}}_${{OS}}_${{ARCH}}
 
-# 3. 创建配置文件
-echo "正在创建配置文件..."
-cat > $INSTALL_DIR/frpc.toml << 'EOF'
+# 设置执行权限
+chmod +x $INSTALL_DIR/frpc
+
+# 验证二进制文件
+echo_info "验证 frpc 二进制文件..."
+if ! $INSTALL_DIR/frpc --version &> /dev/null; then
+    echo_error "frpc 二进制文件无法执行，可能是架构不匹配"
+    echo_error "当前系统架构: $ARCH"
+    file $INSTALL_DIR/frpc
+    exit 1
+fi
+echo_info "frpc 版本: $($INSTALL_DIR/frpc --version)"
+
+# 6. 创建配置文件
+echo_info "正在创建配置文件..."
+cat > $INSTALL_DIR/frpc.toml << 'FRPC_CONFIG'
 serverAddr = "{server_ip}"
 serverPort = {port}
 auth.token = "{auth_token}"
@@ -250,33 +351,70 @@ auth.token = "{auth_token}"
 # Admin API (用于热重载)
 webServer.addr = "127.0.0.1"
 webServer.port = 7400
-EOF
+FRPC_CONFIG
 
-# 4. 创建 systemd service
-echo "正在创建系统服务..."
-cat > /etc/systemd/system/frpc.service << 'EOF'
+# 7. 创建 systemd service
+echo_info "正在创建系统服务..."
+cat > /etc/systemd/system/frpc.service << 'SYSTEMD_SERVICE'
 [Unit]
-Description=FRP Client
-After=network.target
+Description=FRP Client Service
+Documentation=https://github.com/fatedier/frp
+After=network.target syslog.target
+Wants=network.target
 
 [Service]
 Type=simple
-ExecStart=$INSTALL_DIR/frpc -c $INSTALL_DIR/frpc.toml
+ExecStart=/opt/frp/frpc -c /opt/frp/frpc.toml
 Restart=always
 RestartSec=5
+StartLimitInterval=0
+LimitNOFILE=65536
 
 [Install]
 WantedBy=multi-user.target
-EOF
+SYSTEMD_SERVICE
 
-# 5. 启动服务
-echo "正在启动服务..."
+# 8. 启动服务
+echo_info "正在启动服务..."
 systemctl daemon-reload
 systemctl enable frpc
 systemctl start frpc
 
-echo "✅ FRP Client 部署完成！"
-echo "服务状态: systemctl status frpc"
-"""
+# 等待并检查服务状态
+sleep 2
+if systemctl is-active --quiet frpc; then
+    echo ""
+    echo_info "============================================"
+    echo_info "FRP Client 部署完成！"
+    echo_info "============================================"
+    echo ""
+    echo "  服务端地址: {server_ip}:{port}"
+    echo "  安装目录:   $INSTALL_DIR"
+    echo "  配置文件:   $INSTALL_DIR/frpc.toml"
+    echo ""
+    echo "  常用命令:"
+    echo "    查看状态:   systemctl status frpc"
+    echo "    查看日志:   journalctl -u frpc -f"
+    echo "    重启服务:   systemctl restart frpc"
+    echo "    停止服务:   systemctl stop frpc"
+    echo ""
+    echo_warn "============================================"
+    echo_warn "重要提示：安全组/防火墙配置"
+    echo_warn "============================================"
+    echo ""
+    echo "  后续在 frpc.toml 中配置的每个代理端口,"
+    echo "  都需要在云服务器安全组中开放对应端口！"
+    echo ""
+    echo "  例如: 配置 remote_port = 6022 代理 SSH,"
+    echo "        需在安全组开放 6022/TCP 入站规则"
+    echo ""
+else
+    echo_error "服务启动失败"
+    echo "请查看日志: journalctl -u frpc -n 50"
+    systemctl status frpc --no-pager
+    exit 1
+fi
+'''
     
     return {"script": script}
+
