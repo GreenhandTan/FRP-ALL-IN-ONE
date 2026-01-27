@@ -176,6 +176,193 @@ async def get_public_ip(current_user: models.Admin = Depends(get_current_user)):
     ip = frp_deploy.get_public_ip()
     return {"ip": ip, "success": ip != "未知"}
 
+# 获取 FRPS 实时状态（从 FRPS Dashboard API）
+@app.get("/api/frp/server-status")
+async def get_frps_status(
+    db: Session = Depends(get_db),
+    current_user: models.Admin = Depends(get_current_user)
+):
+    """
+    从 FRPS Dashboard API 获取实时状态
+    包括已连接的客户端和代理信息
+    """
+    import requests
+    
+    # 获取 Dashboard 密码
+    dashboard_pwd = crud.get_config(db, models.ConfigKeys.FRPS_DASHBOARD_PWD)
+    if not dashboard_pwd:
+        return {
+            "success": False,
+            "message": "FRPS 尚未配置，请先完成服务端部署",
+            "clients": [],
+            "proxies": []
+        }
+    
+    try:
+        # FRPS Dashboard API 地址
+        # 由于 FRPS 运行在 Host 模式，Backend 容器（Bridge 模式）需要通过 host.docker.internal 访问宿主机网络
+        base_url = "http://host.docker.internal:7500/api"
+        auth = ("admin", dashboard_pwd)
+        
+        # 获取服务器信息
+        server_info = {}
+        try:
+            resp = requests.get(f"{base_url}/serverinfo", auth=auth, timeout=5)
+            if resp.status_code == 200:
+                server_info = resp.json()
+        except:
+            pass
+        
+        # 获取代理列表（TCP）
+        tcp_proxies = []
+        try:
+            resp = requests.get(f"{base_url}/proxy/tcp", auth=auth, timeout=5)
+            if resp.status_code == 200:
+                data = resp.json()
+                tcp_proxies = data.get("proxies", []) or []
+        except:
+            pass
+        
+        # 获取代理列表（UDP）
+        udp_proxies = []
+        try:
+            resp = requests.get(f"{base_url}/proxy/udp", auth=auth, timeout=5)
+            if resp.status_code == 200:
+                data = resp.json()
+                udp_proxies = data.get("proxies", []) or []
+        except:
+            pass
+        
+        # 获取代理列表（HTTP）
+        http_proxies = []
+        try:
+            resp = requests.get(f"{base_url}/proxy/http", auth=auth, timeout=5)
+            if resp.status_code == 200:
+                data = resp.json()
+                http_proxies = data.get("proxies", []) or []
+        except:
+            pass
+        
+        # 合并所有代理
+        all_proxies = tcp_proxies + udp_proxies + http_proxies
+        
+        # 提取唯一的客户端名称
+        client_names = set()
+        for proxy in all_proxies:
+            # 代理名称格式通常是 "clientName.proxyName"
+            name = proxy.get("name", "")
+            if "." in name:
+                client_name = name.split(".")[0]
+                client_names.add(client_name)
+        
+        # 构建客户端列表
+        clients = []
+        for name in client_names:
+            # 获取该客户端的所有代理
+            client_proxies = [p for p in all_proxies if p.get("name", "").startswith(f"{name}.")]
+            clients.append({
+                "name": name,
+                "status": "online",
+                "proxy_count": len(client_proxies),
+                "proxies": client_proxies
+            })
+        
+        return {
+            "success": True,
+            "server_info": server_info,
+            "total_clients": len(clients),
+            "total_proxies": len(all_proxies),
+            "clients": clients,
+            "proxies": all_proxies
+        }
+        
+    except requests.exceptions.ConnectionError:
+        return {
+            "success": False,
+            "message": "无法连接到 FRPS Dashboard，请确认 FRPS 已启动",
+            "clients": [],
+            "proxies": []
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "message": str(e),
+            "clients": [],
+            "proxies": []
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "message": str(e),
+            "clients": [],
+            "proxies": []
+        }
+
+# 端口管理 API
+@app.get("/api/frp/disabled-ports")
+async def get_disabled_ports(
+    db: Session = Depends(get_db),
+    current_user: models.Admin = Depends(get_current_user)
+):
+    disabled_ports_str = crud.get_config(db, models.ConfigKeys.DISABLED_PORTS)
+    if disabled_ports_str:
+        return {"disabled_ports": [int(p) for p in disabled_ports_str.split(",") if p.strip()]}
+    return {"disabled_ports": []}
+
+@app.post("/api/frp/ports/disable")
+async def disable_port(
+    port: int,
+    db: Session = Depends(get_db),
+    current_user: models.Admin = Depends(get_current_user)
+):
+    # 1. 获取当前禁用列表
+    current_str = crud.get_config(db, models.ConfigKeys.DISABLED_PORTS) or ""
+    current_ports = [int(p) for p in current_str.split(",") if p.strip()]
+    
+    # 2. 添加新端口
+    if port not in current_ports:
+        current_ports.append(port)
+        crud.set_config(db, models.ConfigKeys.DISABLED_PORTS, ",".join(map(str, current_ports)))
+        
+        # 3. 重新生成配置并重启
+        # 获取现有配置
+        frps_port = int(crud.get_config(db, models.ConfigKeys.FRPS_PORT) or 7000)
+        auth_token = crud.get_config(db, models.ConfigKeys.FRPS_AUTH_TOKEN)
+        server_ip = crud.get_config(db, models.ConfigKeys.SERVER_PUBLIC_IP)
+        
+        import frp_deploy
+        frp_deploy.generate_frps_config(frps_port, auth_token, server_ip, current_ports)
+        
+        return {"success": True, "message": f"端口 {port} 已禁用，FRPS 已重启"}
+    
+    return {"success": True, "message": f"端口 {port} 已经是禁用状态"}
+
+@app.post("/api/frp/ports/enable")
+async def enable_port(
+    port: int,
+    db: Session = Depends(get_db),
+    current_user: models.Admin = Depends(get_current_user)
+):
+    # 1. 获取当前禁用列表
+    current_str = crud.get_config(db, models.ConfigKeys.DISABLED_PORTS) or ""
+    current_ports = [int(p) for p in current_str.split(",") if p.strip()]
+    
+    # 2. 移除端口
+    if port in current_ports:
+        current_ports.remove(port)
+        crud.set_config(db, models.ConfigKeys.DISABLED_PORTS, ",".join(map(str, current_ports)))
+        
+        # 3. 重新生成配置并重启
+        frps_port = int(crud.get_config(db, models.ConfigKeys.FRPS_PORT) or 7000)
+        auth_token = crud.get_config(db, models.ConfigKeys.FRPS_AUTH_TOKEN)
+        server_ip = crud.get_config(db, models.ConfigKeys.SERVER_PUBLIC_IP)
+        
+        import frp_deploy
+        frp_deploy.generate_frps_config(frps_port, auth_token, server_ip, current_ports)
+        
+        return {"success": True, "message": f"端口 {port} 已启用，FRPS 已重启"}
+    
+    return {"success": True, "message": f"端口 {port} 未被禁用"}
 # FRPS 配置生成接口
 @app.post("/api/frp/deploy-server")
 async def deploy_frp_server(
@@ -206,6 +393,7 @@ async def deploy_frp_server(
         crud.set_config(db, models.ConfigKeys.FRPS_PORT, str(info["port"]))
         crud.set_config(db, models.ConfigKeys.FRPS_AUTH_TOKEN, info["auth_token"])
         crud.set_config(db, models.ConfigKeys.SERVER_PUBLIC_IP, info["public_ip"])
+        crud.set_config(db, models.ConfigKeys.FRPS_DASHBOARD_PWD, info["dashboard_pwd"])
     
     return result
 

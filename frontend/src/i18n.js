@@ -174,27 +174,31 @@ const translations = {
 
         // Setup Wizard
         setup: {
-            title: 'FRPS Server Configuration',
-            subtitle: 'System will generate FRPS config and start the service (Docker container)',
-            versionHint: 'System will automatically use the latest FRP version for deployment.',
-            tokenHint: 'Auth Token will be auto-generated and shown after deployment.',
-            portLabel: 'Listen Port',
-            serverIpLabel: 'Public IP',
-            serverIpHint: 'Leave empty for auto-detection. Enter manually if detection fails.',
+            title: 'FRP Server Deployment',
+            welcome: 'Welcome to FRP Manager',
+            subtitle: 'Deploy your FRP server in minutes',
+
+            // Steps
+            step1: 'Configure',
+            step2: 'Deploy',
+            step3: 'Client Script',
+
+            // Form
+            port: 'FRP Server Port',
+            portHint: 'Default is 7000',
+            publicIP: 'Server Public IP',
+            publicIPHint: 'Leave empty to auto-detect',
             autoDetected: 'Auto-detected',
-            detectingIp: 'Detecting public IP',
+            detectingIp: 'Detecting public IP...',
             ipDetectFailed: 'Cannot auto-detect public IP, please enter manually',
-            pleaseEnterIp: 'Please enter your server public IP address',
+            pleaseEnterIp: 'Please enter public IP',
             serverIpRequired: 'Public IP is required',
-            optional: 'Optional',
-            deployButton: 'Start Deployment',
+
+            deployButton: 'Deploy FRP Server',
             deploying: 'Deploying...',
 
-            // Success
-            successTitle: 'FRPS Deployed Successfully!',
-            version: 'Version',
-            port: 'Port',
-            publicIP: 'Public IP',
+            successTitle: 'Deployment Successful!',
+            version: 'FRPS Version',
             authToken: 'Auth Token (Auto-generated)',
             copied: 'Token copied to clipboard',
             generatingScript: 'Generating client deployment script...',
@@ -223,13 +227,15 @@ const translations = {
                 onlineClients: 'Online Clients',
                 totalTunnels: 'Total Tunnels',
                 activeTunnels: 'Active Tunnels',
+                totalTraffic: 'Total Traffic',
+                connections: 'Connections',
             },
 
             // Quick Actions
             quickActions: {
                 title: 'Quick Actions',
                 addClient: 'Add Client',
-                addClientPlaceholder: 'Enter client name',
+                addClientPlaceholder: 'Enter Client Name',
                 adding: 'Adding...',
                 submit: 'Add',
             },
@@ -237,11 +243,14 @@ const translations = {
             // Clients
             clients: {
                 title: 'Client List',
-                empty: 'No clients yet, please add one',
+                empty: 'No clients connected',
                 token: 'Token',
                 tunnels: 'Tunnels',
                 online: 'Online',
                 offline: 'Offline',
+                connections: 'Conns',
+                trafficIn: 'Traffic In',
+                trafficOut: 'Traffic Out',
                 showToken: 'Show Token',
                 hideToken: 'Hide Token',
                 copyToken: 'Copy Token',
@@ -258,8 +267,13 @@ const translations = {
                 localPort: 'Local Port',
                 remotePort: 'Remote Port',
                 status: 'Status',
-                active: 'Running',
-                inactive: 'Stopped',
+                active: 'Active',
+                inactive: 'Inactive',
+                actions: 'Actions',
+                disable: 'Disable',
+                enable: 'Enable',
+                disabling: 'Disabling...',
+                enabling: 'Enabling...',
             },
         },
 

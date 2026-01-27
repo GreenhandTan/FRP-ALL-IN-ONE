@@ -41,6 +41,8 @@ class ConfigKeys:
     FRPS_PORT = "frps_port"            # FRPS 端口
     FRPS_AUTH_TOKEN = "frps_auth_token"  # FRPS 认证 Token
     SERVER_PUBLIC_IP = "server_public_ip"  # 服务器公网 IP
+    FRPS_DASHBOARD_PWD = "frps_dashboard_pwd"  # FRPS Dashboard API 密码
+    DISABLED_PORTS = "disabled_ports"  # 禁用的端口列表，逗号分隔，如 "6001,6005"
 
 class Tunnel(Base):
     __tablename__ = "tunnels"

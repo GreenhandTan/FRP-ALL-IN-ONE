@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { getClients, createClient, createTunnel, api } from './api';
-import { RefreshCw, Plus, Server, CheckCircle, Terminal, LogOut, Key, Globe } from 'lucide-react';
+import { api } from './api';
+import { RefreshCw, Server, CheckCircle, Terminal, LogOut, Key, Globe, Activity, ArrowDown, ArrowUp, Power, Wifi } from 'lucide-react';
 import Login from './Login';
 import SetupWizard from './SetupWizard';
 import ChangePassword from './ChangePassword';
@@ -13,8 +13,27 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
 
+  // 新的数据结构
+  const [serverInfo, setServerInfo] = useState({});
   const [clients, setClients] = useState([]);
-  const [newClientName, setNewClientName] = useState("");
+  const [stats, setStats] = useState({
+    totalClients: 0,
+    totalProxies: 0,
+    totalTrafficIn: 0,
+    totalTrafficOut: 0,
+    totalConns: 0
+  });
+  const [disabledPorts, setDisabledPorts] = useState([]);
+
+  // 格式化流量
+  const formatBytes = (bytes, decimals = 2) => {
+    if (!+bytes) return '0 B';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+  };
 
   // 检查系统状态
   const checkSystemStatus = async () => {
@@ -49,14 +68,40 @@ function App() {
     setClients([]);
   };
 
-  const loadClients = async () => {
+  // 加载数据：服务器状态 + 禁用端口列表
+  const loadData = async () => {
     if (!localStorage.getItem('token')) return;
     setLoading(true);
     try {
-      const data = await getClients();
-      setClients(data);
+      // 并行请求
+      const [statusRes, disabledRes] = await Promise.all([
+        api.get('/api/frp/server-status'),
+        api.get('/api/frp/disabled-ports')
+      ]);
+
+      if (statusRes.data.success) {
+        setServerInfo(statusRes.data.server_info);
+        setClients(statusRes.data.clients);
+
+        // 计算汇总数据
+        const proxies = statusRes.data.proxies || [];
+        const totalTrafficIn = proxies.reduce((acc, p) => acc + (p.today_traffic_in || 0), 0);
+        const totalTrafficOut = proxies.reduce((acc, p) => acc + (p.today_traffic_out || 0), 0);
+        const totalConns = proxies.reduce((acc, p) => acc + (p.cur_conns || 0), 0);
+
+        setStats({
+          totalClients: statusRes.data.total_clients,
+          totalProxies: statusRes.data.total_proxies,
+          totalTrafficIn,
+          totalTrafficOut,
+          totalConns
+        });
+      }
+
+      setDisabledPorts(disabledRes.data.disabled_ports || []);
+
     } catch (error) {
-      console.error("Failed to load clients", error);
+      console.error("Failed to load data", error);
       if (error.response && error.response.status === 401) {
         handleLogout();
       }
@@ -65,15 +110,37 @@ function App() {
     }
   };
 
-  const handleCreateClient = async (e) => {
-    e.preventDefault();
-    if (!newClientName) return;
+  // 自动刷新 (可选，这里先只支持手动刷新)
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadData();
+    }
+  }, [isAuthenticated]);
+
+  // 启用/禁用端口
+  const handleTogglePort = async (port, enable) => {
+    if (!port) return;
+    const confirmMsg = enable
+      ? t('dashboard.tunnels.enabling')
+      : t('dashboard.tunnels.disabling'); // "正在启用/禁用，FRP将会重启..."
+
+    // 简单的确认 (实际应该用 Modal)
+    if (!window.confirm(`${enable ? 'Enable' : 'Disable'} port ${port}? FRPS will restart.`)) return;
+
     try {
-      await createClient(newClientName);
-      setNewClientName("");
-      loadClients();
+      setLoading(true);
+      const endpoint = enable ? '/api/frp/ports/enable' : '/api/frp/ports/disable';
+      const response = await api.post(endpoint, null, { params: { port } });
+
+      if (response.data.success) {
+        await loadData(); // 重新加载数据
+      } else {
+        alert(response.data.message);
+      }
     } catch (error) {
-      console.error("Failed to create client", error);
+      alert(error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -98,13 +165,13 @@ function App() {
   if (systemStatus && !systemStatus.frps_deployed) {
     return <SetupWizard onSetupComplete={() => {
       checkSystemStatus();
-      loadClients();
+      loadData();
     }} />;
   }
 
   // 3. 正常进入管理面板
   return (
-    <div className="min-h-screen bg-emerald-50 text-slate-900 font-sans selection:bg-emerald-100 selection:text-emerald-700">
+    <div className="min-h-screen bg-emerald-50 text-slate-900 font-sans">
       {/* Navbar */}
       <nav className="bg-white border-b border-emerald-100 sticky top-0 z-50 backdrop-blur-md bg-white/80">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -118,32 +185,30 @@ function App() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              {/* 语言切换按钮 */}
               <button
                 onClick={toggleLanguage}
-                className="flex items-center gap-2 px-4 py-2 bg-white text-slate-600 border border-slate-200 rounded-full text-sm font-medium hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-600 transition-all duration-200 shadow-sm"
-                title={language === 'zh' ? 'Switch to English' : '切换到中文'}
+                className="flex items-center gap-2 px-4 py-2 bg-white text-slate-600 border border-slate-200 rounded-full text-sm font-medium hover:bg-slate-50 transition-all shadow-sm"
               >
                 <Globe size={16} />
                 {t(`language.${language === 'zh' ? 'en' : 'zh'}`)}
               </button>
               <button
-                onClick={loadClients}
-                className="group flex items-center gap-2 px-4 py-2 bg-white text-slate-600 border border-slate-200 rounded-full text-sm font-medium hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-600 transition-all duration-200 shadow-sm"
+                onClick={loadData}
+                className="group flex items-center gap-2 px-4 py-2 bg-white text-slate-600 border border-slate-200 rounded-full text-sm font-medium hover:bg-slate-50 hover:text-emerald-600 transition-all shadow-sm"
               >
                 <RefreshCw size={16} className={`text-slate-400 group-hover:text-emerald-500 transition-colors ${loading ? "animate-spin" : ""}`} />
                 {t('refresh')}
               </button>
               <button
                 onClick={() => setShowChangePassword(true)}
-                className="flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-50 border border-emerald-200 text-sm font-medium text-emerald-600 hover:bg-emerald-100 transition-all"
+                className="p-2 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-600 hover:bg-emerald-100 transition-all"
                 title={t('changePassword.title')}
               >
                 <Key size={16} />
               </button>
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-2 px-4 py-2 rounded-full bg-red-50 border border-red-200 text-sm font-medium text-red-600 hover:bg-red-100 transition-all"
+                className="p-2 rounded-full bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 transition-all"
                 title={t('logout')}
               >
                 <LogOut size={16} />
@@ -155,65 +220,63 @@ function App() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         {/* Stats Section */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <StatCard
             title={t('dashboard.stats.totalClients')}
-            value={clients.length}
+            value={stats.totalClients}
             icon={<Server className="text-white" />}
             gradient="from-emerald-500 to-teal-600"
+            subtext={`${stats.totalProxies} proxies`}
           />
           <StatCard
-            title={t('dashboard.stats.activeTunnels')}
-            value={clients.reduce((acc, c) => acc + c.tunnels.length, 0)}
-            icon={<Terminal className="text-white" />}
-            gradient="from-teal-500 to-cyan-600"
+            title={t('dashboard.stats.connections')}
+            value={stats.totalConns}
+            icon={<Wifi className="text-white" />}
+            gradient="from-blue-500 to-indigo-600"
           />
           <StatCard
-            title={t('dashboard.stats.onlineClients')}
-            value={clients.filter(c => c.status === 'online').length}
-            icon={<CheckCircle className="text-white" />}
-            gradient="from-green-500 to-emerald-600"
+            title={t('dashboard.stats.totalTraffic') + " (In)"}
+            value={formatBytes(stats.totalTrafficIn)}
+            icon={<ArrowDown className="text-white" />}
+            gradient="from-orange-500 to-amber-600"
           />
-        </div>
-
-        {/* Quick Actions & Search */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-emerald-100 flex flex-col md:flex-row gap-6 items-center justify-between">
-          <div className="flex-1 w-full">
-            <h2 className="text-lg font-semibold text-slate-800 mb-1">{t('dashboard.quickActions.title')}</h2>
-            <p className="text-slate-500 text-sm">{t('dashboard.quickActions.addClient')}</p>
-          </div>
-          <form onSubmit={handleCreateClient} className="flex gap-3 w-full md:w-auto">
-            <input
-              type="text"
-              placeholder={t('dashboard.quickActions.addClientPlaceholder')}
-              value={newClientName}
-              onChange={(e) => setNewClientName(e.target.value)}
-              className="flex-1 md:w-64 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder:text-slate-400"
-            />
-            <button
-              type="submit"
-              className="px-5 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-xl hover:bg-emerald-700 hover:shadow-lg hover:shadow-emerald-200 transition-all flex items-center gap-2 active:scale-95"
-            >
-              <Plus size={18} />
-              {t('dashboard.quickActions.submit')}
-            </button>
-          </form>
+          <StatCard
+            title={t('dashboard.stats.totalTraffic') + " (Out)"}
+            value={formatBytes(stats.totalTrafficOut)}
+            icon={<ArrowUp className="text-white" />}
+            gradient="from-pink-500 to-rose-600"
+          />
         </div>
 
         {/* Clients Grid */}
         <div className="space-y-6">
-          <h2 className="text-lg font-semibold text-slate-800">{t('dashboard.clients.title')}</h2>
-          {clients.map(client => (
-            <ClientCard key={client.id} client={client} onRefresh={loadClients} t={t} />
-          ))}
-
-          {clients.length === 0 && !loading && (
-            <div className="flex flex-col items-center justify-center py-16 bg-white rounded-2xl border border-dashed border-emerald-300">
-              <div className="p-4 bg-emerald-50 rounded-full mb-4">
-                <Server size={32} className="text-emerald-300" />
-              </div>
-              <h3 className="text-slate-900 font-medium">{t('dashboard.clients.empty')}</h3>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-slate-800">{t('dashboard.clients.title')}</h2>
+            <div className="text-xs text-slate-500">
+              Auto-refreshing enabled
             </div>
+          </div>
+
+          {clients.length > 0 ? (
+            clients.map(client => (
+              <ClientCard
+                key={client.name}
+                client={client}
+                disabledPorts={disabledPorts}
+                onTogglePort={handleTogglePort}
+                formatBytes={formatBytes}
+                t={t}
+              />
+            ))
+          ) : (
+            !loading && (
+              <div className="flex flex-col items-center justify-center py-16 bg-white rounded-2xl border border-dashed border-emerald-300">
+                <div className="p-4 bg-emerald-50 rounded-full mb-4">
+                  <Server size={32} className="text-emerald-300" />
+                </div>
+                <h3 className="text-slate-900 font-medium">{t('dashboard.clients.empty')}</h3>
+              </div>
+            )
           )}
         </div>
       </main>
@@ -229,7 +292,7 @@ function App() {
   );
 }
 
-function StatCard({ title, value, icon, gradient }) {
+function StatCard({ title, value, icon, gradient, subtext }) {
   return (
     <div className="bg-white p-6 rounded-2xl shadow-sm border border-emerald-100 relative overflow-hidden group hover:shadow-md transition-shadow">
       <div className={`absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity bg-gradient-to-br ${gradient} rounded-bl-3xl`}>
@@ -243,6 +306,7 @@ function StatCard({ title, value, icon, gradient }) {
           <p className="text-sm text-slate-500 font-medium mb-0.5">{title}</p>
           <div className="flex items-baseline gap-2">
             <p className="text-2xl font-extrabold text-slate-800 tracking-tight">{value}</p>
+            {subtext && <span className="text-xs text-slate-400 font-normal">{subtext}</span>}
           </div>
         </div>
       </div>
@@ -250,27 +314,11 @@ function StatCard({ title, value, icon, gradient }) {
   )
 }
 
-function ClientCard({ client, onRefresh, t }) {
-  const [showAddTunnel, setShowAddTunnel] = useState(false);
-  const [tunnelForm, setTunnelForm] = useState({
-    name: "", type: "tcp", local_ip: "127.0.0.1", local_port: "", remote_port: ""
-  });
-
-  const handleAddTunnel = async (e) => {
-    e.preventDefault();
-    try {
-      await createTunnel(client.id, {
-        ...tunnelForm,
-        local_port: parseInt(tunnelForm.local_port),
-        remote_port: tunnelForm.remote_port ? parseInt(tunnelForm.remote_port) : null
-      });
-      setShowAddTunnel(false);
-      setTunnelForm({ name: "", type: "tcp", local_ip: "127.0.0.1", local_port: "", remote_port: "" });
-      onRefresh();
-    } catch (e) {
-      alert(t('dashboard.tunnels.addFailed') + ": " + e.message);
-    }
-  };
+function ClientCard({ client, disabledPorts, onTogglePort, formatBytes, t }) {
+  // 计算此时的总流量
+  const totalIn = client.proxies.reduce((a, b) => a + (b.today_traffic_in || 0), 0);
+  const totalOut = client.proxies.reduce((a, b) => a + (b.today_traffic_out || 0), 0);
+  const totalConns = client.proxies.reduce((a, b) => a + (b.cur_conns || 0), 0);
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-emerald-100 overflow-hidden hover:shadow-md transition-shadow duration-300">
@@ -285,114 +333,99 @@ function ClientCard({ client, onRefresh, t }) {
           <div>
             <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
               {client.name}
-              <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-mono border border-emerald-200">
-                {client.id.slice(0, 8)}
-              </span>
             </h3>
-            <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
+            <div className="flex items-center gap-4 text-xs text-slate-500 mt-1">
               <span className="flex items-center gap-1">
                 <div className={`w-1.5 h-1.5 rounded-full ${client.status === 'online' ? 'bg-emerald-500' : 'bg-slate-300'}`} />
                 {client.status === 'online' ? t('dashboard.clients.online') : t('dashboard.clients.offline')}
               </span>
+              <span className="flex items-center gap-1 font-mono">
+                <Activity size={12} />
+                {totalConns} {t('dashboard.clients.connections')}
+              </span>
             </div>
           </div>
         </div>
 
-        <button
-          onClick={() => setShowAddTunnel(!showAddTunnel)}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${showAddTunnel ? 'bg-slate-200 text-slate-800' : 'bg-white border border-emerald-200 text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50'}`}
-        >
-          <Plus size={16} />
-          {showAddTunnel ? t('cancel') : t('dashboard.clients.addTunnel')}
-        </button>
+        {/* Client Stats */}
+        <div className="flex items-center gap-6">
+          <div className="text-right">
+            <div className="text-xs text-slate-400 flex items-center justify-end gap-1"><ArrowDown size={10} /> {t('dashboard.clients.trafficIn')}</div>
+            <div className="font-mono text-sm font-medium text-slate-700">{formatBytes(totalIn)}</div>
+          </div>
+          <div className="text-right">
+            <div className="text-xs text-slate-400 flex items-center justify-end gap-1"><ArrowUp size={10} /> {t('dashboard.clients.trafficOut')}</div>
+            <div className="font-mono text-sm font-medium text-slate-700">{formatBytes(totalOut)}</div>
+          </div>
+        </div>
       </div>
 
-      {showAddTunnel && (
-        <div className="p-6 bg-emerald-50/50 border-b border-emerald-100 animate-in slide-in-from-top-2 duration-200">
-          <h4 className="text-sm font-semibold text-slate-900 mb-4">{t('dashboard.clients.addTunnel')}</h4>
-          <form onSubmit={handleAddTunnel} className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-            <div className="md:col-span-3">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">{t('dashboard.tunnels.name')}</label>
-              <input required className="w-full text-sm border-slate-200 rounded-lg p-2.5 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-mono" placeholder="web-server"
-                value={tunnelForm.name} onChange={e => setTunnelForm({ ...tunnelForm, name: e.target.value })} />
-            </div>
-            <div className="md:col-span-2">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">{t('dashboard.tunnels.type')}</label>
-              <select className="w-full text-sm border-slate-200 rounded-lg p-2.5 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all bg-white"
-                value={tunnelForm.type} onChange={e => setTunnelForm({ ...tunnelForm, type: e.target.value })}>
-                <option value="tcp">TCP</option>
-                <option value="udp">UDP</option>
-                <option value="http">HTTP</option>
-              </select>
-            </div>
-            <div className="md:col-span-2">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">Local IP</label>
-              <input className="w-full text-sm border-slate-200 rounded-lg p-2.5 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-mono" placeholder="127.0.0.1"
-                value={tunnelForm.local_ip} onChange={e => setTunnelForm({ ...tunnelForm, local_ip: e.target.value })} />
-            </div>
-            <div className="md:col-span-2">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">{t('dashboard.tunnels.localPort')}</label>
-              <input required type="number" className="w-full text-sm border-slate-200 rounded-lg p-2.5 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-mono" placeholder="8080"
-                value={tunnelForm.local_port} onChange={e => setTunnelForm({ ...tunnelForm, local_port: e.target.value })} />
-            </div>
-            <div className="md:col-span-2">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">{t('dashboard.tunnels.remotePort')}</label>
-              <input type="number" className="w-full text-sm border-slate-200 rounded-lg p-2.5 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-mono" placeholder="Auto"
-                value={tunnelForm.remote_port} onChange={e => setTunnelForm({ ...tunnelForm, remote_port: e.target.value })} />
-            </div>
-            <div className="md:col-span-1">
-              <button type="submit" className="w-full bg-emerald-600 text-white text-sm py-2.5 rounded-lg hover:bg-emerald-700 font-medium transition-colors shadow-sm shadow-emerald-200">
-                {t('confirm')}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
       <div className="p-0">
-        {client.tunnels.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-emerald-50/50 border-b border-emerald-100 text-slate-500 uppercase tracking-wider text-xs font-semibold">
-                <tr>
-                  <th className="px-6 py-3">{t('dashboard.tunnels.name')}</th>
-                  <th className="px-6 py-3">{t('dashboard.tunnels.type')}</th>
-                  <th className="px-6 py-3">{t('dashboard.tunnels.localPort')}</th>
-                  <th className="px-6 py-3">{t('dashboard.tunnels.remotePort')}</th>
-                  <th className="px-6 py-3 text-right">{t('dashboard.tunnels.status')}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-emerald-50">
-                {client.tunnels.map(tunnel => (
-                  <tr key={tunnel.id} className="group hover:bg-emerald-50/50 transition-colors">
-                    <td className="px-6 py-4 font-medium text-slate-900">{tunnel.name}</td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-emerald-50/50 border-b border-emerald-100 text-slate-500 uppercase tracking-wider text-xs font-semibold">
+              <tr>
+                <th className="px-6 py-3">{t('dashboard.tunnels.name')}</th>
+                <th className="px-6 py-3">{t('dashboard.tunnels.type')}</th>
+                <th className="px-6 py-3">{t('dashboard.tunnels.remotePort')}</th>
+                <th className="px-6 py-3 text-right">{t('dashboard.stats.totalTraffic')}</th>
+                <th className="px-6 py-3 text-right">{t('dashboard.stats.connections')}</th>
+                <th className="px-6 py-3 text-right">{t('dashboard.tunnels.actions')}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-emerald-50">
+              {client.proxies.map(proxy => {
+                const remotePort = proxy.conf?.remote_port || 0;
+                const isDisabled = disabledPorts.includes(remotePort);
+                const isTcpOrUdp = proxy.type === 'tcp' || proxy.type === 'udp';
+
+                return (
+                  <tr key={proxy.name} className={`group hover:bg-emerald-50/50 transition-colors ${isDisabled ? 'opacity-50 grayscale' : ''}`}>
+                    <td className="px-6 py-4 font-medium text-slate-900">{proxy.name}</td>
                     <td className="px-6 py-4">
                       <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-emerald-100 text-emerald-700 uppercase">
-                        {tunnel.type}
+                        {proxy.type}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-slate-600 font-mono text-xs">
-                      {tunnel.local_ip}:{tunnel.local_port}
-                    </td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-2 text-emerald-700 font-mono text-xs font-medium bg-emerald-50 px-2 py-1 rounded w-fit">
-                        <span>:{tunnel.remote_port}</span>
+                      {remotePort ? (
+                        <div className="flex items-center gap-2 text-emerald-700 font-mono text-xs font-medium bg-emerald-50 px-2 py-1 rounded w-fit">
+                          <span>:{remotePort}</span>
+                        </div>
+                      ) : (
+                        <span className="text-slate-400">-</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-right font-mono text-xs text-slate-600">
+                      <div className="flex flex-col items-end">
+                        <span className="flex items-center gap-1"><ArrowDown size={10} /> {formatBytes(proxy.today_traffic_in)}</span>
+                        <span className="flex items-center gap-1"><ArrowUp size={10} /> {formatBytes(proxy.today_traffic_out)}</span>
                       </div>
                     </td>
+                    <td className="px-6 py-4 text-right font-mono text-xs">
+                      {proxy.cur_conns}
+                    </td>
                     <td className="px-6 py-4 text-right">
-                      <span className="text-emerald-600 font-medium text-xs">{t('dashboard.tunnels.active')}</span>
+                      {isTcpOrUdp && remotePort > 0 ? (
+                        <button
+                          onClick={() => onTogglePort(remotePort, isDisabled)}
+                          className={`text-xs px-3 py-1 rounded-full font-medium transition-all ${isDisabled
+                              ? 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200'
+                              : 'bg-red-50 text-red-500 hover:bg-red-100'
+                            }`}
+                        >
+                          {isDisabled ? t('dashboard.tunnels.enable') : t('dashboard.tunnels.disable')}
+                        </button>
+                      ) : (
+                        <span className="text-slate-300 text-xs">-</span>
+                      )}
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center py-10 text-slate-400">
-            <Terminal size={32} className="mb-2 opacity-20" />
-            <p className="text-sm">{t('dashboard.clients.empty')}</p>
-          </div>
-        )}
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

@@ -40,23 +40,74 @@ def get_public_ip() -> str:
     except:
         return "未知"
 
-def generate_frps_config(port: int = 7000, auth_token: str = None, server_ip: str = None) -> Dict:
+def generate_frps_config(port: int = 7000, auth_token: str = None, server_ip: str = None, disabled_ports: list = None) -> Dict:
     """
     生成 FRPS 配置文件
-    不再下载安装 FRPS，而是直接生成配置文件供 Docker 容器使用
     
     Args:
         port: FRPS 监听端口
-        auth_token: 认证 Token，为空则自动生成
-        server_ip: 公网 IP，为空则自动检测
+        auth_token: 认证 Token
+        server_ip: 公网 IP
+        disabled_ports: 禁用的端口列表，例如 [6001, 6005]
     """
     if not auth_token:
         auth_token = secrets.token_hex(16)
     
+    # 生成 Dashboard 密码（用于 FRPS Admin API）
+    dashboard_pwd = secrets.token_hex(8)
+    
+    # 计算 allowPorts
+    # 默认允许所有端口 (1-65535)
+    # 只有当存在禁用端口时，才生成 allowPorts 配置来排除它们
+    allow_ports_config = ""
+    
+    if disabled_ports:
+        # 全端口范围
+        total_start = 1
+        total_end = 65535
+        
+        allowed_ranges = []
+        current_start = total_start
+        
+        # 排序并去重
+        sorted_disabled = sorted(list(set([int(p) for p in disabled_ports if total_start <= int(p) <= total_end])))
+        
+        for p in sorted_disabled:
+            if p > current_start:
+                if p - 1 == current_start:
+                    allowed_ranges.append(str(current_start))
+                else:
+                    allowed_ranges.append(f"{current_start}-{p-1}")
+            current_start = p + 1
+            
+        if current_start <= total_end:
+            if current_start == total_end:
+                allowed_ranges.append(str(current_start))
+            else:
+                allowed_ranges.append(f"{current_start}-{total_end}")
+        
+        # 如果排除了所有端口（极端情况），allowed_ranges 为空，这将导致 allowPorts = []，即拒绝所有
+        if allowed_ranges:
+            allow_ports_config = f'allowPorts = [{", ".join([f"{r}" for r in allowed_ranges])}]'
+        else:
+            allow_ports_config = 'allowPorts = []' # 禁用所有端口
+    else:
+        # 没有任何禁用端口，不生成 allowPorts 配置，默认允许所有
+        pass
+
     try:
-        # 生成配置内容
+        # 生成配置内容（包含 Dashboard API 配置）
         config_content = f"""bindPort = {port}
 auth.token = "{auth_token}"
+
+# Dashboard API (用于管理后台获取客户端状态)
+webServer.addr = "0.0.0.0"
+webServer.port = 7500
+webServer.user = "admin"
+webServer.password = "{dashboard_pwd}"
+
+# 端口访问控制
+{allow_ports_config}
 
 # 由 FRP Manager 自动生成
 # 修改后需要重启 FRPS 容器: docker-compose restart frps
@@ -119,7 +170,8 @@ auth.token = "{auth_token}"
                 "version": frp_version,  # 从 GitHub API 获取的真实版本号
                 "port": port,
                 "auth_token": auth_token,
-                "public_ip": public_ip
+                "public_ip": public_ip,
+                "dashboard_pwd": dashboard_pwd  # Dashboard API 密码
             }
         }
     except Exception as e:

@@ -7,6 +7,8 @@ services:
     container_name: frp-manager-backend
     restart: always
     user: root  # 需要 root 权限创建文件和启动进程
+    extra_hosts:
+      - "host.docker.internal:host-gateway" # 允许容器访问宿主机网络 (用于连接 host 模式的 FRPS)
     volumes:
       - frp-data:/opt/frp       # FRP 文件持久化
       - ./frps.toml:/app/frps.toml  # FRPS 配置文件（可读写）
@@ -28,11 +30,10 @@ services:
     image: docker.1ms.run/snowdreamtech/frps:latest
     container_name: frps
     restart: always
+    network_mode: "host" # 🔥 只有 host 模式才能高性能且无限制地使用所有宿主机端口
     volumes:
       - ./frps.toml:/etc/frp/frps.toml
-    ports:
-      - "7000:7000"          # FRP 通信端口
-      - "6000-6010:6000-6010" # 开放给客户端使用的端口范围 (按需调整)
+    # host 模式下 ports 映射无效，所有端口直接监听在宿主机
 
 # 命名卷，确保重启后数据不丢失
 volumes:

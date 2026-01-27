@@ -170,11 +170,11 @@ sudo ./uninstall-frpc.sh
 |------|------|------|
 | 80 | TCP | Web 管理界面 |
 | 7000 | TCP | FRP 服务端口（客户端连接） |
-| 6000-6010 | TCP | FRP 代理端口范围（按需调整） |
+| 任意 | TCP/UDP | **Host 模式已开启**：FRP 可使用服务器所有空闲端口，请根据实际使用的端口开放安全组 |
 
 **注意**：后续通过 FRP 开放的任何端口，都需要在安全组中添加对应规则！
 
-例如：配置 SSH 代理到公网 6022 端口，需要在安全组开放 `6022/TCP`。
+例如：配置 SSH 代理到公网 6022 端口，就需要确保云服务器安全组已开放 `6022/TCP`。
 
 ## 📁 项目结构
 
@@ -239,9 +239,30 @@ chmod +x uninstall-frpc.sh
 sudo ./uninstall-frpc.sh
 ```
 
-### Q: 如何修改 FRP 代理端口范围？
+### Q: macOS/Windows 本地测试连接失败？
 
-编辑 `deploy/docker-compose.yml`:
+由于 Docker 桌面版的实现原理（运行在虚拟机中），Host 模式下的端口可能不会自动转发到本机 `localhost`。
+
+**解决方法**：
+如果您是在本地 Mac/Windows 上测试且发现 FRPC 连接不上，请修改 `deploy/docker-compose.yml`，注释掉 Host 模式并恢复端口映射：
+
+```yaml
+  frps:
+    # network_mode: "host"  # 注释掉这行
+    ports:
+      - "7000:7000"
+      - "7500:7500"
+      - "6000-7000:6000-7000" # 重新启用端口映射
+```
+
+然后重新部署：
+```bash
+docker-compose up -d --build
+```
+
+### Q: 如何修改 FRP 代理端口范围（非 Host 模式）？
+
+如果您未使用默认推荐的 Host 模式，而是使用端口映射模式，可以编辑 `deploy/docker-compose.yml`:
 
 ```yaml
 frps:
