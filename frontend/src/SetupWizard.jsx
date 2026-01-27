@@ -86,7 +86,7 @@ export default function SetupWizard({ onSetupComplete }) {
                         <div className="space-y-5">
                             <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
                                 <p className="text-sm text-blue-200">
-                                    🚀 系统将自动使用 <strong>FRP 推荐版本 (0.61.1)</strong> 进行部署。
+                                    🚀 系统将自动使用 <strong>FRP 最新版本</strong> 进行部署。
                                 </p>
                             </div>
 

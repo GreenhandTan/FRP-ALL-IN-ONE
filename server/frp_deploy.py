@@ -11,8 +11,26 @@ FRPS_CONFIG_PATH = "/app/frps.toml"
 # Docker Compose 项目根目录
 DOCKER_COMPOSE_DIR = "/app"
 
-# 默认 FRP 版本（用于 FRPC 脚本生成）
+# 默认 FRP 版本（备用，当无法获取最新版本时使用）
 DEFAULT_FRP_VERSION = "0.61.1"
+
+def get_latest_frp_version() -> str:
+    """从 GitHub API 获取 FRP 最新发布版本号"""
+    try:
+        response = requests.get(
+            'https://api.github.com/repos/fatedier/frp/releases/latest',
+            timeout=10,
+            headers={'Accept': 'application/vnd.github.v3+json'}
+        )
+        if response.status_code == 200:
+            tag_name = response.json().get('tag_name', '')
+            # tag_name 格式为 "v0.61.1"，去掉 "v" 前缀
+            if tag_name.startswith('v'):
+                return tag_name[1:]
+            return tag_name
+    except Exception as e:
+        print(f"获取 FRP 最新版本失败: {e}")
+    return DEFAULT_FRP_VERSION
 
 def get_public_ip() -> str:
     """获取服务器公网 IP"""
@@ -64,11 +82,14 @@ auth.token = "{auth_token}"
         # 获取公网 IP
         public_ip = get_public_ip()
         
+        # 获取 FRP 最新版本号
+        frp_version = get_latest_frp_version()
+        
         return {
             "success": True,
             "message": "FRPS 配置已生成",
             "info": {
-                "version": "latest",  # Docker 镜像始终为最新
+                "version": frp_version,  # 从 GitHub API 获取的真实版本号
                 "port": port,
                 "auth_token": auth_token,
                 "public_ip": public_ip
