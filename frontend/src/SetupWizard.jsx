@@ -55,7 +55,11 @@ export default function SetupWizard({ onSetupComplete }) {
             const response = await api.post('/api/frp/deploy-server', null, { params });
 
             if (response.data.success) {
-                setDeployResult(response.data.info);
+                setDeployResult({
+                    ...response.data.info,
+                    frps_restarted: response.data.frps_restarted,
+                    restart_message: response.data.restart_message
+                });
                 setStep(2);
                 fetchClientScript();
             } else {
@@ -215,6 +219,26 @@ export default function SetupWizard({ onSetupComplete }) {
                                 <code className="block text-white bg-slate-900/50 px-3 py-2 rounded text-xs break-all font-mono border border-emerald-500/30">
                                     {deployResult.auth_token}
                                 </code>
+                            </div>
+
+                            {/* FRPS 重启状态 */}
+                            <div className="pt-2 border-t border-white/10">
+                                {deployResult.frps_restarted ? (
+                                    <div className="flex items-center gap-2 text-emerald-400 text-sm">
+                                        <CheckCircle size={16} />
+                                        <span>{t('setup.frpsRestarted')}</span>
+                                    </div>
+                                ) : (
+                                    <div className="bg-amber-500/20 border border-amber-500/50 text-amber-200 px-3 py-2 rounded text-sm">
+                                        <div className="flex items-center gap-2 font-semibold">
+                                            <AlertTriangle size={16} />
+                                            {t('setup.frpsRestartFailed')}
+                                        </div>
+                                        <p className="text-xs mt-1 text-amber-300">
+                                            {deployResult.restart_message || t('setup.manualRestart')}
+                                        </p>
+                                    </div>
+                                )}
                             </div>
                         </div>
 

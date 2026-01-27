@@ -63,6 +63,9 @@ const translations = {
             authToken: '认证 Token (自动生成)',
             copied: 'Token 已复制到剪贴板',
             generatingScript: '正在生成客户端部署脚本...',
+            frpsRestarted: 'FRPS 服务已自动重启，Token 已生效',
+            frpsRestartFailed: 'FRPS 重启失败',
+            manualRestart: '请手动执行: docker restart frps',
 
             // 客户端脚本
             clientScriptTitle: '客户端部署脚本',
@@ -193,6 +196,9 @@ const translations = {
             authToken: 'Auth Token (Auto-generated)',
             copied: 'Token copied to clipboard',
             generatingScript: 'Generating client deployment script...',
+            frpsRestarted: 'FRPS service restarted, Token is now active',
+            frpsRestartFailed: 'FRPS restart failed',
+            manualRestart: 'Please run manually: docker restart frps',
 
             // Client Script
             clientScriptTitle: 'Client Deployment Script',

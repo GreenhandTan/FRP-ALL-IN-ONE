@@ -67,21 +67,38 @@ auth.token = "{auth_token}"
             f.write(config_content)
         
         # 尝试重启 FRPS 容器（如果在 Docker Compose 环境中）
+        frps_restarted = False
+        restart_message = ""
+        
         try:
-            # 使用 docker CLI 重启容器（不依赖 docker-compose）
+            # 使用 docker CLI 重启容器
             result = subprocess.run(
                 ["docker", "restart", "frps"],
                 check=False,
                 capture_output=True,
-                timeout=10,
+                timeout=30,  # 增加超时时间
                 text=True
             )
             if result.returncode == 0:
                 print("✅ FRPS 容器已成功重启")
+                frps_restarted = True
+                restart_message = "FRPS 已重启"
+                
+                # 等待容器启动完成
+                import time
+                time.sleep(2)
             else:
-                print(f"⚠️ FRPS 容器重启失败: {result.stderr}")
+                restart_message = f"FRPS 重启失败: {result.stderr.strip()}"
+                print(f"⚠️ {restart_message}")
+        except FileNotFoundError:
+            restart_message = "未找到 docker 命令，请手动重启 FRPS"
+            print(f"⚠️ {restart_message}")
+        except subprocess.TimeoutExpired:
+            restart_message = "FRPS 重启超时，请手动检查"
+            print(f"⚠️ {restart_message}")
         except Exception as e:
-            print(f"⚠️ 无法重启 FRPS 容器: {e}")
+            restart_message = f"无法重启 FRPS 容器: {str(e)}"
+            print(f"⚠️ {restart_message}")
             print("提示: 配置已生成，请手动执行 'docker restart frps'")
         
         # 获取公网 IP（优先使用用户提供的）
@@ -95,7 +112,9 @@ auth.token = "{auth_token}"
         
         return {
             "success": True,
-            "message": "FRPS 配置已生成",
+            "message": "FRPS 配置已生成" + (" 并已重启" if frps_restarted else ""),
+            "frps_restarted": frps_restarted,
+            "restart_message": restart_message,
             "info": {
                 "version": frp_version,  # 从 GitHub API 获取的真实版本号
                 "port": port,
