@@ -25,7 +25,7 @@ function App() {
     }
   };
 
-  // 检查用户登录状态
+  // 检查用户登录状态（仅在系统已初始化后检查）
   const checkAuth = () => {
     const token = localStorage.getItem('token');
     if (token) {
@@ -36,8 +36,22 @@ function App() {
 
   useEffect(() => {
     checkSystemStatus();
-    checkAuth();
   }, []);
+
+  // 系统状态加载后，根据状态决定是否检查 token
+  useEffect(() => {
+    if (systemStatus) {
+      if (!systemStatus.initialized) {
+        // 系统未初始化，清除可能存在的旧 token
+        localStorage.removeItem('token');
+        delete api.defaults.headers.common['Authorization'];
+        setIsAuthenticated(false);
+      } else {
+        // 系统已初始化，检查登录状态
+        checkAuth();
+      }
+    }
+  }, [systemStatus]);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -83,7 +97,7 @@ function App() {
     );
   }
 
-  // 1. 未注册 -> 注册页面
+  // 1. 系统未初始化 -> 强制注册页面（清除旧 token）
   if (systemStatus && !systemStatus.initialized) {
     return <Register onRegisterSuccess={() => {
       setIsAuthenticated(true);
@@ -91,7 +105,7 @@ function App() {
     }} />;
   }
 
-  // 2. 已注册但未登录 -> 登录页面
+  // 2. 系统已初始化但未登录 -> 登录页面
   if (!isAuthenticated) {
     return <Login onLoginSuccess={() => {
       setIsAuthenticated(true);
