@@ -1,21 +1,24 @@
-# FRP-All in one
+# FRP-All in One
 
-一个基于 Web 的 FRP 内网穿透管理系统，提供从用户注册到自动部署的完整解决方案。
+一个基于 Web 的 FRP 内网穿透管理系统，提供从登录到自动部署的完整解决方案。
 
 ## ✨ 核心特性
 
-- 🎯 **零门槛部署**：一键 `docker-compose up` 完成所有配置
+- 🎯 **零门槛部署**：一键 Docker Compose 完成所有配置
 - 🔐 **安全可靠**：JWT 身份验证 + Bcrypt 密码加密
 - 🚀 **自动化**：Web 界面配置 FRPS，自动生成 FRPC 部署脚本
 - 📊 **可视化管理**：客户端状态监控、隧道配置可视化
-- 🔄 **热重载**：Agent 自动同步配置，无需重启服务
+- 🌐 **国际化**：支持中文/英文切换
+- 🎨 **现代化 UI**：浅绿色主题，响应式设计
 
 ## 🏗️ 技术架构
 
-- **前端**: React + Vite + Tailwind CSS v4
-- **后端**: Python (FastAPI) + SQLite
-- **部署**: Docker Compose (3 容器)
-- **FRP**: 官方 Latest 镜像
+| 组件 | 技术栈 |
+|------|--------|
+| **前端** | React + Vite + Tailwind CSS |
+| **后端** | Python (FastAPI) + SQLite |
+| **部署** | Docker Compose (3 容器) |
+| **FRP** | 官方 Latest 镜像 (自动获取最新版本) |
 
 ## 📦 快速开始
 
@@ -23,22 +26,29 @@
 
 - Docker & Docker Compose
 - 一台具有公网 IP 的服务器
+- 开放端口：80 (Web)、7000 (FRP)
 
 ### 一键部署
 
 ```bash
 # 1. 克隆项目
 git clone https://github.com/GreenhandTan/FRP-ALL-IN-ONE.git
-cd FRP-ALL-IN-ONE
+cd FRP-ALL-IN-ONE/deploy
 
 # 2. 启动服务（首次启动会自动构建）
-docker-compose up -d --build
-
-# 3. 访问 Web 界面
-http://your_server_ip
+chmod +x deploy.sh
+sudo ./deploy.sh
 ```
 
 就是这么简单！🎉
+
+### 默认账户
+
+| 用户名 | 密码 |
+|--------|------|
+| admin | 123456 |
+
+> ⚠️ **请登录后立即修改默认密码！**
 
 ### 低内存服务器部署（512MB-1GB）
 
@@ -50,61 +60,188 @@ chmod +x setup-swap.sh
 sudo ./setup-swap.sh
 
 # 然后正常部署
-docker-compose up -d --build
+sudo ./deploy.sh
 ```
-
-> **提示**: 即使有 1GB 内存，也建议配置 Swap 以确保构建稳定。
 
 ## 🎮 使用流程
 
-### 1️⃣ 首次注册
+### 1️⃣ 登录系统
 
-访问服务器 IP，系统会引导您创建管理员账户。
+访问 `http://服务器IP`，使用默认账户登录。
 
 ### 2️⃣ 配置 FRPS
 
-登录后进入配置向导，只需设置：
+登录后进入配置向导，设置：
 - **监听端口**（默认 7000）
-- Token 和版本号由系统自动生成
+- **公网 IP**（自动检测，如检测失败请手动输入）
 
-点击部署，系统将：
+点击部署后，系统将：
 - ✅ 自动生成配置文件
 - ✅ 重启 FRPS 容器
-- ✅ 返回配置信息（Token、公网 IP）
+- ✅ 显示配置信息（Token、公网 IP）
 
-### 3️⃣ 部署 FRPC
+### 3️⃣ 部署 FRPC 客户端
 
 系统会自动生成一键部署脚本，在内网机器上执行：
 
 ```bash
-# 下载并执行脚本
+# 方式一：下载脚本后执行
 chmod +x deploy-frpc.sh
 sudo ./deploy-frpc.sh
+
+# 方式二：复制脚本内容粘贴执行
 ```
+
+脚本会自动：
+- 检测系统架构（支持 amd64/arm64/arm 等）
+- 下载对应版本的 FRP
+- 创建 systemd 服务
+- 启动并设置开机自启
 
 ### 4️⃣ 管理隧道
 
 在 Web 界面中：
 1. 添加客户端设备
 2. 为设备配置端口映射（TCP/UDP/HTTP）
-3. Agent 自动同步配置并应用
+3. 查看客户端状态
+
+## 🔧 运维命令
+
+### 服务端 (Docker)
+
+```bash
+# 查看所有容器状态
+docker-compose ps
+
+# 查看日志
+docker-compose logs -f
+
+# 重启所有服务
+docker-compose restart
+
+# 仅重启 FRPS
+docker restart frps
+
+# 停止服务
+docker-compose down
+
+# 重新构建并启动
+docker-compose up -d --build
+```
+
+### 客户端 (FRPC)
+
+```bash
+# 查看服务状态
+systemctl status frpc
+
+# 查看日志
+journalctl -u frpc -f
+
+# 重启服务
+systemctl restart frpc
+
+# 停止服务
+systemctl stop frpc
+```
+
+## 🗑️ 卸载 FRPC 客户端
+
+如果客户端部署失败或需要重新部署，可使用卸载脚本：
+
+```bash
+# 下载卸载脚本（或从 deploy 目录获取）
+# 然后执行
+chmod +x uninstall-frpc.sh
+sudo ./uninstall-frpc.sh
+```
+
+卸载脚本会：
+- 停止并禁用 frpc 服务
+- 删除系统服务文件
+- 删除安装目录 `/opt/frp`
+- 清理所有配置文件
+
+## ⚠️ 安全组配置
+
+> **重要**：云服务器需要在安全组中开放以下端口！
+
+| 端口 | 协议 | 用途 |
+|------|------|------|
+| 80 | TCP | Web 管理界面 |
+| 7000 | TCP | FRP 服务端口（客户端连接） |
+| 6000-6010 | TCP | FRP 代理端口范围（按需调整） |
+
+**注意**：后续通过 FRP 开放的任何端口，都需要在安全组中添加对应规则！
+
+例如：配置 SSH 代理到公网 6022 端口，需要在安全组开放 `6022/TCP`。
 
 ## 📁 项目结构
 
 ```
 FRP-ALL-IN-ONE/
 ├── server/              # 后端 API (FastAPI)
+│   ├── main.py         # 主程序入口
+│   ├── models.py       # 数据库模型
+│   ├── crud.py         # 数据库操作
+│   ├── frp_deploy.py   # FRP 部署逻辑
+│   └── Dockerfile
 ├── frontend/            # Web 界面 (React)
-├── agent/               # 客户端同步脚本
-├── docker-compose.yml   # 容器编排
-└── frps.toml           # FRPS 配置（系统生成）
+│   ├── src/
+│   │   ├── App.jsx     # 主组件
+│   │   ├── Login.jsx   # 登录页
+│   │   ├── SetupWizard.jsx  # 设置向导
+│   │   ├── i18n.js     # 国际化配置
+│   │   └── LanguageContext.jsx  # 语言上下文
+│   └── Dockerfile
+├── deploy/              # 部署相关文件
+│   ├── deploy.sh       # 一键部署脚本
+│   ├── docker-compose.yml
+│   ├── setup-swap.sh   # Swap 配置脚本
+│   └── uninstall-frpc.sh  # FRPC 卸载脚本
+└── README.md
 ```
 
-## 🔧 高级配置
+## 🐛 常见问题
 
-### 修改端口范围
+### Q: FRPS 配置后没有生效？
 
-编辑 `docker-compose.yml`:
+```bash
+# 手动重启 FRPS 容器
+docker restart frps
+```
+
+### Q: FRPC 客户端连接失败，提示 Token 不匹配？
+
+这是因为服务端重新部署后 Token 更新了，但客户端还是旧 Token。
+
+**解决方法**：
+1. 在服务端 Web 界面重新下载客户端脚本
+2. 在客户端机器上重新执行脚本
+
+或者手动更新 Token：
+```bash
+# 编辑客户端配置
+nano /opt/frp/frpc.toml
+# 修改 auth.token 为服务端显示的最新 Token
+systemctl restart frpc
+```
+
+### Q: 忘记管理员密码？
+
+目前需要手动重置数据库或联系开发者添加密码重置功能。
+
+### Q: 客户端部署失败如何清理？
+
+使用卸载脚本：
+```bash
+chmod +x uninstall-frpc.sh
+sudo ./uninstall-frpc.sh
+```
+
+### Q: 如何修改 FRP 代理端口范围？
+
+编辑 `deploy/docker-compose.yml`:
 
 ```yaml
 frps:
@@ -113,47 +250,18 @@ frps:
     - "6000-6100:6000-6100"  # 增加端口范围
 ```
 
-### 使用自定义域名
-
-1. 配置 Nginx 反向代理到 80 端口
-2. 启用 HTTPS（推荐 Certbot）
-
-### 数据备份
-
+然后重新构建：
 ```bash
-# 备份数据库
-cp ./data/frp_manager.db ./backup/
-
-# 备份配置
-cp ./frps.toml ./backup/
+docker-compose up -d --build
 ```
 
 ## 🛡️ 安全建议
 
+- ✅ 首次登录后立即修改默认密码
+- ✅ 使用强密码（至少 12 位，包含大小写字母、数字、特殊字符）
 - ✅ 定期更新 Docker 镜像
-- ✅ 使用强密码（至少 12 位）
-- ✅ 限制后台访问 IP（Nginx 白名单）
-- ✅ 定期备份数据库
-
-## 🐛 常见问题
-
-**Q: FRPS 配置后没有生效？**
-```bash
-# 手动重启 FRPS 容器
-docker restart frps
-```
-
-**Q: 忘记管理员密码？**
-```bash
-# 进入数据库修改（需手动 hash 密码）
-sqlite3 ./data/frp_manager.db
-```
-
-**Q: Agent 无法连接？**
-检查：
-1. 公网 IP 是否正确
-2. 防火墙是否开放 7000 端口
-3. Token 是否匹配
+- ✅ 限制后台访问 IP（可配置 Nginx 白名单）
+- ✅ 安全组仅开放必要端口
 
 ## 📄 许可证
 

@@ -83,9 +83,30 @@ export default function SetupWizard({ onSetupComplete }) {
         }
     };
 
-    const copyScript = () => {
-        navigator.clipboard.writeText(clientScript);
-        alert(t('setup.scriptCopied'));
+    const [copySuccess, setCopySuccess] = useState(false);
+
+    const copyScript = async () => {
+        try {
+            await navigator.clipboard.writeText(clientScript);
+            setCopySuccess(true);
+            setTimeout(() => setCopySuccess(false), 2000);
+        } catch (err) {
+            // Fallback for browsers without clipboard API
+            const textArea = document.createElement('textarea');
+            textArea.value = clientScript;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-9999px';
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                setCopySuccess(true);
+                setTimeout(() => setCopySuccess(false), 2000);
+            } catch (e) {
+                alert('复制失败，请手动复制');
+            }
+            document.body.removeChild(textArea);
+        }
     };
 
     const downloadScript = () => {
@@ -264,10 +285,13 @@ export default function SetupWizard({ onSetupComplete }) {
                         <div className="flex gap-3 mb-4">
                             <button
                                 onClick={copyScript}
-                                className="flex-1 flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 text-white py-2.5 rounded-lg transition-colors"
+                                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg transition-colors ${copySuccess
+                                        ? 'bg-emerald-600 text-white'
+                                        : 'bg-slate-700 hover:bg-slate-600 text-white'
+                                    }`}
                             >
-                                <Copy size={16} />
-                                {t('setup.copyScript')}
+                                {copySuccess ? <CheckCircle size={16} /> : <Copy size={16} />}
+                                {copySuccess ? t('setup.scriptCopied') : t('setup.copyScript')}
                             </button>
                             <button
                                 onClick={downloadScript}
