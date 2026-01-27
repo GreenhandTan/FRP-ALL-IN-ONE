@@ -9,6 +9,7 @@ const translations = {
         delete: '删除',
         edit: '编辑',
         copy: '复制',
+        copySuccess: '复制成功',
         download: '下载',
         refresh: '刷新',
         logout: '退出登录',
@@ -105,6 +106,7 @@ const translations = {
             clients: {
                 title: '客户端列表',
                 empty: '暂无客户端，请先添加',
+                connectedCount: '已连接客户端数',
                 token: 'Token',
                 tunnels: '隧道',
                 online: '在线',
@@ -121,6 +123,18 @@ const translations = {
                 confirmDelete: '确定要删除此客户端吗？',
                 autoRefresh: '自动刷新已启用',
                 proxies: '个代理',
+            },
+
+            devices: {
+                title: '设备列表',
+                empty: '暂无设备，请先添加或让设备端 Agent 自动注册',
+                name: '设备',
+                status: '状态',
+                tunnels: '映射',
+                actions: '操作',
+                addTunnel: '新增映射',
+                online: '在线',
+                offline: '离线',
             },
 
             // 隧道管理
@@ -156,6 +170,7 @@ const translations = {
         delete: 'Delete',
         edit: 'Edit',
         copy: 'Copy',
+        copySuccess: 'Copied',
         download: 'Download',
         refresh: 'Refresh',
         logout: 'Logout',
@@ -256,6 +271,7 @@ const translations = {
             clients: {
                 title: 'Client List',
                 empty: 'No clients connected',
+                connectedCount: 'Connected clients',
                 token: 'Token',
                 tunnels: 'Tunnels',
                 online: 'Online',
@@ -272,6 +288,18 @@ const translations = {
                 confirmDelete: 'Are you sure you want to delete this client?',
                 autoRefresh: 'Auto-refreshing enabled',
                 proxies: 'proxies',
+            },
+
+            devices: {
+                title: 'Devices',
+                empty: 'No devices yet. Add one or let the agent auto-register.',
+                name: 'Device',
+                status: 'Status',
+                tunnels: 'Mappings',
+                actions: 'Actions',
+                addTunnel: 'Add Mapping',
+                online: 'Online',
+                offline: 'Offline',
             },
 
             // Tunnels

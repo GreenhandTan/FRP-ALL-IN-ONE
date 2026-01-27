@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Server, Download, CheckCircle, Copy, AlertTriangle, RefreshCw } from 'lucide-react';
 import { api } from './api';
 import { useLanguage } from './LanguageContext';
@@ -14,6 +14,8 @@ export default function SetupWizard({ onSetupComplete }) {
     const [deployResult, setDeployResult] = useState(null);
     const [clientScript, setClientScript] = useState("");
     const [error, setError] = useState("");
+    const [tokenCopySuccess, setTokenCopySuccess] = useState(false);
+    const tokenCopyTimerRef = useRef(null);
 
     // 页面加载时自动获取公网 IP
     useEffect(() => {
@@ -35,6 +37,14 @@ export default function SetupWizard({ onSetupComplete }) {
             }
         };
         fetchPublicIp();
+    }, []);
+
+    useEffect(() => {
+        return () => {
+            if (tokenCopyTimerRef.current) {
+                clearTimeout(tokenCopyTimerRef.current);
+            }
+        };
     }, []);
 
     const handleDeployServer = async () => {
@@ -122,6 +132,17 @@ export default function SetupWizard({ onSetupComplete }) {
         }
         // Fallback to unsecured method
         return unsecuredCopyToClipboard(text);
+    };
+
+    const copyToken = async (token) => {
+        const copied = await copyToClipboard(token);
+        if (!copied) return;
+
+        setTokenCopySuccess(true);
+        if (tokenCopyTimerRef.current) {
+            clearTimeout(tokenCopyTimerRef.current);
+        }
+        tokenCopyTimerRef.current = setTimeout(() => setTokenCopySuccess(false), 2000);
     };
 
     const copyScript = async () => {
@@ -252,16 +273,12 @@ export default function SetupWizard({ onSetupComplete }) {
                                     <span className="text-slate-400 font-semibold">🔑 {t('setup.authToken')}:</span>
                                     <button
                                         onClick={async () => {
-                                            if (await copyToClipboard(deployResult.auth_token)) {
-                                                alert(t('setup.copied'));
-                                            } else {
-                                                prompt(t('copy'), deployResult.auth_token);
-                                            }
+                                            await copyToken(deployResult.auth_token);
                                         }}
-                                        className="text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 px-2 py-1 rounded transition-colors flex items-center gap-1"
+                                        className={`text-xs px-2 py-1 rounded transition-colors flex items-center gap-1 ${tokenCopySuccess ? 'bg-emerald-600 text-white' : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300'}`}
                                     >
-                                        <Copy size={12} />
-                                        {t('copy')}
+                                        {tokenCopySuccess ? <CheckCircle size={12} /> : <Copy size={12} />}
+                                        {tokenCopySuccess ? t('copySuccess') : t('copy')}
                                     </button>
                                 </div>
                                 <code className="block text-white bg-slate-900/50 px-3 py-2 rounded text-xs break-all font-mono border border-emerald-500/30">

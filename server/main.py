@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Header
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 import models, schemas, crud, auth
@@ -6,6 +6,8 @@ from database import SessionLocal, engine
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import timedelta
 from typing import List
+import re
+import time
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -135,7 +137,11 @@ def create_tunnel_for_client(
     return crud.create_tunnel(db=db, tunnel=tunnel, client_id=client_id)
 
 @app.get("/clients/{client_id}/config")
-def get_client_config(client_id: str, db: Session = Depends(get_db)):
+def get_client_config(
+    client_id: str,
+    db: Session = Depends(get_db),
+    x_client_token: str = Header(default=None, alias="X-Client-Token"),
+):
     """
     生成供客户端Agent下载的TOML配置。
     此接口不需要认证 (Agent只持有Token，不持有JWT)，或者我们为Client也实现Bearer认证？
@@ -146,6 +152,9 @@ def get_client_config(client_id: str, db: Session = Depends(get_db)):
     client = crud.get_client(db, client_id=client_id)
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
+
+    if not x_client_token or x_client_token != client.auth_token:
+        raise HTTPException(status_code=403, detail="Invalid client token")
     
     # 生成配置内容
     config_data = {
@@ -153,8 +162,9 @@ def get_client_config(client_id: str, db: Session = Depends(get_db)):
     }
     
     for tunnel in client.tunnels:
+        proxy_name = f"{client.name}.{tunnel.name}"
         proxy = {
-            "name": tunnel.name,
+            "name": proxy_name,
             "type": tunnel.type.value,
             "localIP": tunnel.local_ip,
             "localPort": tunnel.local_port,
@@ -167,6 +177,62 @@ def get_client_config(client_id: str, db: Session = Depends(get_db)):
         config_data["proxies"].append(proxy)
             
     return config_data
+
+def _normalize_client_name(name: str):
+    name = (name or "").strip()
+    if not name:
+        name = "device"
+    name = re.sub(r"[^a-zA-Z0-9_-]+", "-", name)
+    name = re.sub(r"-{2,}", "-", name).strip("-")
+    return name or "device"
+
+@app.post("/api/agent/register")
+async def agent_register(payload: dict, db: Session = Depends(get_db)):
+    frps_token = (payload.get("frps_token") or "").strip()
+    name = _normalize_client_name(payload.get("name") or "")
+    client_id = (payload.get("client_id") or "").strip()
+    client_token = (payload.get("client_token") or "").strip()
+
+    expected_token = crud.get_config(db, models.ConfigKeys.FRPS_AUTH_TOKEN) or ""
+    if not expected_token or frps_token != expected_token:
+        raise HTTPException(status_code=403, detail="Invalid frps_token")
+
+    if client_id:
+        client = crud.get_client(db, client_id=client_id)
+        if not client:
+            raise HTTPException(status_code=404, detail="Client not found")
+        if not client_token or client_token != client.auth_token:
+            raise HTTPException(status_code=403, detail="Invalid client token")
+        crud.touch_client(db, client_id=client_id, status="online")
+        return {
+            "client_id": client.id,
+            "client_token": client.auth_token,
+            "name": client.name,
+        }
+
+    suffix = str(int(time.time()))[-6:]
+    client = crud.create_client_with_token(db, name=f"{name}-{suffix}")
+    return {
+        "client_id": client.id,
+        "client_token": client.auth_token,
+        "name": client.name,
+    }
+
+@app.post("/api/agent/heartbeat")
+async def agent_heartbeat(payload: dict, db: Session = Depends(get_db)):
+    client_id = (payload.get("client_id") or "").strip()
+    client_token = (payload.get("client_token") or "").strip()
+    if not client_id or not client_token:
+        raise HTTPException(status_code=400, detail="Missing client_id or client_token")
+
+    client = crud.get_client(db, client_id=client_id)
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    if client_token != client.auth_token:
+        raise HTTPException(status_code=403, detail="Invalid client token")
+
+    crud.touch_client(db, client_id=client_id, status="online")
+    return {"success": True}
 
 # 获取公网 IP 接口
 @app.get("/api/system/public-ip")
@@ -646,6 +712,194 @@ if systemctl is-active --quiet frpc; then
     echo "    重启服务:   systemctl restart frpc"
     echo "    停止服务:   systemctl stop frpc"
     echo ""
+    echo_info "安装并启动配置同步 Agent..."
+    if ! command -v python3 &> /dev/null; then
+        if command -v apt-get &> /dev/null; then
+            apt-get update -y && apt-get install -y python3 python3-venv python3-pip || true
+        elif command -v yum &> /dev/null; then
+            yum install -y python3 || true
+        fi
+    fi
+
+    if command -v python3 &> /dev/null; then
+        cat > /opt/frp/frp_agent.py << 'FRP_AGENT_PY'
+import os
+import time
+import json
+import hashlib
+import subprocess
+import sys
+
+import requests
+
+SERVER_URL = os.environ.get("FRP_MANAGER_URL", "http://localhost")
+REGISTER_TOKEN = os.environ.get("FRP_MANAGER_REGISTER_TOKEN", "")
+CLIENT_ID = os.environ.get("FRP_CLIENT_ID", "")
+CLIENT_TOKEN = os.environ.get("FRP_CLIENT_TOKEN", "")
+AGENT_STATE_PATH = os.environ.get("FRP_AGENT_STATE_PATH", "/opt/frp/agent.json")
+FRPC_CONFIG_PATH = os.environ.get("FRPC_CONFIG_PATH", "/opt/frp/frpc.toml")
+FRPC_BIN = os.environ.get("FRPC_BIN", "/opt/frp/frpc")
+
+def load_state():
+    try:
+        if os.path.exists(AGENT_STATE_PATH):
+            with open(AGENT_STATE_PATH, "r") as f:
+                return json.load(f)
+    except Exception:
+        return dict()
+    return dict()
+
+def save_state(state):
+    try:
+        os.makedirs(os.path.dirname(AGENT_STATE_PATH), exist_ok=True)
+        with open(AGENT_STATE_PATH, "w") as f:
+            json.dump(state, f)
+        return True
+    except Exception:
+        return False
+
+def register_if_needed():
+    global CLIENT_ID, CLIENT_TOKEN
+    state = load_state()
+    if not CLIENT_ID:
+        CLIENT_ID = state.get("client_id", "")
+    if not CLIENT_TOKEN:
+        CLIENT_TOKEN = state.get("client_token", "")
+    if CLIENT_ID and CLIENT_TOKEN:
+        return True
+    if not REGISTER_TOKEN:
+        print("Missing FRP_MANAGER_REGISTER_TOKEN", file=sys.stderr)
+        return False
+    try:
+        name = os.environ.get("FRP_CLIENT_NAME") or os.uname().nodename
+    except Exception:
+        name = "device"
+    try:
+        resp = requests.post(
+            SERVER_URL + "/api/agent/register",
+            json=dict(frps_token=REGISTER_TOKEN, name=name),
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            print("Register failed: " + str(resp.status_code) + " - " + resp.text, file=sys.stderr)
+            return False
+        data = resp.json()
+        CLIENT_ID = data.get("client_id", "")
+        CLIENT_TOKEN = data.get("client_token", "")
+        if CLIENT_ID and CLIENT_TOKEN:
+            save_state(dict(client_id=CLIENT_ID, client_token=CLIENT_TOKEN, name=data.get("name")))
+            return True
+        return False
+    except Exception as e:
+        print("Register error: " + str(e), file=sys.stderr)
+        return False
+
+def heartbeat():
+    try:
+        requests.post(
+            SERVER_URL + "/api/agent/heartbeat",
+            json=dict(client_id=CLIENT_ID, client_token=CLIENT_TOKEN),
+            timeout=5,
+        )
+    except Exception:
+        pass
+
+def get_remote_config():
+    try:
+        resp = requests.get(
+            SERVER_URL + "/clients/" + CLIENT_ID + "/config",
+            headers=dict([("X-Client-Token", CLIENT_TOKEN)]),
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            return resp.json()
+        print("Fetch config failed: " + str(resp.status_code) + " - " + resp.text, file=sys.stderr)
+        return None
+    except Exception as e:
+        print("Fetch config error: " + str(e), file=sys.stderr)
+        return None
+
+def generate_toml(config_data):
+    lines = []
+    for proxy in config_data.get("proxies", []) or []:
+        lines.append("[[proxies]]")
+        lines.append('name = "' + str(proxy.get("name", "")) + '"')
+        lines.append('type = "' + str(proxy.get("type", "")) + '"')
+        lines.append('localIP = "' + str(proxy.get("localIP", "")) + '"')
+        lines.append('localPort = ' + str(proxy.get("localPort", 0)))
+        if proxy.get("remotePort"):
+            lines.append('remotePort = ' + str(proxy.get("remotePort")))
+        if proxy.get("customDomains"):
+            domains = '", "'.join(proxy.get("customDomains") or [])
+            lines.append('customDomains = ["' + domains + '"]')
+        lines.append("")
+    return "\n".join(lines)
+
+def update_config_file(new_toml_content):
+    common_part = ""
+    if os.path.exists(FRPC_CONFIG_PATH):
+        with open(FRPC_CONFIG_PATH, "r") as f:
+            content = f.read()
+            common_part = content.split("[[proxies]]")[0]
+    else:
+        common_part = 'serverAddr = "127.0.0.1"\nserverPort = 7000\n\n'
+    full_content = common_part.strip() + "\n\n" + new_toml_content
+    with open(FRPC_CONFIG_PATH, "w") as f:
+        f.write(full_content)
+    return hashlib.md5(full_content.encode()).hexdigest()
+
+def reload_frpc():
+    try:
+        subprocess.run([FRPC_BIN, "reload", "-c", FRPC_CONFIG_PATH], check=False)
+    except Exception:
+        pass
+
+def main():
+    if not register_if_needed():
+        sys.exit(1)
+    last_hash = ""
+    while True:
+        heartbeat()
+        data = get_remote_config()
+        if data is not None:
+            toml = generate_toml(data)
+            current_hash = hashlib.md5(toml.encode()).hexdigest()
+            if current_hash != last_hash:
+                last_hash = current_hash
+                update_config_file(toml)
+                reload_frpc()
+        time.sleep(10)
+
+if __name__ == "__main__":
+    main()
+FRP_AGENT_PY
+
+        cat > /etc/systemd/system/frp-agent.service << 'FRP_AGENT_SERVICE'
+[Unit]
+Description=FRP Config Sync Agent
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+Environment=FRP_MANAGER_URL=http://{server_ip}
+Environment=FRP_MANAGER_REGISTER_TOKEN={auth_token}
+Environment=FRP_AGENT_STATE_PATH=/opt/frp/agent.json
+Environment=FRPC_CONFIG_PATH=/opt/frp/frpc.toml
+Environment=FRPC_BIN=/opt/frp/frpc
+ExecStart=/usr/bin/python3 /opt/frp/frp_agent.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+FRP_AGENT_SERVICE
+
+        systemctl daemon-reload
+        systemctl enable frp-agent
+        systemctl restart frp-agent
+    fi
+
     echo_warn "============================================"
     echo_warn "重要提示：安全组/防火墙配置"
     echo_warn "============================================"
@@ -665,4 +919,3 @@ fi
 '''
     
     return {"script": script}
-

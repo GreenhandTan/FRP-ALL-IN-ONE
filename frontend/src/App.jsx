@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from './api';
-import { RefreshCw, Server, CheckCircle, Terminal, LogOut, Key, Globe, Activity, ArrowDown, ArrowUp, Power, Wifi } from 'lucide-react';
+import { RefreshCw, Server, CheckCircle, Terminal, LogOut, Key, Globe, Activity, ArrowDown, ArrowUp, Power, Wifi, AlertTriangle } from 'lucide-react';
 import Login from './Login';
 import SetupWizard from './SetupWizard';
 import ChangePassword from './ChangePassword';
@@ -17,6 +17,7 @@ function App() {
   // 新的数据结构
   const [serverInfo, setServerInfo] = useState({});
   const [clients, setClients] = useState([]);
+  const [registeredClients, setRegisteredClients] = useState([]);
   const [stats, setStats] = useState({
     totalClients: 0,
     totalProxies: 0,
@@ -25,6 +26,20 @@ function App() {
     totalConns: 0
   });
   const [disabledPorts, setDisabledPorts] = useState([]);
+  const [newClientName, setNewClientName] = useState('');
+  const [addingClient, setAddingClient] = useState(false);
+  const [showAddTunnel, setShowAddTunnel] = useState(false);
+  const [tunnelClientId, setTunnelClientId] = useState(null);
+  const [tunnelForm, setTunnelForm] = useState({
+    name: '',
+    type: 'tcp',
+    local_ip: '127.0.0.1',
+    local_port: '',
+    remote_port: '',
+    custom_domains: '',
+  });
+
+  const nowSec = Math.floor(Date.now() / 1000);
 
   // 格式化流量
   const formatBytes = (bytes, decimals = 2) => {
@@ -78,14 +93,16 @@ function App() {
     setLoading(true);
     try {
       // 并行请求
-      const [statusRes, disabledRes] = await Promise.all([
+      const [statusRes, disabledRes, registeredRes] = await Promise.all([
         api.get('/api/frp/server-status'),
-        api.get('/api/frp/disabled-ports')
+        api.get('/api/frp/disabled-ports'),
+        api.get('/clients/').catch(() => ({ data: [] })),
       ]);
 
       if (statusRes.data.success) {
         setServerInfo(statusRes.data.server_info);
         setClients(statusRes.data.clients || []);
+        setRegisteredClients(registeredRes.data || []);
 
         // Calculate stats
         let totalTrafficIn = 0;
@@ -102,12 +119,14 @@ function App() {
           });
         });
 
+        const si = statusRes.data.server_info || {};
+
         setStats({
-          totalClients: statusRes.data.clients.length,
-          totalProxies,
-          totalConns: totalConnections,
-          totalTrafficIn,
-          totalTrafficOut
+          totalClients: si.clientCounts ?? statusRes.data.clients.length,
+          totalProxies: statusRes.data.total_proxies ?? totalProxies,
+          totalConns: si.curConns ?? totalConnections,
+          totalTrafficIn: si.totalTrafficIn ?? totalTrafficIn,
+          totalTrafficOut: si.totalTrafficOut ?? totalTrafficOut
         });
         setError(null); // Clear error on success
       } else {
@@ -123,6 +142,64 @@ function App() {
       setError("Network or Server Error: " + (err.response?.data?.message || err.message));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCreateClient = async () => {
+    const name = newClientName.trim();
+    if (!name) return;
+    setAddingClient(true);
+    try {
+      await api.post('/clients/', { name });
+      setNewClientName('');
+      await loadData();
+    } catch (err) {
+      setError(err.response?.data?.detail || err.message);
+    } finally {
+      setAddingClient(false);
+    }
+  };
+
+  const openAddTunnel = (clientId) => {
+    setTunnelClientId(clientId);
+    setTunnelForm({
+      name: '',
+      type: 'tcp',
+      local_ip: '127.0.0.1',
+      local_port: '',
+      remote_port: '',
+      custom_domains: '',
+    });
+    setShowAddTunnel(true);
+  };
+
+  const handleCreateTunnel = async () => {
+    if (!tunnelClientId) return;
+    const name = tunnelForm.name.trim();
+    const type = tunnelForm.type;
+    const local_port = parseInt(tunnelForm.local_port, 10);
+    const local_ip = tunnelForm.local_ip.trim() || '127.0.0.1';
+    const remote_port = tunnelForm.remote_port ? parseInt(tunnelForm.remote_port, 10) : null;
+    const custom_domains = tunnelForm.custom_domains.trim() || null;
+
+    if (!name || !Number.isFinite(local_port)) return;
+    if ((type === 'tcp' || type === 'udp') && !Number.isFinite(remote_port)) return;
+    if ((type === 'http' || type === 'https') && !custom_domains) return;
+
+    try {
+      await api.post(`/clients/${tunnelClientId}/tunnels/`, {
+        name,
+        type,
+        local_ip,
+        local_port,
+        remote_port: (type === 'tcp' || type === 'udp') ? remote_port : null,
+        custom_domains: (type === 'http' || type === 'https') ? custom_domains : null,
+      });
+      setShowAddTunnel(false);
+      setTunnelClientId(null);
+      await loadData();
+    } catch (err) {
+      setError(err.response?.data?.detail || err.message);
     }
   };
 
@@ -305,6 +382,78 @@ function App() {
                   <Server size={32} className="text-emerald-300" />
                 </div>
                 <h3 className="text-slate-900 font-medium">{t('dashboard.clients.empty')}</h3>
+                {(serverInfo?.clientCounts ?? 0) > 0 && (
+                  <p className="text-xs text-slate-500 mt-2">
+                    {t('dashboard.clients.connectedCount')}: {serverInfo.clientCounts}
+                  </p>
+                )}
+              </div>
+            )
+          )}
+        </div>
+
+        <div className="mt-10 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold text-slate-800">{t('dashboard.devices.title')}</h2>
+            <div className="flex items-center gap-2">
+              <input
+                value={newClientName}
+                onChange={(e) => setNewClientName(e.target.value)}
+                placeholder={t('dashboard.quickActions.addClientPlaceholder')}
+                className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+              <button
+                onClick={handleCreateClient}
+                disabled={addingClient}
+                className="px-4 py-2 rounded-xl text-sm font-medium bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50"
+              >
+                {addingClient ? t('dashboard.quickActions.adding') : t('dashboard.quickActions.addClient')}
+              </button>
+            </div>
+          </div>
+
+          {registeredClients.length > 0 ? (
+            <div className="bg-white rounded-2xl border border-emerald-100 overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-emerald-50/50 border-b border-emerald-100 text-slate-500 uppercase tracking-wider text-xs font-semibold">
+                  <tr>
+                    <th className="px-6 py-3 text-left">{t('dashboard.devices.name')}</th>
+                    <th className="px-6 py-3 text-left">{t('dashboard.devices.status')}</th>
+                    <th className="px-6 py-3 text-right">{t('dashboard.devices.tunnels')}</th>
+                    <th className="px-6 py-3 text-right">{t('dashboard.devices.actions')}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-emerald-50">
+                  {registeredClients.map((c) => {
+                    const online = c.last_seen && (nowSec - c.last_seen) < 30;
+                    return (
+                      <tr key={c.id} className="hover:bg-emerald-50/50 transition-colors">
+                        <td className="px-6 py-4 font-medium text-slate-900">{c.name}</td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center gap-2 text-xs font-medium ${online ? 'text-emerald-700' : 'text-slate-500'}`}>
+                            <span className={`w-2 h-2 rounded-full ${online ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                            {online ? t('dashboard.devices.online') : t('dashboard.devices.offline')}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right font-mono text-xs text-slate-600">{(c.tunnels || []).length}</td>
+                        <td className="px-6 py-4 text-right">
+                          <button
+                            onClick={() => openAddTunnel(c.id)}
+                            className="text-xs px-3 py-1 rounded-full font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-all"
+                          >
+                            {t('dashboard.devices.addTunnel')}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            !loading && (
+              <div className="bg-white rounded-2xl border border-dashed border-emerald-300 p-8 text-center text-slate-600 text-sm">
+                {t('dashboard.devices.empty')}
               </div>
             )
           )}
@@ -317,6 +466,99 @@ function App() {
           onClose={() => setShowChangePassword(false)}
           onSuccess={() => setShowChangePassword(false)}
         />
+      )}
+
+      {showAddTunnel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl border border-slate-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-slate-900">{t('dashboard.devices.addTunnel')}</h3>
+              <button
+                onClick={() => setShowAddTunnel(false)}
+                className="text-slate-500 hover:text-slate-700"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="sm:col-span-2">
+                <label className="block text-xs text-slate-500 mb-1">{t('dashboard.tunnels.name')}</label>
+                <input
+                  value={tunnelForm.name}
+                  onChange={(e) => setTunnelForm((p) => ({ ...p, name: e.target.value }))}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                  placeholder="ssh"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">{t('dashboard.tunnels.type')}</label>
+                <select
+                  value={tunnelForm.type}
+                  onChange={(e) => setTunnelForm((p) => ({ ...p, type: e.target.value }))}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                >
+                  <option value="tcp">tcp</option>
+                  <option value="udp">udp</option>
+                  <option value="http">http</option>
+                  <option value="https">https</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">Local IP</label>
+                <input
+                  value={tunnelForm.local_ip}
+                  onChange={(e) => setTunnelForm((p) => ({ ...p, local_ip: e.target.value }))}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">Local Port</label>
+                <input
+                  value={tunnelForm.local_port}
+                  onChange={(e) => setTunnelForm((p) => ({ ...p, local_port: e.target.value }))}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
+                  placeholder="22"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">{t('dashboard.tunnels.remotePort')}</label>
+                <input
+                  value={tunnelForm.remote_port}
+                  onChange={(e) => setTunnelForm((p) => ({ ...p, remote_port: e.target.value }))}
+                  disabled={tunnelForm.type === 'http' || tunnelForm.type === 'https'}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500 font-mono disabled:bg-slate-50"
+                  placeholder="6022"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs text-slate-500 mb-1">Custom Domains</label>
+                <input
+                  value={tunnelForm.custom_domains}
+                  onChange={(e) => setTunnelForm((p) => ({ ...p, custom_domains: e.target.value }))}
+                  disabled={tunnelForm.type === 'tcp' || tunnelForm.type === 'udp'}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-50"
+                  placeholder="example.com, foo.example.com"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={() => setShowAddTunnel(false)}
+                className="px-4 py-2 rounded-xl text-sm font-medium bg-slate-100 hover:bg-slate-200 text-slate-700"
+              >
+                {t('cancel')}
+              </button>
+              <button
+                onClick={handleCreateTunnel}
+                className="px-4 py-2 rounded-xl text-sm font-medium bg-emerald-600 hover:bg-emerald-500 text-white"
+              >
+                {t('confirm')}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

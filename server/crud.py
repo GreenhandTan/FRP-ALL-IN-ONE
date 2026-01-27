@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 import models, schemas, auth
 import uuid
 import secrets
+import time
 
 # SystemConfig 辅助函数
 def get_config(db: Session, key: str):
@@ -61,6 +62,29 @@ def create_client(db: Session, client: schemas.ClientCreate):
     db.commit()
     db.refresh(db_client)
     return db_client
+
+def create_client_with_token(db: Session, name: str):
+    db_client = models.Client(
+        id=str(uuid.uuid4()),
+        name=name,
+        auth_token=secrets.token_hex(16),
+        status="online",
+        last_seen=int(time.time()),
+    )
+    db.add(db_client)
+    db.commit()
+    db.refresh(db_client)
+    return db_client
+
+def touch_client(db: Session, client_id: str, status: str = "online"):
+    client = get_client(db, client_id)
+    if not client:
+        return None
+    client.status = status
+    client.last_seen = int(time.time())
+    db.commit()
+    db.refresh(client)
+    return client
 
 def get_tunnels(db: Session, client_id: str):
     return db.query(models.Tunnel).filter(models.Tunnel.client_id == client_id).all()

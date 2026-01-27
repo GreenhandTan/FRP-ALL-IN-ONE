@@ -98,12 +98,22 @@ sudo ./deploy-frpc.sh
 - 创建 systemd 服务
 - 启动并设置开机自启
 
+同时会自动安装并启动 **配置同步 Agent（frp-agent）**：
+- Agent 会向管理端自注册设备并周期性上报心跳（用于“设备列表”展示在线状态）
+- Agent 会拉取你在控制台配置的端口映射，并对 frpc 执行热重载（`frpc reload`）
+
+> 说明：FRP 里 “frpc 已连接 frps” 只代表控制连接建立，未配置任何代理（proxy）时 `proxies=[]` 是正常的。设备展示与映射下发由 Agent 机制提供。
+>
+> 兼容性：如果你之前使用旧版脚本只安装了 frpc，没有安装 frp-agent，那么控制台只能看到“已连接客户端数”，但不会出现设备列表项；建议重新下载并执行新版脚本（或补装 frp-agent）。
+
 ### 4️⃣ 管理隧道
 
 在 Web 界面中：
-1. 添加客户端设备
-2. 为设备配置端口映射（TCP/UDP/HTTP）
-3. 查看客户端状态
+1. 在“设备列表”中查看已注册设备（Agent 自动注册，也可手动添加）
+2. 为设备新增端口映射（TCP/UDP/HTTP/HTTPS）
+3. 等待 Agent 同步并热重载 frpc，随后可在“客户端列表/隧道列表”看到 proxy 与流量/连接数
+
+> 注意：页面里的“禁用/启用端口”是对服务端端口放行策略的管理（FRPS allowPorts），属于全局配置。
 
 ## 🔧 运维命令
 
@@ -145,6 +155,19 @@ systemctl restart frpc
 systemctl stop frpc
 ```
 
+### 客户端（配置同步 Agent）
+
+```bash
+# 查看服务状态
+systemctl status frp-agent
+
+# 查看日志
+journalctl -u frp-agent -f
+
+# 重启服务
+systemctl restart frp-agent
+```
+
 ## 🗑️ 卸载 FRPC 客户端
 
 如果客户端部署失败或需要重新部署，可使用卸载脚本：
@@ -180,6 +203,8 @@ sudo ./uninstall-frpc.sh
 
 ```
 FRP-ALL-IN-ONE/
+├── agent/               # 设备端 Agent（自注册/心跳/配置同步）
+│   └── frp_agent.py
 ├── server/              # 后端 API (FastAPI)
 │   ├── main.py         # 主程序入口
 │   ├── models.py       # 数据库模型
@@ -238,6 +263,17 @@ systemctl restart frpc
 chmod +x uninstall-frpc.sh
 sudo ./uninstall-frpc.sh
 ```
+
+### Q: 为什么 frpc 已连接但控制台显示 0（proxies=[]）？
+
+这是正常现象：没有配置任何端口映射（proxy）时，FRPS Dashboard API 会返回 `proxies=[]`，因此流量/连接统计为 0。
+
+本项目通过 **设备端 Agent** 来实现“设备可见 + 映射可下发”：
+- 设备上线：Agent 自注册 + 心跳 → 控制台“设备列表”显示在线
+- 配置映射：控制台新增映射 → Agent 拉取配置 → `frpc reload` 生效 → `proxies` 开始出现
+
+另外，从当前版本开始：
+- `GET /clients/{client_id}/config` 需要携带 `X-Client-Token` 才能拉取配置（由 Agent 自动处理）
 
 ### Q: macOS/Windows 本地测试连接失败？
 
