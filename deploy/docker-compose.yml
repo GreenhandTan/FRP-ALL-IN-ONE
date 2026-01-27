@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # 1. 核心管理后台 (Python API)
   backend:
-    build: ./server
+    build: ../server
     container_name: frp-manager-backend
     restart: always
     user: root  # 需要 root 权限创建文件和启动进程
@@ -17,7 +17,7 @@ services:
 
   # 2. Web 界面 (Nginx + React)
   frontend:
-    build: ./frontend
+    build: ../frontend
     container_name: frp-manager-web
     restart: always
     ports:
