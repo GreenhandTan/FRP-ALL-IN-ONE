@@ -886,7 +886,7 @@ def generate_toml(config_data):
             domains = '", "'.join(proxy.get("customDomains") or [])
             lines.append('customDomains = ["' + domains + '"]')
         lines.append("")
-    return "\n".join(lines)
+    return chr(10).join(lines)
 
 def update_config_file(new_toml_content):
     common_part = ""
@@ -895,8 +895,8 @@ def update_config_file(new_toml_content):
             content = f.read()
             common_part = content.split("[[proxies]]")[0]
     else:
-        common_part = 'serverAddr = "127.0.0.1"\nserverPort = 7000\n\n'
-    full_content = common_part.strip() + "\n\n" + new_toml_content
+        common_part = 'serverAddr = "127.0.0.1"' + chr(10) + 'serverPort = 7000' + chr(10) + chr(10)
+    full_content = common_part.strip() + chr(10) + chr(10) + new_toml_content
     with open(FRPC_CONFIG_PATH, "w") as f:
         f.write(full_content)
     return hashlib.md5(full_content.encode()).hexdigest()
