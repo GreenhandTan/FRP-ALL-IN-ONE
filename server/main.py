@@ -27,6 +27,15 @@ app.add_middleware(
 def init_database():
     """确保所有表都已创建，并创建默认管理员"""
     models.Base.metadata.create_all(bind=engine)
+    try:
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            cols = [r[1] for r in conn.execute(text("PRAGMA table_info(tunnels)")).fetchall()]
+            if "enabled" not in cols:
+                conn.execute(text("ALTER TABLE tunnels ADD COLUMN enabled BOOLEAN NOT NULL DEFAULT 1"))
+                conn.commit()
+    except Exception:
+        pass
     
     # 创建默认管理员（如果不存在）
     db = SessionLocal()
@@ -117,7 +126,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 
 @app.post("/clients/", response_model=schemas.Client)
 def create_client(client: schemas.ClientCreate, db: Session = Depends(get_db), current_user: models.Admin = Depends(get_current_user)):
-    return crud.create_client(db=db, client=client)
+    raise HTTPException(status_code=403, detail="Clients must be created by agent registration")
 
 @app.get("/clients/", response_model=List[schemas.Client])
 def read_clients(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: models.Admin = Depends(get_current_user)):
@@ -130,11 +139,55 @@ def read_client(client_id: str, db: Session = Depends(get_db), current_user: mod
         raise HTTPException(status_code=404, detail="Client not found")
     return db_client
 
+@app.patch("/clients/{client_id}", response_model=schemas.Client)
+def update_client(
+    client_id: str,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: models.Admin = Depends(get_current_user),
+):
+    name = (payload.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="name is required")
+    updated = crud.update_client_name(db, client_id=client_id, new_name=name)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Client not found")
+    return updated
+
 @app.post("/clients/{client_id}/tunnels/", response_model=schemas.Tunnel)
 def create_tunnel_for_client(
     client_id: str, tunnel: schemas.TunnelCreate, db: Session = Depends(get_db), current_user: models.Admin = Depends(get_current_user)
 ):
     return crud.create_tunnel(db=db, tunnel=tunnel, client_id=client_id)
+
+@app.patch("/clients/{client_id}/tunnels/{tunnel_id}", response_model=schemas.Tunnel)
+def update_tunnel_for_client(
+    client_id: str,
+    tunnel_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: models.Admin = Depends(get_current_user),
+):
+    tunnel = db.query(models.Tunnel).filter(models.Tunnel.id == tunnel_id, models.Tunnel.client_id == client_id).first()
+    if not tunnel:
+        raise HTTPException(status_code=404, detail="Tunnel not found")
+    if "enabled" in payload:
+        updated = crud.set_tunnel_enabled(db, tunnel_id=tunnel_id, enabled=payload.get("enabled"))
+        return updated
+    raise HTTPException(status_code=400, detail="No supported fields")
+
+@app.delete("/clients/{client_id}/tunnels/{tunnel_id}")
+def delete_tunnel_for_client(
+    client_id: str,
+    tunnel_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Admin = Depends(get_current_user),
+):
+    tunnel = db.query(models.Tunnel).filter(models.Tunnel.id == tunnel_id, models.Tunnel.client_id == client_id).first()
+    if not tunnel:
+        raise HTTPException(status_code=404, detail="Tunnel not found")
+    ok = crud.delete_tunnel(db, tunnel_id=tunnel_id)
+    return {"success": ok}
 
 @app.get("/clients/{client_id}/config")
 def get_client_config(
@@ -162,6 +215,8 @@ def get_client_config(
     }
     
     for tunnel in client.tunnels:
+        if hasattr(tunnel, "enabled") and not tunnel.enabled:
+            continue
         proxy_name = f"{client.name}.{tunnel.name}"
         proxy = {
             "name": proxy_name,

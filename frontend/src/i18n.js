@@ -85,7 +85,7 @@ const translations = {
 
             // 统计卡片
             stats: {
-                totalClients: '客户端总数',
+                totalClients: '已连接客户端',
                 onlineClients: '在线客户端',
                 totalTunnels: '隧道总数',
                 activeTunnels: '活跃隧道',
@@ -105,8 +105,9 @@ const translations = {
             // 客户端管理
             clients: {
                 title: '客户端列表',
-                empty: '暂无客户端，请先添加',
+                empty: '暂无客户端，请等待设备端 Agent 自动注册',
                 connectedCount: '已连接客户端数',
+                id: 'ID',
                 token: 'Token',
                 tunnels: '隧道',
                 online: '在线',
@@ -151,6 +152,7 @@ const translations = {
                 enable: '启用',
                 disabling: '正在禁用...',
                 enabling: '正在启用...',
+                confirmDelete: '确定要删除此映射吗？',
             },
         },
 
@@ -250,7 +252,7 @@ const translations = {
 
             // Stats
             stats: {
-                totalClients: 'Total Clients',
+                totalClients: 'Connected Clients',
                 onlineClients: 'Online Clients',
                 totalTunnels: 'Total Tunnels',
                 activeTunnels: 'Active Tunnels',
@@ -270,8 +272,9 @@ const translations = {
             // Clients
             clients: {
                 title: 'Client List',
-                empty: 'No clients connected',
+                empty: 'No clients yet. Waiting for agent registration.',
                 connectedCount: 'Connected clients',
+                id: 'ID',
                 token: 'Token',
                 tunnels: 'Tunnels',
                 online: 'Online',
@@ -316,6 +319,7 @@ const translations = {
                 enable: 'Enable',
                 disabling: 'Disabling...',
                 enabling: 'Enabling...',
+                confirmDelete: 'Delete this mapping?',
             },
         },
 

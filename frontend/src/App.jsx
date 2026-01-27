@@ -16,18 +16,16 @@ function App() {
 
   // 新的数据结构
   const [serverInfo, setServerInfo] = useState({});
-  const [clients, setClients] = useState([]);
   const [registeredClients, setRegisteredClients] = useState([]);
+  const [frpProxies, setFrpProxies] = useState([]);
   const [stats, setStats] = useState({
     totalClients: 0,
+    onlineClients: 0,
     totalProxies: 0,
     totalTrafficIn: 0,
     totalTrafficOut: 0,
-    totalConns: 0
   });
   const [disabledPorts, setDisabledPorts] = useState([]);
-  const [newClientName, setNewClientName] = useState('');
-  const [addingClient, setAddingClient] = useState(false);
   const [showAddTunnel, setShowAddTunnel] = useState(false);
   const [tunnelClientId, setTunnelClientId] = useState(null);
   const [tunnelForm, setTunnelForm] = useState({
@@ -83,7 +81,6 @@ function App() {
     localStorage.removeItem('token');
     delete api.defaults.headers.common['Authorization'];
     setIsAuthenticated(false);
-    setClients([]);
     setError(null); // Clear error on logout
   };
 
@@ -101,30 +98,31 @@ function App() {
 
       if (statusRes.data.success) {
         setServerInfo(statusRes.data.server_info);
-        setClients(statusRes.data.clients || []);
-        setRegisteredClients(registeredRes.data || []);
+        const registered = registeredRes.data || [];
+        setRegisteredClients(registered);
+        setFrpProxies(statusRes.data.proxies || []);
 
         // Calculate stats
         let totalTrafficIn = 0;
         let totalTrafficOut = 0;
-        let totalConnections = 0;
         let totalProxies = 0;
 
         (statusRes.data.clients || []).forEach(client => {
           client.proxies.forEach(proxy => {
             totalTrafficIn += proxy.today_traffic_in;
             totalTrafficOut += proxy.today_traffic_out;
-            totalConnections += proxy.cur_conns;
             totalProxies++;
           });
         });
 
+        const now = Math.floor(Date.now() / 1000);
+        const onlineClients = registered.filter((c) => c.last_seen && (now - c.last_seen) < 30).length;
         const si = statusRes.data.server_info || {};
 
         setStats({
           totalClients: si.clientCounts ?? statusRes.data.clients.length,
+          onlineClients,
           totalProxies: statusRes.data.total_proxies ?? totalProxies,
-          totalConns: si.curConns ?? totalConnections,
           totalTrafficIn: si.totalTrafficIn ?? totalTrafficIn,
           totalTrafficOut: si.totalTrafficOut ?? totalTrafficOut
         });
@@ -142,21 +140,6 @@ function App() {
       setError("Network or Server Error: " + (err.response?.data?.message || err.message));
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleCreateClient = async () => {
-    const name = newClientName.trim();
-    if (!name) return;
-    setAddingClient(true);
-    try {
-      await api.post('/clients/', { name });
-      setNewClientName('');
-      await loadData();
-    } catch (err) {
-      setError(err.response?.data?.detail || err.message);
-    } finally {
-      setAddingClient(false);
     }
   };
 
@@ -197,6 +180,36 @@ function App() {
       });
       setShowAddTunnel(false);
       setTunnelClientId(null);
+      await loadData();
+    } catch (err) {
+      setError(err.response?.data?.detail || err.message);
+    }
+  };
+
+  const handleRenameClient = async (clientId, name) => {
+    const trimmed = (name || '').trim();
+    if (!trimmed) return;
+    try {
+      await api.patch(`/clients/${clientId}`, { name: trimmed });
+      await loadData();
+    } catch (err) {
+      setError(err.response?.data?.detail || err.message);
+    }
+  };
+
+  const handleToggleTunnelEnabled = async (clientId, tunnelId, enabled) => {
+    try {
+      await api.patch(`/clients/${clientId}/tunnels/${tunnelId}`, { enabled });
+      await loadData();
+    } catch (err) {
+      setError(err.response?.data?.detail || err.message);
+    }
+  };
+
+  const handleDeleteTunnel = async (clientId, tunnelId) => {
+    if (!window.confirm(t('dashboard.tunnels.confirmDelete') || t('confirm'))) return;
+    try {
+      await api.delete(`/clients/${clientId}/tunnels/${tunnelId}`);
       await loadData();
     } catch (err) {
       setError(err.response?.data?.detail || err.message);
@@ -336,8 +349,8 @@ function App() {
             subtext={`${stats.totalProxies} ${t('dashboard.clients.proxies')}`}
           />
           <StatCard
-            title={t('dashboard.stats.connections')}
-            value={stats.totalConns}
+            title={t('dashboard.stats.onlineClients')}
+            value={stats.onlineClients}
             icon={<Wifi className="text-white" />}
             gradient="from-blue-500 to-indigo-600"
           />
@@ -364,15 +377,19 @@ function App() {
             </div>
           </div>
 
-          {clients.length > 0 ? (
-            clients.map(client => (
-              <ClientCard
-                key={client.name}
+          {registeredClients.length > 0 ? (
+            registeredClients.map(client => (
+              <RegisteredClientCard
+                key={client.id}
                 client={client}
-                disabledPorts={disabledPorts}
-                onTogglePort={handleTogglePort}
+                frpProxies={frpProxies}
                 formatBytes={formatBytes}
                 t={t}
+                nowSec={nowSec}
+                onAddTunnel={() => openAddTunnel(client.id)}
+                onRename={(name) => handleRenameClient(client.id, name)}
+                onToggleTunnelEnabled={(tunnelId, enabled) => handleToggleTunnelEnabled(client.id, tunnelId, enabled)}
+                onDeleteTunnel={(tunnelId) => handleDeleteTunnel(client.id, tunnelId)}
               />
             ))
           ) : (
@@ -387,73 +404,6 @@ function App() {
                     {t('dashboard.clients.connectedCount')}: {serverInfo.clientCounts}
                   </p>
                 )}
-              </div>
-            )
-          )}
-        </div>
-
-        <div className="mt-10 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold text-slate-800">{t('dashboard.devices.title')}</h2>
-            <div className="flex items-center gap-2">
-              <input
-                value={newClientName}
-                onChange={(e) => setNewClientName(e.target.value)}
-                placeholder={t('dashboard.quickActions.addClientPlaceholder')}
-                className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-              <button
-                onClick={handleCreateClient}
-                disabled={addingClient}
-                className="px-4 py-2 rounded-xl text-sm font-medium bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50"
-              >
-                {addingClient ? t('dashboard.quickActions.adding') : t('dashboard.quickActions.addClient')}
-              </button>
-            </div>
-          </div>
-
-          {registeredClients.length > 0 ? (
-            <div className="bg-white rounded-2xl border border-emerald-100 overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-emerald-50/50 border-b border-emerald-100 text-slate-500 uppercase tracking-wider text-xs font-semibold">
-                  <tr>
-                    <th className="px-6 py-3 text-left">{t('dashboard.devices.name')}</th>
-                    <th className="px-6 py-3 text-left">{t('dashboard.devices.status')}</th>
-                    <th className="px-6 py-3 text-right">{t('dashboard.devices.tunnels')}</th>
-                    <th className="px-6 py-3 text-right">{t('dashboard.devices.actions')}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-emerald-50">
-                  {registeredClients.map((c) => {
-                    const online = c.last_seen && (nowSec - c.last_seen) < 30;
-                    return (
-                      <tr key={c.id} className="hover:bg-emerald-50/50 transition-colors">
-                        <td className="px-6 py-4 font-medium text-slate-900">{c.name}</td>
-                        <td className="px-6 py-4">
-                          <span className={`inline-flex items-center gap-2 text-xs font-medium ${online ? 'text-emerald-700' : 'text-slate-500'}`}>
-                            <span className={`w-2 h-2 rounded-full ${online ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-                            {online ? t('dashboard.devices.online') : t('dashboard.devices.offline')}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-right font-mono text-xs text-slate-600">{(c.tunnels || []).length}</td>
-                        <td className="px-6 py-4 text-right">
-                          <button
-                            onClick={() => openAddTunnel(c.id)}
-                            className="text-xs px-3 py-1 rounded-full font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-all"
-                          >
-                            {t('dashboard.devices.addTunnel')}
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            !loading && (
-              <div className="bg-white rounded-2xl border border-dashed border-emerald-300 p-8 text-center text-slate-600 text-sm">
-                {t('dashboard.devices.empty')}
               </div>
             )
           )}
@@ -586,31 +536,97 @@ function StatCard({ title, value, icon, gradient, subtext }) {
   )
 }
 
-function ClientCard({ client, disabledPorts, onTogglePort, formatBytes, t }) {
-  // 计算此时的总流量
-  const totalIn = client.proxies.reduce((a, b) => a + (b.today_traffic_in || 0), 0);
-  const totalOut = client.proxies.reduce((a, b) => a + (b.today_traffic_out || 0), 0);
-  const totalConns = client.proxies.reduce((a, b) => a + (b.cur_conns || 0), 0);
+function RegisteredClientCard({ client, frpProxies, formatBytes, t, nowSec, onAddTunnel, onRename, onToggleTunnelEnabled, onDeleteTunnel }) {
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState(client.name);
+
+  useEffect(() => {
+    setNameDraft(client.name);
+  }, [client.name]);
+
+  const proxiesByName = (frpProxies || []).reduce((acc, p) => {
+    if (p?.name) acc[p.name] = p;
+    return acc;
+  }, {});
+
+  const tunnels = client.tunnels || [];
+
+  const totalIn = tunnels.reduce((sum, tunnel) => {
+    const proxy = proxiesByName[`${client.name}.${tunnel.name}`];
+    return sum + (proxy?.today_traffic_in || 0);
+  }, 0);
+  const totalOut = tunnels.reduce((sum, tunnel) => {
+    const proxy = proxiesByName[`${client.name}.${tunnel.name}`];
+    return sum + (proxy?.today_traffic_out || 0);
+  }, 0);
+  const totalConns = tunnels.reduce((sum, tunnel) => {
+    const proxy = proxiesByName[`${client.name}.${tunnel.name}`];
+    return sum + (proxy?.cur_conns || 0);
+  }, 0);
+
+  const online = client.last_seen && (nowSec - client.last_seen) < 30;
+  const shortId = (client.id || '').slice(0, 8);
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-emerald-100 overflow-hidden hover:shadow-md transition-shadow duration-300">
       <div className="px-6 py-5 border-b border-emerald-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-emerald-50/30">
         <div className="flex items-center gap-4">
           <div className="relative">
-            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${client.status === 'online' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${online ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
               <Server size={24} />
             </div>
-            <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${client.status === 'online' ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+            <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${online ? 'bg-emerald-500' : 'bg-slate-400'}`} />
           </div>
           <div>
             <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-              {client.name}
+              {editingName ? (
+                <span className="flex items-center gap-2">
+                  <input
+                    value={nameDraft}
+                    onChange={(e) => setNameDraft(e.target.value)}
+                    className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                  <button
+                    onClick={() => {
+                      setEditingName(false);
+                      onRename?.(nameDraft);
+                    }}
+                    className="text-xs px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white"
+                  >
+                    {t('save')}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditingName(false);
+                      setNameDraft(client.name);
+                    }}
+                    className="text-xs px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700"
+                  >
+                    {t('cancel')}
+                  </button>
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <span>{client.name}</span>
+                  <button
+                    onClick={() => setEditingName(true)}
+                    className="text-xs px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700"
+                  >
+                    {t('edit')}
+                  </button>
+                </span>
+              )}
             </h3>
             <div className="flex items-center gap-4 text-xs text-slate-500 mt-1">
               <span className="flex items-center gap-1">
-                <div className={`w-1.5 h-1.5 rounded-full ${client.status === 'online' ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-                {client.status === 'online' ? t('dashboard.clients.online') : t('dashboard.clients.offline')}
+                <div className={`w-1.5 h-1.5 rounded-full ${online ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                {online ? t('dashboard.clients.online') : t('dashboard.clients.offline')}
               </span>
+              {shortId && (
+                <span className="flex items-center gap-1 font-mono">
+                  {t('dashboard.clients.id')}: {shortId}
+                </span>
+              )}
               <span className="flex items-center gap-1 font-mono">
                 <Activity size={12} />
                 {totalConns} {t('dashboard.clients.connections')}
@@ -629,6 +645,14 @@ function ClientCard({ client, disabledPorts, onTogglePort, formatBytes, t }) {
             <div className="text-xs text-slate-400 flex items-center justify-end gap-1"><ArrowUp size={10} /> {t('dashboard.clients.trafficOut')}</div>
             <div className="font-mono text-sm font-medium text-slate-700">{formatBytes(totalOut)}</div>
           </div>
+          <div className="text-right">
+            <button
+              onClick={onAddTunnel}
+              className="text-xs px-3 py-1 rounded-full font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-all"
+            >
+              {t('dashboard.clients.addTunnel')}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -646,17 +670,18 @@ function ClientCard({ client, disabledPorts, onTogglePort, formatBytes, t }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-emerald-50">
-              {client.proxies.map(proxy => {
-                const remotePort = proxy.conf?.remote_port || 0;
-                const isDisabled = disabledPorts.includes(remotePort);
-                const isTcpOrUdp = proxy.type === 'tcp' || proxy.type === 'udp';
+              {tunnels.map(tunnel => {
+                const proxyName = `${client.name}.${tunnel.name}`;
+                const proxy = proxiesByName[proxyName];
+                const remotePort = tunnel.remote_port || 0;
+                const enabled = tunnel.enabled !== false;
 
                 return (
-                  <tr key={proxy.name} className={`group hover:bg-emerald-50/50 transition-colors ${isDisabled ? 'opacity-50 grayscale' : ''}`}>
-                    <td className="px-6 py-4 font-medium text-slate-900">{proxy.name}</td>
+                  <tr key={tunnel.id} className={`group hover:bg-emerald-50/50 transition-colors ${enabled ? '' : 'opacity-50 grayscale'}`}>
+                    <td className="px-6 py-4 font-medium text-slate-900">{proxyName}</td>
                     <td className="px-6 py-4">
                       <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-emerald-100 text-emerald-700 uppercase">
-                        {proxy.type}
+                        {tunnel.type}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -670,27 +695,31 @@ function ClientCard({ client, disabledPorts, onTogglePort, formatBytes, t }) {
                     </td>
                     <td className="px-6 py-4 text-right font-mono text-xs text-slate-600">
                       <div className="flex flex-col items-end">
-                        <span className="flex items-center gap-1"><ArrowDown size={10} /> {formatBytes(proxy.today_traffic_in)}</span>
-                        <span className="flex items-center gap-1"><ArrowUp size={10} /> {formatBytes(proxy.today_traffic_out)}</span>
+                        <span className="flex items-center gap-1"><ArrowDown size={10} /> {formatBytes(proxy?.today_traffic_in || 0)}</span>
+                        <span className="flex items-center gap-1"><ArrowUp size={10} /> {formatBytes(proxy?.today_traffic_out || 0)}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right font-mono text-xs">
-                      {proxy.cur_conns}
+                      {proxy?.cur_conns || 0}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      {isTcpOrUdp && remotePort > 0 ? (
+                      <div className="flex items-center justify-end gap-2">
                         <button
-                          onClick={() => onTogglePort(remotePort, isDisabled)}
-                          className={`text-xs px-3 py-1 rounded-full font-medium transition-all ${isDisabled
-                            ? 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200'
-                            : 'bg-red-50 text-red-500 hover:bg-red-100'
+                          onClick={() => onToggleTunnelEnabled?.(tunnel.id, !enabled)}
+                          className={`text-xs px-3 py-1 rounded-full font-medium transition-all ${enabled
+                            ? 'bg-red-50 text-red-500 hover:bg-red-100'
+                            : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
                             }`}
                         >
-                          {isDisabled ? t('dashboard.tunnels.enable') : t('dashboard.tunnels.disable')}
+                          {enabled ? t('dashboard.tunnels.disable') : t('dashboard.tunnels.enable')}
                         </button>
-                      ) : (
-                        <span className="text-slate-300 text-xs">-</span>
-                      )}
+                        <button
+                          onClick={() => onDeleteTunnel?.(tunnel.id)}
+                          className="text-xs px-3 py-1 rounded-full font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all"
+                        >
+                          {t('delete')}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

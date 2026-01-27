@@ -50,6 +50,7 @@ class Tunnel(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True) # e.g., "ssh"
     type = Column(Enum(TunnelType))
+    enabled = Column(Boolean, default=True)
     
     # FRP Config Fields
     local_ip = Column(String, default="127.0.0.1")

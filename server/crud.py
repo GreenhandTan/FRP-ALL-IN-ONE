@@ -103,3 +103,21 @@ def delete_tunnel(db: Session, tunnel_id: int):
         db.commit()
         return True
     return False
+
+def update_client_name(db: Session, client_id: str, new_name: str):
+    client = get_client(db, client_id=client_id)
+    if not client:
+        return None
+    client.name = new_name
+    db.commit()
+    db.refresh(client)
+    return client
+
+def set_tunnel_enabled(db: Session, tunnel_id: int, enabled: bool):
+    tunnel = db.query(models.Tunnel).filter(models.Tunnel.id == tunnel_id).first()
+    if not tunnel:
+        return None
+    tunnel.enabled = bool(enabled)
+    db.commit()
+    db.refresh(tunnel)
+    return tunnel

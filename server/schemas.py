@@ -11,6 +11,7 @@ class TunnelType(str, Enum):
 class TunnelBase(BaseModel):
     name: str
     type: TunnelType
+    enabled: bool = True
     local_ip: str = "127.0.0.1"
     local_port: int
     remote_port: Optional[int] = None
