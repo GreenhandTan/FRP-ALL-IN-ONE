@@ -88,6 +88,8 @@ const translations = {
                 onlineClients: '在线客户端',
                 totalTunnels: '隧道总数',
                 activeTunnels: '活跃隧道',
+                totalTraffic: '总流量',
+                connections: '连接数',
             },
 
             // 快速操作
@@ -107,6 +109,9 @@ const translations = {
                 tunnels: '隧道',
                 online: '在线',
                 offline: '离线',
+                connections: '连接数',
+                trafficIn: '传入流量',
+                trafficOut: '传出流量',
                 showToken: '显示 Token',
                 hideToken: '隐藏 Token',
                 copyToken: '复制 Token',
@@ -114,6 +119,8 @@ const translations = {
                 addTunnel: '添加隧道',
                 deleteClient: '删除客户端',
                 confirmDelete: '确定要删除此客户端吗？',
+                autoRefresh: '自动刷新已启用',
+                proxies: '个代理',
             },
 
             // 隧道管理
@@ -125,6 +132,11 @@ const translations = {
                 status: '状态',
                 active: '运行中',
                 inactive: '已停止',
+                actions: '操作',
+                disable: '禁用',
+                enable: '启用',
+                disabling: '正在禁用...',
+                enabling: '正在启用...',
             },
         },
 
@@ -258,6 +270,8 @@ const translations = {
                 addTunnel: 'Add Tunnel',
                 deleteClient: 'Delete Client',
                 confirmDelete: 'Are you sure you want to delete this client?',
+                autoRefresh: 'Auto-refreshing enabled',
+                proxies: 'proxies',
             },
 
             // Tunnels

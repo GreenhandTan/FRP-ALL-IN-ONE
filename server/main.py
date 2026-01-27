@@ -198,21 +198,39 @@ async def get_frps_status(
             "proxies": []
         }
     
-    try:
-        # FRPS Dashboard API 地址
-        # 由于 FRPS 运行在 Host 模式，Backend 容器（Bridge 模式）需要通过 host.docker.internal 访问宿主机网络
-        base_url = "http://host.docker.internal:7500/api"
-        auth = ("admin", dashboard_pwd)
-        
-        # 获取服务器信息
-        server_info = {}
+    # 尝试多种可能的连接地址，以兼容 Linux/Mac/Bridge/Host 等不同环境
+    possible_urls = [
+        "http://host.docker.internal:7500/api",  # Mac/Win + Host 模式 (需 extra_hosts)
+        "http://172.17.0.1:7500/api",           # Linux Host 模式 (默认 Gateway)
+        "http://frps:7500/api",                  # Bridge 模式 (容器互联)
+        "http://127.0.0.1:7500/api"              # Backend 也在 Host 模式 (备用)
+    ]
+
+    base_url = None
+    auth = ("admin", dashboard_pwd)
+    server_info = {}
+
+    # 1. 探测可用地址并获取服务器信息
+    for url in possible_urls:
         try:
-            resp = requests.get(f"{base_url}/serverinfo", auth=auth, timeout=5)
+            resp = requests.get(f"{url}/serverinfo", auth=auth, timeout=3)
             if resp.status_code == 200:
+                base_url = url
                 server_info = resp.json()
+                break # 找到可用地址
         except:
-            pass
-        
+            continue
+    
+    # 如果所有地址都失败
+    if not base_url:
+        return {
+            "success": False,
+            "message": "无法连接到 FRPS Dashboard (尝试了 host.docker.internal, 172.17.0.1, frps)",
+            "clients": [],
+            "proxies": []
+        }
+
+    try:
         # 获取代理列表（TCP）
         tcp_proxies = []
         try:

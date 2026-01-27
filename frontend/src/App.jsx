@@ -226,7 +226,7 @@ function App() {
             value={stats.totalClients}
             icon={<Server className="text-white" />}
             gradient="from-emerald-500 to-teal-600"
-            subtext={`${stats.totalProxies} proxies`}
+            subtext={`${stats.totalProxies} ${t('dashboard.clients.proxies')}`}
           />
           <StatCard
             title={t('dashboard.stats.connections')}
@@ -253,7 +253,7 @@ function App() {
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-slate-800">{t('dashboard.clients.title')}</h2>
             <div className="text-xs text-slate-500">
-              Auto-refreshing enabled
+              {t('dashboard.clients.autoRefresh')}
             </div>
           </div>
 
@@ -410,8 +410,8 @@ function ClientCard({ client, disabledPorts, onTogglePort, formatBytes, t }) {
                         <button
                           onClick={() => onTogglePort(remotePort, isDisabled)}
                           className={`text-xs px-3 py-1 rounded-full font-medium transition-all ${isDisabled
-                              ? 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200'
-                              : 'bg-red-50 text-red-500 hover:bg-red-100'
+                            ? 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200'
+                            : 'bg-red-50 text-red-500 hover:bg-red-100'
                             }`}
                         >
                           {isDisabled ? t('dashboard.tunnels.enable') : t('dashboard.tunnels.disable')}
