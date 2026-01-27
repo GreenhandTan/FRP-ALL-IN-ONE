@@ -92,6 +92,12 @@ clean_old_services() {
     # 停止并清理旧服务（如果存在）
     docker-compose down -v --remove-orphans 2>/dev/null || true
     
+    # 清理宿主机数据目录（包含数据库文件）
+    if [ -d "./data" ]; then
+        echo "[INFO] 删除旧数据库文件..."
+        rm -rf ./data
+    fi
+    
     echo -e "${GREEN}[OK] 清理完成${NC}"
 }
 
