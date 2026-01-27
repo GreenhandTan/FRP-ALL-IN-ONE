@@ -209,6 +209,34 @@ async def deploy_frp_server(
     
     return result
 
+# 手动重启 FRPS
+@app.post("/api/frp/restart-frps")
+async def restart_frps(
+    current_user: models.Admin = Depends(get_current_user)
+):
+    """
+    手动重启 FRPS 容器
+    """
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["docker", "restart", "frps"],
+            check=False,
+            capture_output=True,
+            timeout=30,
+            text=True
+        )
+        if result.returncode == 0:
+            return {"success": True, "message": "FRPS 重启成功"}
+        else:
+            return {"success": False, "message": f"重启失败: {result.stderr.strip()}"}
+    except FileNotFoundError:
+        return {"success": False, "message": "未找到 docker 命令"}
+    except subprocess.TimeoutExpired:
+        return {"success": False, "message": "重启超时"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
 # FRPC 脚本生成接口
 @app.get("/api/frp/generate-client-script")
 async def generate_frpc_script(

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Server, Download, CheckCircle, Copy, AlertTriangle } from 'lucide-react';
+import { Server, Download, CheckCircle, Copy, AlertTriangle, RefreshCw } from 'lucide-react';
 import { api } from './api';
 import { useLanguage } from './LanguageContext';
 
@@ -61,10 +61,7 @@ export default function SetupWizard({ onSetupComplete }) {
                     restart_message: response.data.restart_message
                 });
                 setStep(2);
-                // 延迟 3 秒后获取客户端脚本，让用户有时间看到 FRPS 重启状态
-                setTimeout(() => {
-                    fetchClientScript();
-                }, 3000);
+                // 不再自动跳转，等待用户手动点击下一步
             } else {
                 setError(response.data.message || t('setup.deployFailed'));
             }
@@ -254,9 +251,29 @@ export default function SetupWizard({ onSetupComplete }) {
                                     </div>
                                 ) : (
                                     <div className="bg-amber-500/20 border border-amber-500/50 text-amber-200 px-3 py-2 rounded text-sm">
-                                        <div className="flex items-center gap-2 font-semibold">
-                                            <AlertTriangle size={16} />
-                                            {t('setup.frpsRestartFailed')}
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2 font-semibold">
+                                                <AlertTriangle size={16} />
+                                                {t('setup.frpsRestartFailed')}
+                                            </div>
+                                            <button
+                                                onClick={async () => {
+                                                    try {
+                                                        const res = await api.post('/api/frp/restart-frps');
+                                                        if (res.data.success) {
+                                                            setDeployResult(prev => ({ ...prev, frps_restarted: true }));
+                                                        } else {
+                                                            alert(res.data.message || t('setup.frpsRestartFailed'));
+                                                        }
+                                                    } catch (e) {
+                                                        alert(e.response?.data?.detail || e.message);
+                                                    }
+                                                }}
+                                                className="text-xs bg-amber-600 hover:bg-amber-500 text-white px-3 py-1 rounded transition-colors flex items-center gap-1"
+                                            >
+                                                <RefreshCw size={12} />
+                                                {t('setup.retryRestart')}
+                                            </button>
                                         </div>
                                         <p className="text-xs mt-1 text-amber-300">
                                             {deployResult.restart_message || t('setup.manualRestart')}
@@ -266,7 +283,16 @@ export default function SetupWizard({ onSetupComplete }) {
                             </div>
                         </div>
 
-                        <p className="text-slate-400 text-sm mt-6">{t('setup.generatingScript')}</p>
+                        {/* 下一步按钮 */}
+                        <button
+                            onClick={fetchClientScript}
+                            className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-medium py-3 rounded-xl hover:opacity-90 transition-opacity shadow-lg shadow-emerald-500/20 mt-6 flex items-center justify-center gap-2"
+                        >
+                            {t('setup.nextStep')}
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                        </button>
                     </div>
                 )}
 
