@@ -1,13 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { api } from './api';
 import { RefreshCw, Server, CheckCircle, Terminal, LogOut, Key, Globe, Activity, ArrowDown, ArrowUp, Power, Wifi, AlertTriangle } from 'lucide-react';
 import Login from './Login';
 import SetupWizard from './SetupWizard';
 import ChangePassword from './ChangePassword';
 import { useLanguage } from './LanguageContext';
+import Modal from './ui/Modal';
+import { useDialog } from './ui/DialogProvider';
 
 function App() {
   const { t, language, toggleLanguage } = useLanguage();
+  const dialog = useDialog();
   const [systemStatus, setSystemStatus] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null); // Add error state
@@ -38,6 +41,7 @@ function App() {
   });
 
   const nowSec = Math.floor(Date.now() / 1000);
+  const loadInFlightRef = useRef(false);
 
   // 格式化流量
   const formatBytes = (bytes, decimals = 2) => {
@@ -87,6 +91,8 @@ function App() {
   // 加载数据：服务器状态 + 禁用端口列表
   const loadData = async () => {
     if (!localStorage.getItem('token')) return;
+    if (loadInFlightRef.current) return;
+    loadInFlightRef.current = true;
     setLoading(true);
     try {
       // 并行请求
@@ -140,6 +146,7 @@ function App() {
       setError("Network or Server Error: " + (err.response?.data?.message || err.message));
     } finally {
       setLoading(false);
+      loadInFlightRef.current = false;
     }
   };
 
@@ -207,7 +214,13 @@ function App() {
   };
 
   const handleDeleteTunnel = async (clientId, tunnelId) => {
-    if (!window.confirm(t('dashboard.tunnels.confirmDelete') || t('confirm'))) return;
+    const ok = await dialog.confirm({
+      title: t('dashboard.tunnels.confirmDelete') || t('confirm'),
+      confirmText: t('delete'),
+      cancelText: t('cancel'),
+      tone: 'danger',
+    });
+    if (!ok) return;
     try {
       await api.delete(`/clients/${clientId}/tunnels/${tunnelId}`);
       await loadData();
@@ -223,15 +236,25 @@ function App() {
     }
   }, [isAuthenticated]);
 
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const interval = setInterval(() => {
+      loadData();
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [isAuthenticated]);
+
   // 启用/禁用端口
   const handleTogglePort = async (port, enable) => {
     if (!port) return;
-    const confirmMsg = enable
-      ? t('dashboard.tunnels.enabling')
-      : t('dashboard.tunnels.disabling'); // "正在启用/禁用，FRP将会重启..."
-
-    // 简单的确认 (实际应该用 Modal)
-    if (!window.confirm(`${enable ? 'Enable' : 'Disable'} port ${port}? FRPS will restart.`)) return;
+    const ok = await dialog.confirm({
+      title: enable ? t('dashboard.tunnels.enable') : t('dashboard.tunnels.disable'),
+      description: `${enable ? 'Enable' : 'Disable'} port ${port}? FRPS will restart.`,
+      confirmText: enable ? t('dashboard.tunnels.enable') : t('dashboard.tunnels.disable'),
+      cancelText: t('cancel'),
+      tone: enable ? 'default' : 'danger',
+    });
+    if (!ok) return;
 
     try {
       setLoading(true);
@@ -242,11 +265,11 @@ function App() {
         await loadData(); // 重新加载数据
         setError(null);
       } else {
-        alert(response.data.message);
+        await dialog.alert({ title: t('errorTitle'), description: response.data.message });
         setError(response.data.message);
       }
     } catch (error) {
-      alert(error.message);
+      await dialog.alert({ title: t('errorTitle'), description: error.message });
       setError(error.message);
     } finally {
       setLoading(false);
@@ -418,98 +441,105 @@ function App() {
         />
       )}
 
-      {showAddTunnel && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl border border-slate-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-slate-900">{t('dashboard.devices.addTunnel')}</h3>
-              <button
-                onClick={() => setShowAddTunnel(false)}
-                className="text-slate-500 hover:text-slate-700"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="sm:col-span-2">
-                <label className="block text-xs text-slate-500 mb-1">{t('dashboard.tunnels.name')}</label>
-                <input
-                  value={tunnelForm.name}
-                  onChange={(e) => setTunnelForm((p) => ({ ...p, name: e.target.value }))}
-                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
-                  placeholder="ssh"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-500 mb-1">{t('dashboard.tunnels.type')}</label>
-                <select
-                  value={tunnelForm.type}
-                  onChange={(e) => setTunnelForm((p) => ({ ...p, type: e.target.value }))}
-                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
-                >
-                  <option value="tcp">tcp</option>
-                  <option value="udp">udp</option>
-                  <option value="http">http</option>
-                  <option value="https">https</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs text-slate-500 mb-1">Local IP</label>
-                <input
-                  value={tunnelForm.local_ip}
-                  onChange={(e) => setTunnelForm((p) => ({ ...p, local_ip: e.target.value }))}
-                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-500 mb-1">Local Port</label>
-                <input
-                  value={tunnelForm.local_port}
-                  onChange={(e) => setTunnelForm((p) => ({ ...p, local_port: e.target.value }))}
-                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
-                  placeholder="22"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-500 mb-1">{t('dashboard.tunnels.remotePort')}</label>
-                <input
-                  value={tunnelForm.remote_port}
-                  onChange={(e) => setTunnelForm((p) => ({ ...p, remote_port: e.target.value }))}
-                  disabled={tunnelForm.type === 'http' || tunnelForm.type === 'https'}
-                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500 font-mono disabled:bg-slate-50"
-                  placeholder="6022"
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="block text-xs text-slate-500 mb-1">Custom Domains</label>
-                <input
-                  value={tunnelForm.custom_domains}
-                  onChange={(e) => setTunnelForm((p) => ({ ...p, custom_domains: e.target.value }))}
-                  disabled={tunnelForm.type === 'tcp' || tunnelForm.type === 'udp'}
-                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-50"
-                  placeholder="example.com, foo.example.com"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 mt-6">
-              <button
-                onClick={() => setShowAddTunnel(false)}
-                className="px-4 py-2 rounded-xl text-sm font-medium bg-slate-100 hover:bg-slate-200 text-slate-700"
-              >
-                {t('cancel')}
-              </button>
-              <button
-                onClick={handleCreateTunnel}
-                className="px-4 py-2 rounded-xl text-sm font-medium bg-emerald-600 hover:bg-emerald-500 text-white"
-              >
-                {t('confirm')}
-              </button>
-            </div>
+      <Modal
+        open={showAddTunnel}
+        onClose={() => setShowAddTunnel(false)}
+        title={t('dashboard.devices.addTunnel')}
+        size="lg"
+        footer={
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => setShowAddTunnel(false)}
+              className="px-4 py-2 rounded-xl text-sm font-medium bg-slate-100 hover:bg-slate-200 text-slate-700"
+            >
+              {t('cancel')}
+            </button>
+            <button
+              onClick={handleCreateTunnel}
+              className="px-4 py-2 rounded-xl text-sm font-medium bg-emerald-600 hover:bg-emerald-500 text-white"
+            >
+              {t('confirm')}
+            </button>
+          </div>
+        }
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="sm:col-span-2">
+            <label className="block text-xs text-slate-500 mb-1">{t('dashboard.tunnels.name')}</label>
+            <input
+              value={tunnelForm.name}
+              onChange={(e) => setTunnelForm((p) => ({ ...p, name: e.target.value }))}
+              className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+              placeholder="ssh"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">{t('dashboard.tunnels.type')}</label>
+            <select
+              value={tunnelForm.type}
+              onChange={(e) => setTunnelForm((p) => ({ ...p, type: e.target.value }))}
+              className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="tcp">tcp</option>
+              <option value="udp">udp</option>
+              <option value="http">http</option>
+              <option value="https">https</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Local IP</label>
+            <input
+              value={tunnelForm.local_ip}
+              onChange={(e) => setTunnelForm((p) => ({ ...p, local_ip: e.target.value }))}
+              className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Local Port</label>
+            <input
+              value={tunnelForm.local_port}
+              onChange={(e) => setTunnelForm((p) => ({ ...p, local_port: e.target.value }))}
+              className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
+              placeholder="22"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">{t('dashboard.tunnels.remotePort')}</label>
+            <input
+              value={tunnelForm.remote_port}
+              onChange={(e) => setTunnelForm((p) => ({ ...p, remote_port: e.target.value }))}
+              disabled={tunnelForm.type === 'http' || tunnelForm.type === 'https'}
+              className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500 font-mono disabled:bg-slate-50"
+              placeholder="6022"
+            />
+            {(tunnelForm.type === 'tcp' || tunnelForm.type === 'udp') && (
+              <p className="mt-1 text-[11px] text-slate-500">
+                {t('dashboard.tunnels.remotePortSuggest')}
+              </p>
+            )}
+            {(tunnelForm.type === 'tcp' || tunnelForm.type === 'udp') && tunnelForm.remote_port && (() => {
+              const p = parseInt(tunnelForm.remote_port, 10);
+              if (!Number.isFinite(p)) return null;
+              if (p >= 49152 && p <= 65535) return null;
+              return (
+                <p className="mt-1 text-[11px] text-amber-600">
+                  {t('dashboard.tunnels.remotePortNonPrivate')}
+                </p>
+              );
+            })()}
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-xs text-slate-500 mb-1">Custom Domains</label>
+            <input
+              value={tunnelForm.custom_domains}
+              onChange={(e) => setTunnelForm((p) => ({ ...p, custom_domains: e.target.value }))}
+              disabled={tunnelForm.type === 'tcp' || tunnelForm.type === 'udp'}
+              className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-50"
+              placeholder="example.com, foo.example.com"
+            />
           </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 }
@@ -553,15 +583,15 @@ function RegisteredClientCard({ client, frpProxies, formatBytes, t, nowSec, onAd
 
   const totalIn = tunnels.reduce((sum, tunnel) => {
     const proxy = proxiesByName[`${client.name}.${tunnel.name}`];
-    return sum + (proxy?.today_traffic_in || 0);
+    return sum + (proxy?.today_traffic_in || proxy?.todayTrafficIn || 0);
   }, 0);
   const totalOut = tunnels.reduce((sum, tunnel) => {
     const proxy = proxiesByName[`${client.name}.${tunnel.name}`];
-    return sum + (proxy?.today_traffic_out || 0);
+    return sum + (proxy?.today_traffic_out || proxy?.todayTrafficOut || 0);
   }, 0);
   const totalConns = tunnels.reduce((sum, tunnel) => {
     const proxy = proxiesByName[`${client.name}.${tunnel.name}`];
-    return sum + (proxy?.cur_conns || 0);
+    return sum + (proxy?.cur_conns || proxy?.curConns || 0);
   }, 0);
 
   const online = client.last_seen && (nowSec - client.last_seen) < 30;
@@ -695,12 +725,12 @@ function RegisteredClientCard({ client, frpProxies, formatBytes, t, nowSec, onAd
                     </td>
                     <td className="px-6 py-4 text-right font-mono text-xs text-slate-600">
                       <div className="flex flex-col items-end">
-                        <span className="flex items-center gap-1"><ArrowDown size={10} /> {formatBytes(proxy?.today_traffic_in || 0)}</span>
-                        <span className="flex items-center gap-1"><ArrowUp size={10} /> {formatBytes(proxy?.today_traffic_out || 0)}</span>
+                        <span className="flex items-center gap-1"><ArrowDown size={10} /> {formatBytes(proxy?.today_traffic_in || proxy?.todayTrafficIn || 0)}</span>
+                        <span className="flex items-center gap-1"><ArrowUp size={10} /> {formatBytes(proxy?.today_traffic_out || proxy?.todayTrafficOut || 0)}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right font-mono text-xs">
-                      {proxy?.cur_conns || 0}
+                      {proxy?.cur_conns || proxy?.curConns || 0}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">

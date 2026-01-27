@@ -13,6 +13,7 @@ const translations = {
         download: '下载',
         refresh: '刷新',
         logout: '退出登录',
+        errorTitle: '错误',
 
         // 登录页
         login: {
@@ -78,6 +79,7 @@ const translations = {
             downloadScript: '下载脚本',
             finish: '完成设置，进入管理面板',
             scriptCopied: '脚本已复制到剪贴板',
+            copyFailed: '复制失败',
         },
 
         // 控制面板
@@ -145,6 +147,8 @@ const translations = {
                 type: '类型',
                 localPort: '本地端口',
                 remotePort: '远程端口',
+                remotePortSuggest: '建议使用私有端口范围 49152-65535，可减少端口冲突风险',
+                remotePortNonPrivate: '当前端口不在 49152-65535 私有端口范围内，请确认端口未被占用且已放行',
                 status: '状态',
                 active: '运行中',
                 inactive: '已停止',
@@ -177,6 +181,7 @@ const translations = {
         download: 'Download',
         refresh: 'Refresh',
         logout: 'Logout',
+        errorTitle: 'Error',
 
         // Login
         login: {
@@ -246,6 +251,7 @@ const translations = {
             downloadScript: 'Download Script',
             finish: 'Finish Setup, Enter Dashboard',
             scriptCopied: 'Script copied to clipboard',
+            copyFailed: 'Copy failed',
         },
 
         // Dashboard
@@ -313,6 +319,8 @@ const translations = {
                 type: 'Type',
                 localPort: 'Local Port',
                 remotePort: 'Remote Port',
+                remotePortSuggest: 'Recommended private port range: 49152-65535 (lower collision risk)',
+                remotePortNonPrivate: 'This port is outside 49152-65535. Ensure it is free and allowed by firewall/security group.',
                 status: 'Status',
                 active: 'Active',
                 inactive: 'Inactive',

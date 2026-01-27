@@ -2,9 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Server, Download, CheckCircle, Copy, AlertTriangle, RefreshCw } from 'lucide-react';
 import { api } from './api';
 import { useLanguage } from './LanguageContext';
+import { useDialog } from './ui/DialogProvider';
+import CodeBlock from './ui/CodeBlock';
 
 export default function SetupWizard({ onSetupComplete }) {
     const { t } = useLanguage();
+    const dialog = useDialog();
     const [step, setStep] = useState(1); // 1: 输入参数, 2: 部署成功, 3: 生成脚本
     const [port, setPort] = useState("7000");
     const [serverIp, setServerIp] = useState(""); // 公网 IP
@@ -158,7 +161,10 @@ export default function SetupWizard({ onSetupComplete }) {
             setCopySuccess(true);
             setTimeout(() => setCopySuccess(false), 2000);
         } else {
-            alert(t('copy') + 'Failed');
+            await dialog.alert({
+                title: t('setup.copyFailed') || '复制失败',
+                description: '',
+            });
         }
     };
 
@@ -348,10 +354,16 @@ export default function SetupWizard({ onSetupComplete }) {
                                                         if (res.data.success) {
                                                             setDeployResult(prev => ({ ...prev, frps_restarted: true }));
                                                         } else {
-                                                            alert(res.data.message || t('setup.frpsRestartFailed'));
+                                                            await dialog.alert({
+                                                                title: t('setup.frpsRestartFailed'),
+                                                                description: res.data.message || '',
+                                                            });
                                                         }
                                                     } catch (e) {
-                                                        alert(e.response?.data?.detail || e.message);
+                                                        await dialog.alert({
+                                                            title: t('setup.frpsRestartFailed'),
+                                                            description: e.response?.data?.detail || e.message,
+                                                        });
                                                     }
                                                 }}
                                                 className="text-xs bg-amber-600 hover:bg-amber-500 text-white px-3 py-1 rounded transition-colors flex items-center gap-1"
@@ -392,9 +404,7 @@ export default function SetupWizard({ onSetupComplete }) {
                             <p className="text-slate-400 text-sm mt-2">{t('setup.clientScriptHint')}</p>
                         </div>
 
-                        <div className="bg-slate-900/50 border border-white/10 rounded-xl p-4 mb-4 max-h-64 overflow-auto">
-                            <pre className="text-xs text-slate-300 font-mono whitespace-pre-wrap">{clientScript}</pre>
-                        </div>
+                        <CodeBlock value={clientScript} className="mb-4" />
 
                         <div className="flex gap-3 mb-4">
                             <button

@@ -350,6 +350,72 @@ async def get_frps_status(
         }
 
     try:
+        def _get_any(d: dict, keys, default=None):
+            for k in keys:
+                if k in d and d.get(k) is not None:
+                    return d.get(k)
+            return default
+
+        def _to_int(value, default=0):
+            try:
+                if value is None:
+                    return default
+                if isinstance(value, bool):
+                    return int(value)
+                if isinstance(value, (int, float)):
+                    return int(value)
+                s = str(value).strip()
+                if not s:
+                    return default
+                return int(float(s))
+            except Exception:
+                return default
+
+        def _to_bytes(value, default=0):
+            if value is None:
+                return default
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                return int(value)
+            s = str(value).strip()
+            if not s:
+                return default
+            try:
+                return int(float(s))
+            except Exception:
+                pass
+            m = re.match(r"^\s*(\d+(?:\.\d+)?)\s*([KMGTP]?B)\s*$", s, re.IGNORECASE)
+            if not m:
+                return default
+            num = float(m.group(1))
+            unit = m.group(2).upper()
+            scale = {
+                "B": 1,
+                "KB": 1024,
+                "MB": 1024 ** 2,
+                "GB": 1024 ** 3,
+                "TB": 1024 ** 4,
+                "PB": 1024 ** 5,
+            }.get(unit, 1)
+            return int(num * scale)
+
+        def _normalize_proxy(proxy: dict) -> dict:
+            if not isinstance(proxy, dict):
+                return {}
+            name = _get_any(proxy, ["name"], "")
+            ptype = _get_any(proxy, ["type"], "")
+            conf = _get_any(proxy, ["conf"], {}) or {}
+            cur_conns = _to_int(_get_any(proxy, ["curConns", "cur_conns"], 0), 0)
+            today_in = _to_bytes(_get_any(proxy, ["todayTrafficIn", "today_traffic_in"], 0), 0)
+            today_out = _to_bytes(_get_any(proxy, ["todayTrafficOut", "today_traffic_out"], 0), 0)
+            return {
+                "name": name,
+                "type": ptype,
+                "conf": conf,
+                "cur_conns": cur_conns,
+                "today_traffic_in": today_in,
+                "today_traffic_out": today_out,
+            }
+
         # 获取代理列表（TCP）
         tcp_proxies = []
         try:
@@ -381,7 +447,8 @@ async def get_frps_status(
             pass
         
         # 合并所有代理
-        all_proxies = tcp_proxies + udp_proxies + http_proxies
+        all_proxies_raw = tcp_proxies + udp_proxies + http_proxies
+        all_proxies = [_normalize_proxy(p) for p in all_proxies_raw]
         
         # 提取唯一的客户端名称
         client_names = set()
@@ -404,9 +471,14 @@ async def get_frps_status(
                 "proxies": client_proxies
             })
         
+        normalized_server_info = dict(server_info or {})
+        normalized_server_info["curConns"] = _to_int(_get_any(normalized_server_info, ["curConns", "cur_conns"], 0), 0)
+        normalized_server_info["totalTrafficIn"] = _to_bytes(_get_any(normalized_server_info, ["totalTrafficIn", "total_traffic_in"], 0), 0)
+        normalized_server_info["totalTrafficOut"] = _to_bytes(_get_any(normalized_server_info, ["totalTrafficOut", "total_traffic_out"], 0), 0)
+
         return {
             "success": True,
-            "server_info": server_info,
+            "server_info": normalized_server_info,
             "total_clients": len(clients),
             "total_proxies": len(all_proxies),
             "clients": clients,
@@ -959,6 +1031,9 @@ FRP_AGENT_SERVICE
     echo ""
     echo "  后续在 frpc.toml 中配置的每个代理端口,"
     echo "  都需要在云服务器安全组中开放对应端口！"
+    echo ""
+    echo "  建议：尽量使用私有端口范围 49152-65535（TCP/UDP），可减少端口冲突风险。"
+    echo "        同时建议在安全组放行：80/TCP、{port}/TCP，以及 49152-65535 的 TCP/UDP。"
     echo ""
     echo "  例如: 配置 remote_port = 6022 代理 SSH,"
     echo "        需在安全组开放 6022/TCP 入站规则"
