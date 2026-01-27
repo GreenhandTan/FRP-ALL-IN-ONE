@@ -8,12 +8,10 @@ services:
     restart: always
     user: root  # 需要 root 权限创建文件和启动进程
     volumes:
-      - ./data:/app/data        # 数据库持久化
       - frp-data:/opt/frp       # FRP 文件持久化
       - ./frps.toml:/app/frps.toml  # FRPS 配置文件（可读写）
       - /var/run/docker.sock:/var/run/docker.sock  # Docker Socket（允许重启容器）
-    environment:
-      - SQLITE_DB_PATH=/app/data/frp_manager.db
+    # 注意：数据库不持久化，每次部署都是全新开始
 
   # 2. Web 界面 (Nginx + React)
   frontend:
