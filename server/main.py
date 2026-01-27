@@ -168,22 +168,36 @@ def get_client_config(client_id: str, db: Session = Depends(get_db)):
             
     return config_data
 
+# 获取公网 IP 接口
+@app.get("/api/system/public-ip")
+async def get_public_ip(current_user: models.Admin = Depends(get_current_user)):
+    """获取服务器公网 IP"""
+    import frp_deploy
+    ip = frp_deploy.get_public_ip()
+    return {"ip": ip, "success": ip != "未知"}
+
 # FRPS 配置生成接口
 @app.post("/api/frp/deploy-server")
 async def deploy_frp_server(
     port: int = 7000,
     auth_token: str = None,
+    server_ip: str = None,
     db: Session = Depends(get_db),
     current_user: models.Admin = Depends(get_current_user)
 ):
     """
     生成 FRPS 配置文件
     FRPS 本身由 docker-compose 管理，这里只生成配置
+    
+    Args:
+        port: 监听端口
+        auth_token: 认证 Token (可选，为空自动生成)
+        server_ip: 公网 IP (可选，为空自动检测)
     """
     import frp_deploy
     
     # 生成配置（不再下载安装）
-    result = frp_deploy.generate_frps_config(port, auth_token)
+    result = frp_deploy.generate_frps_config(port, auth_token, server_ip)
     
     if result["success"]:
         # 保存配置到数据库

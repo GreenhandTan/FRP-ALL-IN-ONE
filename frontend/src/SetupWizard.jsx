@@ -1,27 +1,58 @@
-import React, { useState } from 'react';
-import { Server, Download, CheckCircle, Copy } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Server, Download, CheckCircle, Copy, AlertTriangle } from 'lucide-react';
 import { api } from './api';
 import { useLanguage } from './LanguageContext';
 
 export default function SetupWizard({ onSetupComplete }) {
     const { t } = useLanguage();
-    const [step, setStep] = useState(1); // 1: 输入参数, 2: 部署中, 3: 生成脚本
+    const [step, setStep] = useState(1); // 1: 输入参数, 2: 部署成功, 3: 生成脚本
     const [port, setPort] = useState("7000");
+    const [serverIp, setServerIp] = useState(""); // 公网 IP
+    const [ipAutoDetected, setIpAutoDetected] = useState(false); // 是否自动检测成功
+    const [ipLoading, setIpLoading] = useState(true); // IP 检测中
     const [loading, setLoading] = useState(false);
     const [deployResult, setDeployResult] = useState(null);
     const [clientScript, setClientScript] = useState("");
     const [error, setError] = useState("");
 
+    // 页面加载时自动获取公网 IP
+    useEffect(() => {
+        const fetchPublicIp = async () => {
+            try {
+                const response = await api.get('/api/system/public-ip');
+                if (response.data.success) {
+                    setServerIp(response.data.ip);
+                    setIpAutoDetected(true);
+                } else {
+                    setServerIp("");
+                    setIpAutoDetected(false);
+                }
+            } catch (err) {
+                console.error("获取公网 IP 失败", err);
+                setIpAutoDetected(false);
+            } finally {
+                setIpLoading(false);
+            }
+        };
+        fetchPublicIp();
+    }, []);
+
     const handleDeployServer = async () => {
+        // 验证：如果未自动检测到 IP 且用户未输入，则提示
+        if (!serverIp.trim()) {
+            setError(t('setup.serverIpRequired'));
+            return;
+        }
+
         setLoading(true);
         setError("");
 
         try {
-            const response = await api.post('/api/frp/deploy-server', null, {
-                params: {
-                    port: parseInt(port)
-                }
-            });
+            const params = {
+                port: parseInt(port),
+                server_ip: serverIp.trim()
+            };
+            const response = await api.post('/api/frp/deploy-server', null, { params });
 
             if (response.data.success) {
                 setDeployResult(response.data.info);
@@ -100,6 +131,44 @@ export default function SetupWizard({ onSetupComplete }) {
                                 />
                             </div>
 
+                            {/* 公网 IP 输入区域 */}
+                            <div>
+                                <label className="block text-sm font-medium text-slate-300 mb-2">
+                                    {t('setup.serverIpLabel')}
+                                    {ipAutoDetected && (
+                                        <span className="ml-2 text-emerald-400 text-xs">✓ {t('setup.autoDetected')}</span>
+                                    )}
+                                </label>
+
+                                {ipLoading ? (
+                                    <div className="w-full bg-slate-800/50 border border-white/10 rounded-xl py-2.5 px-4 text-slate-400">
+                                        {t('setup.detectingIp')}...
+                                    </div>
+                                ) : (
+                                    <>
+                                        {!ipAutoDetected && (
+                                            <div className="bg-amber-500/20 border border-amber-500/50 text-amber-200 px-4 py-2 rounded-lg mb-3 text-sm flex items-center gap-2">
+                                                <AlertTriangle size={16} />
+                                                {t('setup.ipDetectFailed')}
+                                            </div>
+                                        )}
+                                        <input
+                                            type="text"
+                                            value={serverIp}
+                                            onChange={(e) => setServerIp(e.target.value)}
+                                            className={`w-full bg-slate-800/50 border rounded-xl py-2.5 px-4 text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none font-mono ${ipAutoDetected ? 'border-emerald-500/30' : 'border-amber-500/50'
+                                                }`}
+                                            placeholder="例如: 123.45.67.89"
+                                        />
+                                        {!ipAutoDetected && (
+                                            <p className="text-xs text-amber-300 mt-1">
+                                                {t('setup.pleaseEnterIp')}
+                                            </p>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+
                             <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4">
                                 <p className="text-sm text-emerald-200">
                                     💡 {t('setup.tokenHint')}
@@ -108,7 +177,7 @@ export default function SetupWizard({ onSetupComplete }) {
 
                             <button
                                 onClick={handleDeployServer}
-                                disabled={loading}
+                                disabled={loading || ipLoading}
                                 className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-medium py-3 rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50 shadow-lg shadow-emerald-500/20 mt-6"
                             >
                                 {loading ? t('setup.deploying') : t('setup.deployButton')}

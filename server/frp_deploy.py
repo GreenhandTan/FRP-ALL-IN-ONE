@@ -40,10 +40,15 @@ def get_public_ip() -> str:
     except:
         return "未知"
 
-def generate_frps_config(port: int = 7000, auth_token: str = None) -> Dict:
+def generate_frps_config(port: int = 7000, auth_token: str = None, server_ip: str = None) -> Dict:
     """
     生成 FRPS 配置文件
     不再下载安装 FRPS，而是直接生成配置文件供 Docker 容器使用
+    
+    Args:
+        port: FRPS 监听端口
+        auth_token: 认证 Token，为空则自动生成
+        server_ip: 公网 IP，为空则自动检测
     """
     if not auth_token:
         auth_token = secrets.token_hex(16)
@@ -79,8 +84,11 @@ auth.token = "{auth_token}"
             print(f"⚠️ 无法重启 FRPS 容器: {e}")
             print("提示: 配置已生成，请手动执行 'docker restart frps'")
         
-        # 获取公网 IP
-        public_ip = get_public_ip()
+        # 获取公网 IP（优先使用用户提供的）
+        if server_ip and server_ip.strip():
+            public_ip = server_ip.strip()
+        else:
+            public_ip = get_public_ip()
         
         # 获取 FRP 最新版本号
         frp_version = get_latest_frp_version()
