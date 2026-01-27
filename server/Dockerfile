@@ -9,10 +9,12 @@ RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debia
 
 WORKDIR /app
 
-# 升级 pip 并安装依赖
+# 配置 pip 使用国内镜像源并安装依赖
 COPY requirements.txt .
-RUN pip install --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
+RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ \
+    && pip config set global.trusted-host mirrors.aliyun.com \
+    && pip install --upgrade pip \
+    && pip install --no-cache-dir --timeout 120 -r requirements.txt
 
 # 复制源码
 COPY . .
