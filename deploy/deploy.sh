@@ -78,6 +78,23 @@ check_memory() {
     fi
 }
 
+# 清理旧容器和数据卷
+clean_old_services() {
+    echo ""
+    echo "[CLEAN] 清理旧容器和数据卷..."
+    
+    # 检查 docker-compose.yml 是否存在
+    if [ ! -f "./docker-compose.yml" ]; then
+        echo -e "${YELLOW}[WARN] docker-compose.yml 文件不存在，跳过清理${NC}"
+        return
+    fi
+    
+    # 停止并清理旧服务（如果存在）
+    docker-compose down -v --remove-orphans 2>/dev/null || true
+    
+    echo -e "${GREEN}[OK] 清理完成${NC}"
+}
+
 # 检查端口占用
 check_ports() {
     echo ""
@@ -110,10 +127,6 @@ deploy_services() {
         echo "请确保在 deploy 目录中运行此脚本"
         exit 1
     fi
-    
-    # 停止并清理旧服务（如果存在）
-    echo "[CLEAN] 清理旧容器和数据卷..."
-    docker-compose down -v --remove-orphans 2>/dev/null || true
     
     # 构建并启动服务
     echo "[BUILD] 构建并启动服务（可能需要几分钟）..."
@@ -152,6 +165,7 @@ main() {
     check_root
     check_docker
     check_memory
+    clean_old_services
     check_ports
     deploy_services
     show_info
