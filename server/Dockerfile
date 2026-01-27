@@ -1,4 +1,4 @@
-FROM docker.1ms.run/library/python:3.9-slim
+FROM docker.1ms.run/library/python:3.11-slim
 
 # 使用阿里云镜像源（国内加速）
 RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources \
@@ -9,9 +9,10 @@ RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debia
 
 WORKDIR /app
 
-# 安装依赖
+# 升级 pip 并安装依赖
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt
 
 # 复制源码
 COPY . .
