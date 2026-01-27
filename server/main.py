@@ -72,10 +72,9 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
 # 系统状态接口（无需认证）
 @app.get("/api/system/status")
 def get_system_status(db: Session = Depends(get_db)):
-    """返回系统状态"""
+    """返回系统状态（FRPS 是否已部署）"""
     frps_deployed = crud.get_config(db, models.ConfigKeys.FRPS_VERSION) is not None
     return {
-        "initialized": True,  # 系统总是已初始化（有默认管理员）
         "frps_deployed": frps_deployed
     }
 

@@ -76,7 +76,7 @@ function App() {
   };
 
   // 路由逻辑
-  if (loading && !systemStatus) {
+  if (loading && !isAuthenticated) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="text-white">加载中...</div>
@@ -92,7 +92,7 @@ function App() {
     }} />;
   }
 
-  // 3. 已登录但未部署 FRPS -> 设置向导
+  // 2. 已登录但未部署 FRPS -> 设置向导
   if (systemStatus && !systemStatus.frps_deployed) {
     return <SetupWizard onSetupComplete={() => {
       checkSystemStatus(); // 标记为已部署
