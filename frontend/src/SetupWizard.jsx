@@ -61,7 +61,10 @@ export default function SetupWizard({ onSetupComplete }) {
                     restart_message: response.data.restart_message
                 });
                 setStep(2);
-                fetchClientScript();
+                // 延迟 3 秒后获取客户端脚本，让用户有时间看到 FRPS 重启状态
+                setTimeout(() => {
+                    fetchClientScript();
+                }, 3000);
             } else {
                 setError(response.data.message || t('setup.deployFailed'));
             }
@@ -286,8 +289,8 @@ export default function SetupWizard({ onSetupComplete }) {
                             <button
                                 onClick={copyScript}
                                 className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg transition-colors ${copySuccess
-                                        ? 'bg-emerald-600 text-white'
-                                        : 'bg-slate-700 hover:bg-slate-600 text-white'
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'bg-slate-700 hover:bg-slate-600 text-white'
                                     }`}
                             >
                                 {copySuccess ? <CheckCircle size={16} /> : <Copy size={16} />}
