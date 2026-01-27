@@ -1,5 +1,5 @@
 # Build Stage
-FROM docker.1ms.run/library/node:18-alpine as builder
+FROM docker.1ms.run/library/node:22-alpine as builder
 
 # 使用淘宝 npm 镜像源（国内加速）
 RUN npm config set registry https://registry.npmmirror.com
