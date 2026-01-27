@@ -7,8 +7,7 @@ services:
     container_name: frp-manager-backend
     restart: always
     user: root  # 需要 root 权限创建文件和启动进程
-    extra_hosts:
-      - "host.docker.internal:host-gateway" # 允许容器访问宿主机网络 (用于连接 host 模式的 FRPS)
+    network_mode: "host" # 与 Nginx 和 FRPS 同一网络，方便通信
     volumes:
       - frp-data:/opt/frp       # FRP 文件持久化
       - ./frps.toml:/app/frps.toml  # FRPS 配置文件（可读写）
@@ -20,8 +19,7 @@ services:
     build: ../frontend
     container_name: frp-manager-web
     restart: always
-    ports:
-      - "80:80"  # 宿主机80端口 -> 容器80端口
+    network_mode: "host" # 直接监听宿主机 80 端口，不再使用端口映射
     depends_on:
       - backend  # 串行构建，避免内存叠加
 

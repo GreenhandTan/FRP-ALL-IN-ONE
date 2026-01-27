@@ -9,7 +9,8 @@ import { useLanguage } from './LanguageContext';
 function App() {
   const { t, language, toggleLanguage } = useLanguage();
   const [systemStatus, setSystemStatus] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null); // Add error state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
 
@@ -40,8 +41,10 @@ function App() {
     try {
       const response = await api.get('/api/system/status');
       setSystemStatus(response.data);
+      setError(null); // Clear any previous error
     } catch (err) {
       console.error("Failed to check system status", err);
+      setError("Failed to connect to backend: " + (err.response?.data?.message || err.message));
     } finally {
       setLoading(false);
     }
@@ -66,6 +69,7 @@ function App() {
     delete api.defaults.headers.common['Authorization'];
     setIsAuthenticated(false);
     setClients([]);
+    setError(null); // Clear error on logout
   };
 
   // 加载数据：服务器状态 + 禁用端口列表
@@ -81,30 +85,42 @@ function App() {
 
       if (statusRes.data.success) {
         setServerInfo(statusRes.data.server_info);
-        setClients(statusRes.data.clients);
+        setClients(statusRes.data.clients || []);
 
-        // 计算汇总数据
-        const proxies = statusRes.data.proxies || [];
-        const totalTrafficIn = proxies.reduce((acc, p) => acc + (p.today_traffic_in || 0), 0);
-        const totalTrafficOut = proxies.reduce((acc, p) => acc + (p.today_traffic_out || 0), 0);
-        const totalConns = proxies.reduce((acc, p) => acc + (p.cur_conns || 0), 0);
+        // Calculate stats
+        let totalTrafficIn = 0;
+        let totalTrafficOut = 0;
+        let totalConnections = 0;
+        let totalProxies = 0;
+
+        (statusRes.data.clients || []).forEach(client => {
+          client.proxies.forEach(proxy => {
+            totalTrafficIn += proxy.today_traffic_in;
+            totalTrafficOut += proxy.today_traffic_out;
+            totalConnections += proxy.cur_conns;
+            totalProxies++;
+          });
+        });
 
         setStats({
-          totalClients: statusRes.data.total_clients,
-          totalProxies: statusRes.data.total_proxies,
+          totalClients: statusRes.data.clients.length,
+          totalProxies,
+          totalConns: totalConnections,
           totalTrafficIn,
-          totalTrafficOut,
-          totalConns
+          totalTrafficOut
         });
+        setError(null); // Clear error on success
+      } else {
+        // Show error message
+        setError(statusRes.data.message || "Failed to fetch server status");
+        // Don't clear old data to avoid flicker if just a temporary glitch
       }
 
       setDisabledPorts(disabledRes.data.disabled_ports || []);
 
-    } catch (error) {
-      console.error("Failed to load data", error);
-      if (error.response && error.response.status === 401) {
-        handleLogout();
-      }
+    } catch (err) {
+      console.error(err);
+      setError("Network or Server Error: " + (err.response?.data?.message || err.message));
     } finally {
       setLoading(false);
     }
@@ -134,11 +150,14 @@ function App() {
 
       if (response.data.success) {
         await loadData(); // 重新加载数据
+        setError(null);
       } else {
         alert(response.data.message);
+        setError(response.data.message);
       }
     } catch (error) {
       alert(error.message);
+      setError(error.message);
     } finally {
       setLoading(false);
     }
@@ -218,7 +237,18 @@ function App() {
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        {/* Error Banner */}
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/40 text-red-600 px-4 py-3 rounded-xl mb-6 flex items-center gap-3">
+            <AlertTriangle size={20} />
+            <span>{error}</span>
+            <button onClick={() => setError(null)} className="ml-auto text-sm hover:underline">Dismiss</button>
+          </div>
+        )}
+
         {/* Stats Section */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <StatCard
@@ -279,7 +309,7 @@ function App() {
             )
           )}
         </div>
-      </main>
+      </div>
 
       {/* 修改密码弹窗 */}
       {showChangePassword && (

@@ -200,10 +200,10 @@ async def get_frps_status(
     
     # 尝试多种可能的连接地址，以兼容 Linux/Mac/Bridge/Host 等不同环境
     possible_urls = [
-        "http://host.docker.internal:7500/api",  # Mac/Win + Host 模式 (需 extra_hosts)
-        "http://172.17.0.1:7500/api",           # Linux Host 模式 (默认 Gateway)
-        "http://frps:7500/api",                  # Bridge 模式 (容器互联)
-        "http://127.0.0.1:7500/api"              # Backend 也在 Host 模式 (备用)
+        "http://127.0.0.1:7500/api",           # Host 模式 (首选，本机互连)
+        "http://host.docker.internal:7500/api", # Mac/Win (需 extra_hosts)
+        "http://172.17.0.1:7500/api",           # Linux Gateway
+        "http://frps:7500/api",                  # Bridge 模式 (备用)
     ]
 
     base_url = None

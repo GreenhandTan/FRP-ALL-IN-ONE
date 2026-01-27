@@ -85,27 +85,51 @@ export default function SetupWizard({ onSetupComplete }) {
 
     const [copySuccess, setCopySuccess] = useState(false);
 
-    const copyScript = async () => {
+    // Fallback for HTTP environments or when Clipboard API fails
+    const unsecuredCopyToClipboard = (text) => {
         try {
-            await navigator.clipboard.writeText(clientScript);
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+
+            // Ensure invisible but selectable
+            textArea.style.position = "fixed";
+            textArea.style.left = "-9999px";
+            textArea.style.top = "0";
+
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+
+            const successful = document.execCommand('copy');
+            document.body.removeChild(textArea);
+            return successful;
+        } catch (err) {
+            console.error("Fallback copy failed", err);
+            return false;
+        }
+    };
+
+    // 兼容 HTTP 环境的剪贴板复制函数
+    const copyToClipboard = async (text) => {
+        // 优先使用 Clipboard API (需要 HTTPS 或 Localhost)
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            try {
+                await navigator.clipboard.writeText(text);
+                return true;
+            } catch (err) {
+                console.warn("Clipboard API failed, falling back to unsecured method...", err);
+            }
+        }
+        // Fallback to unsecured method
+        return unsecuredCopyToClipboard(text);
+    };
+
+    const copyScript = async () => {
+        if (await copyToClipboard(clientScript)) {
             setCopySuccess(true);
             setTimeout(() => setCopySuccess(false), 2000);
-        } catch (err) {
-            // Fallback for browsers without clipboard API
-            const textArea = document.createElement('textarea');
-            textArea.value = clientScript;
-            textArea.style.position = 'fixed';
-            textArea.style.left = '-9999px';
-            document.body.appendChild(textArea);
-            textArea.select();
-            try {
-                document.execCommand('copy');
-                setCopySuccess(true);
-                setTimeout(() => setCopySuccess(false), 2000);
-            } catch (e) {
-                alert('复制失败，请手动复制');
-            }
-            document.body.removeChild(textArea);
+        } else {
+            alert(t('copy') + 'Failed');
         }
     };
 
@@ -227,9 +251,12 @@ export default function SetupWizard({ onSetupComplete }) {
                                 <div className="flex items-center justify-between mb-1">
                                     <span className="text-slate-400 font-semibold">🔑 {t('setup.authToken')}:</span>
                                     <button
-                                        onClick={() => {
-                                            navigator.clipboard.writeText(deployResult.auth_token);
-                                            alert(t('setup.copied'));
+                                        onClick={async () => {
+                                            if (await copyToClipboard(deployResult.auth_token)) {
+                                                alert(t('setup.copied'));
+                                            } else {
+                                                prompt(t('copy'), deployResult.auth_token);
+                                            }
                                         }}
                                         className="text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 px-2 py-1 rounded transition-colors flex items-center gap-1"
                                     >
