@@ -2,6 +2,16 @@
 
 一个基于 Web 的 FRP 内网穿透管理系统：用浏览器完成 **FRPS 配置**、**客户端一键部署**、**设备注册/心跳**、**端口映射管理**，并提供近实时的连接/流量展示与排障路径。
 
+## 作者与社区
+
+- 博客：https://greenhandtan.top
+- Star 历史（趋势图）：  
+  [![Star History Chart](https://api.star-history.com/svg?repos=GreenhandTan/FRP-ALL-IN-ONE&type=Date)](https://star-history.com/#GreenhandTan/FRP-ALL-IN-ONE&Date)
+
+## 效果演示
+
+<img src="demo.png" alt="FRP-ALL-IN-ONE Demo" width="900" />
+
 ## 目录
 
 - [核心特性](#核心特性)
@@ -15,6 +25,7 @@
 - [卸载客户端](#卸载客户端)
 - [项目结构](#项目结构)
 - [开发与构建](#开发与构建)
+- [开源协议与使用要求](#开源协议与使用要求)
 
 ## 核心特性
 
@@ -274,6 +285,23 @@ npm run dev
 ### 后端
 
 后端以 Docker 方式运行最稳定；如需本地运行可参考 `server/` 目录（FastAPI + SQLite）。
+
+## 开源协议与使用要求
+
+本项目采用 **MIT License**（见 [LICENSE](LICENSE)）。
+
+你可以：
+
+- 免费使用（个人/组织）
+- 免费商用
+- 修改、二次开发、分发
+
+你需要遵守：
+
+- 转载、二次开发、分发源码/二进制时，必须保留许可证与版权声明，并注明原作者为 **GreenhandTan（我）**
+- 不得移除或篡改项目中的版权/署名信息
+
+如需更宽松或更严格的授权方式（例如增加商标/品牌使用约束、专有授权等），可通过博客联系我： https://greenhandtan.top/contact
 
 ### Q: 客户端部署失败如何清理？
 
