@@ -248,7 +248,7 @@ async def websocket_dashboard(websocket: WebSocket):
                         "name": c.name,
                         "auth_token": c.auth_token,
                         "status": c.status,
-                        "last_seen": c.last_seen.isoformat() if c.last_seen else None,
+                        "last_seen": c.last_seen,  # Integer 时间戳
                         "tunnels": [
                             {
                                 "id": t.id,
