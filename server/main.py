@@ -283,6 +283,9 @@ async def websocket_dashboard(websocket: WebSocket):
                             "memory_percent": ws_info.get("memory_percent"),
                             "memory_used": ws_info.get("memory_used"),
                             "memory_total": ws_info.get("memory_total"),
+                            "disk_percent": ws_info.get("disk_percent"),
+                            "disk_used": ws_info.get("disk_used"),
+                            "disk_total": ws_info.get("disk_total"),
                         })
                     else:
                         client_data["is_online"] = False

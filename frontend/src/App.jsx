@@ -742,12 +742,7 @@ function RegisteredClientCard({ client, frpProxies, formatBytes, t, nowSec, onAd
                     <span title="Hostname">{client.hostname}</span>
                   </>
                 )}
-                {client.agent_version && (
-                  <span className="flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200" title="Agent Version">
-                    <span className="text-[10px] text-slate-400 uppercase">Agent</span>
-                    <span className="text-xs text-slate-600 font-medium">v{client.agent_version}</span>
-                  </span>
-                )}
+
               </div>
 
               {/* 系统资源条 (仅在线时显示) */}
@@ -755,6 +750,7 @@ function RegisteredClientCard({ client, frpProxies, formatBytes, t, nowSec, onAd
                 <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
                   {renderSystemBar(client.cpu_percent, "CPU", "bg-blue-500")}
                   {renderSystemBar(client.memory_percent, "Mem", "bg-purple-500")}
+                  {renderSystemBar(client.disk_percent, "Disk", "bg-orange-500")}
                 </div>
               )}
             </div>
