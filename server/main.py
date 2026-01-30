@@ -1571,10 +1571,10 @@ Write-Host "[OK] FRPC 下载完成" -ForegroundColor Green
 # 下载 Agent
 Write-Host "[3/5] 下载 Agent..." -ForegroundColor Blue
 try {{
-    Invoke-WebRequest -Uri "$DOWNLOAD_BASE/windows-amd64" -OutFile "$INSTALL_DIR\\frp-agent.exe" -UseBasicParsing
+    Invoke-WebRequest -Uri "$DOWNLOAD_BASE/windows-amd64" -OutFile "$INSTALL_DIR\\frp-agent.exe" -UseBasicParsing -TimeoutSec 30
     Write-Host "[OK] Agent 下载完成" -ForegroundColor Green
 }} catch {{
-    Write-Host "[WARN] Agent 暂不可用，跳过" -ForegroundColor Yellow
+    Write-Host "[WARN] Agent 下载失败，跳过（FRPC 仍可正常使用）" -ForegroundColor Yellow
 }}
 
 # 创建配置文件
@@ -1714,14 +1714,14 @@ chmod +x $INSTALL_DIR/frpc
 rm -rf /tmp/frp.tar.gz /tmp/frp_*
 log_ok "FRPC 下载完成"
 
-# 3. 下载 Agent (可选)
-log_info "[3/5] 下载 Agent..."
-AGENT_URL="${{DOWNLOAD_BASE}}/${{OS}}-${{ARCH}}"
-if curl -fsSL "$AGENT_URL" -o $INSTALL_DIR/frp-agent 2>/dev/null; then
-    chmod +x $INSTALL_DIR/frp-agent
+# 3. 下载 Agent
+log_info "[3/5] 下载 Agent ($OS-$ARCH)..."
+AGENT_PATH="$INSTALL_DIR/frp-agent"
+if curl -fsSL --connect-timeout 15 "${{DOWNLOAD_BASE}}/${{OS}}-${{ARCH}}" -o "$AGENT_PATH" 2>/dev/null; then
+    chmod +x "$AGENT_PATH"
     log_ok "Agent 下载完成"
 else
-    log_warn "Agent 暂不可用，跳过"
+    log_warn "Agent 下载失败，跳过（FRPC 仍可正常使用）"
 fi
 
 # 4. 创建配置文件
