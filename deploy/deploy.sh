@@ -115,81 +115,7 @@ check_ports() {
     echo -e "${GREEN}[OK] 端口检查完成${NC}"
 }
 
-# 从 GitHub Releases 下载 Agent 二进制
-download_agent() {
-    echo ""
-    echo "[AGENT] 准备 Agent 二进制（用于客户端分发）..."
-    
-    AGENT_DIR="/opt/agent-binaries"
-    
-    # 创建目录
-    mkdir -p "$AGENT_DIR"
-    
-    # 需要的平台
-    PLATFORMS=(
-        "linux-amd64"
-        "linux-arm64"
-        "darwin-amd64"
-        "darwin-arm64"
-        "windows-amd64"
-    )
-    
-    # 检查是否已存在
-    if [ -f "$AGENT_DIR/frp-agent-linux-amd64" ]; then
-        echo -e "${GREEN}[OK] Agent 二进制已存在${NC}"
-        return
-    fi
-    
-    # ========================================
-    # 方案 A：优先从项目目录复制（最快，无网络）
-    # ========================================
-    PROJECT_BINARIES="../agent/binaries"
-    if [ -d "$PROJECT_BINARIES" ] && [ -f "$PROJECT_BINARIES/frp-agent-linux-amd64" ]; then
-        echo "[INFO] 从项目目录复制 Agent 二进制..."
-        cp -f "$PROJECT_BINARIES"/frp-agent-* "$AGENT_DIR/" 2>/dev/null || true
-        chmod +x "$AGENT_DIR"/frp-agent-* 2>/dev/null || true
-        echo -e "${GREEN}[OK] Agent 二进制复制完成${NC}"
-        return
-    fi
-    
-    # ========================================
-    # 方案 C：从 GitHub Releases 下载（兜底）
-    # ========================================
-    echo -e "${YELLOW}[INFO] 项目目录无 Agent 二进制，尝试从 GitHub 下载...${NC}"
-    
-    GITHUB_REPO="GreenhandTan/FRP-ALL-IN-ONE"
-    AGENT_VERSION="v1.0.0"
-    
-    # 获取最新版本
-    if [ "$AGENT_VERSION" = "latest" ]; then
-        AGENT_VERSION=$(curl -sL --connect-timeout 5 "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/' 2>/dev/null)
-        if [ -z "$AGENT_VERSION" ]; then
-            echo -e "${YELLOW}[WARN] 无法获取版本，跳过 Agent 下载${NC}"
-            return
-        fi
-    fi
-    
-    for platform in "${PLATFORMS[@]}"; do
-        if [[ "$platform" == windows* ]]; then
-            filename="frp-agent-${platform}.exe"
-        else
-            filename="frp-agent-${platform}"
-        fi
-        
-        download_url="https://github.com/${GITHUB_REPO}/releases/download/${AGENT_VERSION}/${filename}"
-        target_path="$AGENT_DIR/$filename"
-        
-        echo -n "   下载 $filename ... "
-        if curl -fsSL --connect-timeout 10 "$download_url" -o "$target_path" 2>/dev/null; then
-            chmod +x "$target_path"
-            echo -e "${GREEN}OK${NC}"
-        else
-            echo -e "${YELLOW}跳过${NC}"
-        fi
-    done
-    
-    echo -e "${GREEN}[OK] Agent 准备完成${NC}"
-}
+
 
 # 部署服务
 deploy_services() {
@@ -258,7 +184,7 @@ main() {
     check_memory
     clean_old_services
     check_ports
-    download_agent
+
     deploy_services
     show_info
 }

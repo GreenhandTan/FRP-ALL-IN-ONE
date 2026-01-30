@@ -1439,11 +1439,8 @@ fi
 # Agent 分发 API（服务器自托管）
 # ===========================
 
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
 import os
-
-# Agent 二进制存放目录
-AGENT_BINARIES_DIR = "/opt/agent-binaries"
 
 @app.get("/api/agent/download/{platform}")
 async def download_agent_binary(
@@ -1451,7 +1448,7 @@ async def download_agent_binary(
     current_user: models.Admin = Depends(get_current_user)
 ):
     """
-    下载 Agent 二进制文件
+    下载 Agent 二进制文件 (重定向到 GitHub Releases)
     platform: linux-amd64, linux-arm64, darwin-amd64, darwin-arm64, windows-amd64
     """
     valid_platforms = [
@@ -1469,16 +1466,9 @@ async def download_agent_binary(
     else:
         filename = f"frp-agent-{platform}"
     
-    filepath = os.path.join(AGENT_BINARIES_DIR, filename)
-    
-    if not os.path.exists(filepath):
-        raise HTTPException(status_code=404, detail=f"Agent binary not found: {filename}")
-    
-    return FileResponse(
-        path=filepath,
-        filename=filename,
-        media_type="application/octet-stream"
-    )
+    # 重定向到 GitHub Releases
+    github_url = f"https://github.com/GreenhandTan/FRP-ALL-IN-ONE/releases/latest/download/{filename}"
+    return RedirectResponse(url=github_url)
 
 
 @app.get("/api/agent/platforms")
@@ -1496,8 +1486,8 @@ async def get_available_agent_platforms():
     
     for platform_id, info in platform_info.items():
         filename = f"frp-agent-{platform_id}{info['ext']}"
-        filepath = os.path.join(AGENT_BINARIES_DIR, filename)
-        available = os.path.exists(filepath)
+        # 默认全部可用 (GitHub 托管)
+        available = True
         
         platforms.append({
             "id": platform_id,
@@ -1533,8 +1523,8 @@ async def get_agent_install_script(
         import string
         client_id = "client-" + ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
     
-    # 服务器下载地址（自托管）
-    download_base = f"http://{server_ip}/api/agent/download"
+    # 服务器下载地址（GitHub Releases）
+    download_base = "https://github.com/GreenhandTan/FRP-ALL-IN-ONE/releases/latest/download"
     
     if platform == "windows":
         # Windows PowerShell 脚本
@@ -1585,12 +1575,15 @@ Write-Host "[OK] FRPC 下载完成" -ForegroundColor Green
 
 # 下载 Agent
 Write-Host "[3/5] 下载 Agent..." -ForegroundColor Blue
-try {{
-    Invoke-WebRequest -Uri "$DOWNLOAD_BASE/windows-amd64" -OutFile "$INSTALL_DIR\\frp-agent.exe" -UseBasicParsing -TimeoutSec 30
+try {
+    $agentUrl = "$DOWNLOAD_BASE/frp-agent-windows-amd64.exe"
+    Write-Host "  下载地址: $agentUrl"
+    Invoke-WebRequest -Uri $agentUrl -OutFile "$INSTALL_DIR\\frp-agent.exe" -UseBasicParsing -TimeoutSec 60
     Write-Host "[OK] Agent 下载完成" -ForegroundColor Green
-}} catch {{
-    Write-Host "[WARN] Agent 下载失败，跳过（FRPC 仍可正常使用）" -ForegroundColor Yellow
-}}
+} catch {
+    Write-Host "[WARN] Agent 下载失败: $_" -ForegroundColor Yellow
+    Write-Host "[WARN] 跳过 Agent 安装（FRPC 仍可正常使用）" -ForegroundColor Yellow
+}
 
 # 创建配置文件
 Write-Host "[4/5] 创建配置文件..." -ForegroundColor Blue
@@ -1732,7 +1725,12 @@ log_ok "FRPC 下载完成"
 # 3. 下载 Agent
 log_info "[3/5] 下载 Agent ($OS-$ARCH)..."
 AGENT_PATH="$INSTALL_DIR/frp-agent"
-if curl -fsSL --connect-timeout 15 "${{DOWNLOAD_BASE}}/${{OS}}-${{ARCH}}" -o "$AGENT_PATH" 2>/dev/null; then
+# 构造 GitHub Release 文件名
+AGENT_FILENAME="frp-agent-${OS}-${ARCH}"
+GITHUB_URL="$DOWNLOAD_BASE/$AGENT_FILENAME"
+log_info "下载地址: $GITHUB_URL"
+
+if curl -fsSL --connect-timeout 60 "$GITHUB_URL" -o "$AGENT_PATH"; then
     chmod +x "$AGENT_PATH"
     log_ok "Agent 下载完成"
 else
