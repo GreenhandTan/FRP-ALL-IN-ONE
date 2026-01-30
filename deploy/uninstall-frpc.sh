@@ -51,7 +51,9 @@ elif [ "$OS" = "linux" ]; then
     
     echo "[INFO] 正在停止服务..."
     
-    # 停止并禁用 systemd 服务
+    # 停止并禁用 systemd 服务（兼容新旧架构）
+    # 新架构: 只有 frp-agent.service（Agent 管理 frpc 进程）
+    # 旧架构: frpc.service + frp-agent.service
     systemctl stop frpc 2>/dev/null || true
     systemctl stop frp-agent 2>/dev/null || true
     systemctl disable frpc 2>/dev/null || true
