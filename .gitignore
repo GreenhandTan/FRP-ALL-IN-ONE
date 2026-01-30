@@ -48,6 +48,7 @@ logs/
 # ============================================
 # Editor & IDE
 # ============================================
+.agent/
 .vscode/
 .idea/
 .DS_Store
@@ -72,6 +73,7 @@ logs/
 # FRP binary files
 frps
 frpc
+!agent/internal/frpc/
 frp_*.tar.gz
 
 # FRP runtime data
@@ -99,3 +101,8 @@ Thumbs.db
 htmlcov/
 .tox/
 __pycache__/
+
+# ============================================
+# Knowledge Base
+# ============================================
+PROJECT_KNOWLEDGE.md
