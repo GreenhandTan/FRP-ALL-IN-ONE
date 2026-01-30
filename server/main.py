@@ -42,15 +42,23 @@ def init_database():
     except Exception:
         pass
     
-    # 创建默认管理员（如果不存在）
+    # 创建或重置默认管理员
     db = SessionLocal()
     try:
-        if not crud.is_system_initialized(db):
+        admin = crud.get_admin_by_username(db, "admin")
+        if not admin:
+            # 没有管理员，创建默认管理员
             default_admin = schemas.UserCreate(username="admin", password="123456")
             crud.create_admin(db, default_admin)
             print("[OK] 默认管理员已创建 (admin / 123456)")
         else:
-            print("[OK] 管理员账号已存在")
+            # 管理员存在，验证默认密码是否有效
+            if not auth.verify_password("123456", admin.hashed_password):
+                # 密码不匹配（可能是旧数据库），重置为默认密码
+                crud.update_admin_password(db, admin.id, "123456")
+                print("[OK] 管理员密码已重置为默认密码 (admin / 123456)")
+            else:
+                print("[OK] 管理员账号已存在")
     finally:
         db.close()
     
