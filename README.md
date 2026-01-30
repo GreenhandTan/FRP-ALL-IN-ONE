@@ -1,36 +1,60 @@
-# FRP-ALL-IN-ONE
+<div align="center">
+  <h1>FRP-ALL-IN-ONE</h1>
+  <p>一个基于 Web 的 FRP 内网穿透管理系统：用浏览器完成 <b>FRPS 配置</b>、<b>客户端一键部署</b>、<b>设备注册/心跳</b>、<b>端口映射管理</b>，并提供近实时的连接/流量展示与排障路径。</p>
+  <p>
+    <a href="https://github.com/GreenhandTan/FRP-ALL-IN-ONE/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/GreenhandTan/FRP-ALL-IN-ONE?style=flat&logo=github"></a>
+    <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/GreenhandTan/FRP-ALL-IN-ONE?style=flat"></a>
+    <img alt="Docker" src="https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white">
+    <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-009688?style=flat&logo=fastapi&logoColor=white">
+    <img alt="React" src="https://img.shields.io/badge/React-61DAFB?style=flat&logo=react&logoColor=000">
+    <img alt="Vite" src="https://img.shields.io/badge/Vite-646CFF?style=flat&logo=vite&logoColor=white">
+  </p>
+  <p>
+    <a href="#features">功能特性</a> ·
+    <a href="#quick-start-server">部署指南</a> ·
+    <a href="#ports">端口放行</a> ·
+    <a href="#troubleshooting">排障</a> ·
+    <a href="#license">开源协议</a>
+  </p>
+  <p>
+    <a href="README.md">简体中文</a> |
+    <a href="README.en.md">English</a> |
+    <a href="README.zh-TW.md">繁體中文</a>
+  </p>
+</div>
 
-[简体中文](README.md) | [English](README.en.md) | [繁體中文](README.zh-TW.md)
-
-一个基于 Web 的 FRP 内网穿透管理系统：用浏览器完成 **FRPS 配置**、**客户端一键部署**、**设备注册/心跳**、**端口映射管理**，并提供近实时的连接/流量展示与排障路径。
-
+<a id="author"></a>
 ## 作者与社区
 
 - 博客：https://greenhandtan.top
   
+<a id="stars"></a>
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=GreenhandTan/FRP-ALL-IN-ONE&type=date&legend=top-left)](https://www.star-history.com/#GreenhandTan/FRP-ALL-IN-ONE&type=date&legend=top-left)
 
+<a id="demo"></a>
 ## 效果演示
 
 <img src="demo.png" alt="FRP-ALL-IN-ONE Demo" width="900" />
 
+<a id="toc"></a>
 ## 目录
 
-- [核心特性](#核心特性)
-- [架构说明](#架构说明)
-- [快速开始（服务端）](#快速开始服务端)
-- [首次使用流程](#首次使用流程)
-- [端口与安全组](#端口与安全组)
-- [监控与统计口径](#监控与统计口径)
-- [常用运维命令](#常用运维命令)
-- [排障指南](#排障指南)
-- [卸载客户端](#卸载客户端)
-- [项目结构](#项目结构)
-- [开发与构建](#开发与构建)
-- [开源协议与使用要求](#开源协议与使用要求)
+- [核心特性](#features)
+- [架构说明](#architecture)
+- [快速开始（服务端）](#quick-start-server)
+- [首次使用流程](#first-time-workflow)
+- [端口与安全组](#ports)
+- [监控与统计口径](#monitoring)
+- [常用运维命令](#ops)
+- [排障指南](#troubleshooting)
+- [卸载客户端](#uninstall)
+- [项目结构](#layout)
+- [开发与构建](#development)
+- [开源协议与使用要求](#license)
 
+<a id="features"></a>
 ## 核心特性
 
 - 一键部署：Docker Compose 启动管理后台、Web、FRPS
@@ -41,6 +65,7 @@
 - 国际化：中文/英文切换
 - 统一弹窗：全站使用同一套轻量弹窗组件（替换浏览器默认 alert/confirm）
 
+<a id="architecture"></a>
 ## 架构说明
 
 本项目以 **3 个容器** 运行（均使用 `network_mode: host`）：
@@ -54,6 +79,7 @@
 - `frpc`：与 FRPS 建立控制连接并承载代理转发
 - `frp-agent`：向管理端自注册、上报心跳、拉取你在 Web 里配置的端口映射，并对 `frpc` 执行热重载
 
+<a id="quick-start-server"></a>
 ## 快速开始（服务端）
 
 ### 前置要求
@@ -96,6 +122,7 @@ FRPS 配置文件 `deploy/frps.toml` 已在宿主机上持久化。
 
 如需持久化后台数据，可自行在 `deploy/docker-compose.yml` 中为 backend 增加卷挂载（例如将 `frp_manager.db` 挂载到宿主机目录）。
 
+<a id="first-time-workflow"></a>
 ## 首次使用流程
 
 ### 1) 登录管理台
@@ -142,6 +169,7 @@ sudo ./deploy-frpc.sh
 2. 等待 Agent 同步并热重载（无需重启服务）
 3. 外部即可通过 `公网IP:remote_port` 访问到 `local_ip:local_port`
 
+<a id="ports"></a>
 ## 端口与安全组
 
 云服务器安全组/防火墙建议放行：
@@ -161,6 +189,7 @@ sudo ./deploy-frpc.sh
 
 - FRPS Dashboard 默认监听 7500/TCP，为避免暴露管理接口，建议仅允许本机访问（或通过安全组/防火墙限制来源 IP）。
 
+<a id="monitoring"></a>
 ## 监控与统计口径
 
 - 面板数据来源：后端从 FRPS Dashboard API 拉取 `serverinfo` 与各类 `proxy` 列表。
@@ -171,6 +200,7 @@ sudo ./deploy-frpc.sh
   - 外部没有访问到你的 `remote_port`（安全组未放行、端口未监听等）
   - 新建映射刚下发，尚未完成同步/热重载
 
+<a id="ops"></a>
 ## 常用运维命令
 
 ### 服务端（Docker）
@@ -206,6 +236,7 @@ journalctl -u frp-agent -n 200 --no-pager
 cat /opt/frp/agent.json
 ```
 
+<a id="troubleshooting"></a>
 ## 排障指南
 
 ### 端口映射创建了但访问不了（以 SSH 6022→22 为例）
@@ -255,6 +286,7 @@ nano /opt/frp/frpc.toml
 systemctl restart frpc
 ```
 
+<a id="uninstall"></a>
 ## 卸载客户端
 
 ```bash
@@ -265,6 +297,7 @@ sudo ./uninstall-frpc.sh
 
 卸载会停止并禁用 `frpc/frp-agent`，并清理 `/opt/frp` 与 systemd 文件。
 
+<a id="layout"></a>
 ## 项目结构
 
 ```
@@ -276,6 +309,7 @@ FRP-ALL-IN-ONE/
 └── README.md
 ```
 
+<a id="development"></a>
 ## 开发与构建
 
 ### 前端
@@ -290,6 +324,7 @@ npm run dev
 
 后端以 Docker 方式运行最稳定；如需本地运行可参考 `server/` 目录（FastAPI + SQLite）。
 
+<a id="license"></a>
 ## 开源协议与使用要求
 
 本项目采用 **MIT License**（见 [LICENSE](LICENSE)）。

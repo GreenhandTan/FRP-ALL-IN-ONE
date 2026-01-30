@@ -1,36 +1,60 @@
-# FRP-ALL-IN-ONE
+<div align="center">
+  <h1>FRP-ALL-IN-ONE</h1>
+  <p>A web-based FRP intranet tunneling management system. Configure <b>FRPS</b>, generate <b>one-click client deployment scripts</b>, manage <b>device registration/heartbeat</b> and <b>port mappings</b> in the browser, with near real-time status/traffic and troubleshooting guidance.</p>
+  <p>
+    <a href="https://github.com/GreenhandTan/FRP-ALL-IN-ONE/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/GreenhandTan/FRP-ALL-IN-ONE?style=flat&logo=github"></a>
+    <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/GreenhandTan/FRP-ALL-IN-ONE?style=flat"></a>
+    <img alt="Docker" src="https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white">
+    <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-009688?style=flat&logo=fastapi&logoColor=white">
+    <img alt="React" src="https://img.shields.io/badge/React-61DAFB?style=flat&logo=react&logoColor=000">
+    <img alt="Vite" src="https://img.shields.io/badge/Vite-646CFF?style=flat&logo=vite&logoColor=white">
+  </p>
+  <p>
+    <a href="#features">Features</a> ·
+    <a href="#quick-start-server">Quick Start</a> ·
+    <a href="#ports">Ports</a> ·
+    <a href="#troubleshooting">Troubleshooting</a> ·
+    <a href="#license">License</a>
+  </p>
+  <p>
+    <a href="README.md">简体中文</a> |
+    <a href="README.en.md">English</a> |
+    <a href="README.zh-TW.md">繁體中文</a>
+  </p>
+</div>
 
-[简体中文](README.md) | [English](README.en.md) | [繁體中文](README.zh-TW.md)
-
-A web-based FRP intranet tunneling management system. Configure **FRPS**, generate **one-click client deployment scripts**, manage **device registration/heartbeat** and **port mappings** in the browser, with near real-time status/traffic and troubleshooting guidance.
-
+<a id="author"></a>
 ## Author & Community
 
 - Blog: https://greenhandtan.top
 
+<a id="stars"></a>
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=GreenhandTan/FRP-ALL-IN-ONE&type=date&legend=top-left)](https://www.star-history.com/#GreenhandTan/FRP-ALL-IN-ONE&type=date&legend=top-left)
 
+<a id="demo"></a>
 ## Demo Screenshot
 
 <img src="demo.png" alt="FRP-ALL-IN-ONE Demo" width="900" />
 
+<a id="toc"></a>
 ## Table of Contents
 
-- [Key Features](#key-features)
+- [Key Features](#features)
 - [Architecture](#architecture)
 - [Quick Start (Server)](#quick-start-server)
 - [First-time Workflow](#first-time-workflow)
-- [Ports & Security Group](#ports--security-group)
-- [Monitoring & Metrics Semantics](#monitoring--metrics-semantics)
-- [Common Ops Commands](#common-ops-commands)
+- [Ports & Security Group](#ports)
+- [Monitoring & Metrics Semantics](#monitoring)
+- [Common Ops Commands](#ops)
 - [Troubleshooting](#troubleshooting)
-- [Uninstall Client](#uninstall-client)
-- [Project Layout](#project-layout)
+- [Uninstall Client](#uninstall)
+- [Project Layout](#layout)
 - [Development](#development)
-- [License & Attribution Requirements](#license--attribution-requirements)
+- [License & Attribution Requirements](#license)
 
+<a id="features"></a>
 ## Key Features
 
 - One-click deployment: Docker Compose brings up the Manager, Web UI, and FRPS
@@ -41,6 +65,7 @@ A web-based FRP intranet tunneling management system. Configure **FRPS**, genera
 - i18n: Chinese/English switching
 - Unified dialogs: lightweight custom modals (no browser default alert/confirm)
 
+<a id="architecture"></a>
 ## Architecture
 
 Runs as **3 containers** (all with `network_mode: host`):
@@ -54,6 +79,7 @@ On each client machine:
 - `frpc`: connects to FRPS and carries proxy traffic
 - `frp-agent`: registers to the manager, sends heartbeat, pulls mappings, performs `frpc reload`
 
+<a id="quick-start-server"></a>
 ## Quick Start (Server)
 
 ### Prerequisites
@@ -101,6 +127,7 @@ FRPS config `deploy/frps.toml` is persisted on the host.
 
 If you need persistence, add a volume mount for the SQLite file (e.g. `frp_manager.db`) in `deploy/docker-compose.yml`.
 
+<a id="first-time-workflow"></a>
 ## First-time Workflow
 
 ### 1) Login
@@ -147,6 +174,7 @@ In “Devices”:
 2. wait for agent sync & hot reload (no service restart required)
 3. access via `publicIP:remote_port` → `local_ip:local_port`
 
+<a id="ports"></a>
 ## Ports & Security Group
 
 Recommended allow rules:
@@ -166,6 +194,7 @@ Security:
 
 - FRPS Dashboard listens on 7500/TCP by default. Restrict its access (local-only or by firewall/security group).
 
+<a id="monitoring"></a>
 ## Monitoring & Metrics Semantics
 
 - Data source: backend fetches `serverinfo` and `proxy/*` from FRPS Dashboard API.
@@ -176,6 +205,7 @@ Security:
   - port is not reachable (security group not allowed, not listening, etc.)
   - mapping was just created and not synced/reloaded yet
 
+<a id="ops"></a>
 ## Common Ops Commands
 
 ### Server (Docker)
@@ -211,6 +241,7 @@ journalctl -u frp-agent -n 200 --no-pager
 cat /opt/frp/agent.json
 ```
 
+<a id="troubleshooting"></a>
 ## Troubleshooting
 
 ### Port mapping created but not accessible (SSH 6022→22 example)
@@ -258,6 +289,7 @@ nano /opt/frp/frpc.toml
 systemctl restart frpc
 ```
 
+<a id="uninstall"></a>
 ## Uninstall Client
 
 ```bash
@@ -268,6 +300,7 @@ sudo ./uninstall-frpc.sh
 
 Uninstall stops/disables `frpc/frp-agent` and cleans `/opt/frp` and systemd units.
 
+<a id="layout"></a>
 ## Project Layout
 
 ```
@@ -279,6 +312,7 @@ FRP-ALL-IN-ONE/
 └── README.md
 ```
 
+<a id="development"></a>
 ## Development
 
 ### Frontend
@@ -293,6 +327,7 @@ npm run dev
 
 Docker is the recommended way to run backend for consistency. If you need local run, refer to `server/` (FastAPI + SQLite).
 
+<a id="license"></a>
 ## License & Attribution Requirements
 
 This project is licensed under the **MIT License**. See [LICENSE](LICENSE).
@@ -309,4 +344,3 @@ You must:
 - when re-posting, redistributing, or developing derivatives, attribute the original author as **GreenhandTan**
 
 For alternative licensing/authorization, contact via the blog: https://greenhandtan.top
-
