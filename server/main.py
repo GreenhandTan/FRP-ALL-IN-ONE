@@ -241,29 +241,69 @@ async def websocket_dashboard(websocket: WebSocket):
                 agents = await get_agents(db=db, current_user=None)
 
                 clients = crud.get_clients(db)
+                
+                # 获取 WebSocket 实时在线状态和内存缓存（CPU/Mem等）
+                ws_agents_info = {
+                    info["client_id"]: info 
+                    for info in ws_manager.get_all_agents_info()
+                }
+
                 registered_clients = []
                 for c in clients:
-                    registered_clients.append({
+                    # 1. 基础信息
+                    client_data = {
                         "id": c.id,
                         "name": c.name,
                         "auth_token": c.auth_token,
                         "status": c.status,
                         "last_seen": c.last_seen,  # Integer 时间戳
-                        "tunnels": [
-                            {
-                                "id": t.id,
-                                "client_id": t.client_id,
-                                "name": t.name,
-                                "type": t.type.value if hasattr(t.type, "value") else str(t.type),
-                                "enabled": getattr(t, "enabled", True),
-                                "local_ip": t.local_ip,
-                                "local_port": t.local_port,
-                                "remote_port": t.remote_port,
-                                "custom_domains": t.custom_domains,
-                            }
-                            for t in (c.tunnels or [])
-                        ],
-                    })
+                    }
+
+                    # 2. 注入 Agent 硬件信息 (优先从 DB 获取持久化数据)
+                    agent_info_db = db.query(models.AgentInfo).filter(
+                        models.AgentInfo.client_id == c.id
+                    ).first()
+                    
+                    if agent_info_db:
+                        client_data.update({
+                            "hostname": agent_info_db.hostname,
+                            "os": agent_info_db.os,
+                            "arch": agent_info_db.arch,
+                            "platform": agent_info_db.platform,
+                            "agent_version": agent_info_db.agent_version,
+                        })
+                    
+                    # 3. 注入实时状态和系统指标 (从 Memory Cache)
+                    if c.id in ws_agents_info:
+                        ws_info = ws_agents_info[c.id]
+                        client_data.update({
+                            # 使用 WS 连接状态覆盖数据库状态，更实时
+                            "is_online": True, 
+                            "cpu_percent": ws_info.get("cpu_percent"),
+                            "memory_percent": ws_info.get("memory_percent"),
+                            "memory_used": ws_info.get("memory_used"),
+                            "memory_total": ws_info.get("memory_total"),
+                        })
+                    else:
+                        client_data["is_online"] = False
+
+                    # 4. 隧道信息
+                    client_data["tunnels"] = [
+                        {
+                            "id": t.id,
+                            "client_id": t.client_id,
+                            "name": t.name,
+                            "type": t.type.value if hasattr(t.type, "value") else str(t.type),
+                            "enabled": getattr(t, "enabled", True),
+                            "local_ip": t.local_ip,
+                            "local_port": t.local_port,
+                            "remote_port": t.remote_port,
+                            "custom_domains": t.custom_domains,
+                        }
+                        for t in (c.tunnels or [])
+                    ]
+                    
+                    registered_clients.append(client_data)
 
                 await websocket.send_json({
                     "type": "dashboard",

@@ -8,6 +8,7 @@ import { useLanguage } from './LanguageContext';
 import Modal from './ui/Modal';
 import { useDialog } from './ui/DialogProvider';
 import { useDashboardStatus } from './hooks/useWebSocket';
+import LogTerminal from './components/LogTerminal';
 
 function App() {
   const { t, language, toggleLanguage } = useLanguage();
@@ -17,6 +18,7 @@ function App() {
   const [error, setError] = useState(null); // Add error state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
+  const [showLogsClient, setShowLogsClient] = useState(null);
 
   // 新的数据结构
   const [serverInfo, setServerInfo] = useState({});
@@ -465,6 +467,7 @@ function App() {
                 onRename={(name) => handleRenameClient(client.id, name)}
                 onToggleTunnelEnabled={(tunnelId, enabled) => handleToggleTunnelEnabled(client.id, tunnelId, enabled)}
                 onDeleteTunnel={(tunnelId) => handleDeleteTunnel(client.id, tunnelId)}
+                onShowLogs={(clientId) => setShowLogsClient(clientId)}
               />
             ))
           ) : (
@@ -490,6 +493,15 @@ function App() {
         <ChangePassword
           onClose={() => setShowChangePassword(false)}
           onSuccess={() => setShowChangePassword(false)}
+        />
+      )}
+
+      {/* 实时日志弹窗 */}
+      {showLogsClient && (
+        <LogTerminal
+          clientId={showLogsClient}
+          clientName={registeredClients.find(c => c.id === showLogsClient)?.name || showLogsClient}
+          onClose={() => setShowLogsClient(null)}
         />
       )}
 
@@ -618,7 +630,7 @@ function StatCard({ title, value, icon, gradient, subtext }) {
   )
 }
 
-function RegisteredClientCard({ client, frpProxies, formatBytes, t, nowSec, onAddTunnel, onRename, onToggleTunnelEnabled, onDeleteTunnel }) {
+function RegisteredClientCard({ client, frpProxies, formatBytes, t, nowSec, onAddTunnel, onRename, onToggleTunnelEnabled, onDeleteTunnel, onShowLogs }) {
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(client.name);
 
@@ -646,126 +658,139 @@ function RegisteredClientCard({ client, frpProxies, formatBytes, t, nowSec, onAd
     return sum + (proxy?.cur_conns || proxy?.curConns || 0);
   }, 0);
 
-  const online = client.last_seen && (nowSec - client.last_seen) < 30;
+  const online = client.is_online !== undefined ? client.is_online : (client.last_seen && (nowSec - client.last_seen) < 30);
   const shortId = (client.id || '').slice(0, 8);
+  const osIcon = client.os ? (client.os.toLowerCase().includes('windows') ? '🪟' : client.os.toLowerCase().includes('darwin') ? '🍎' : '🐧') : '🖥️';
+
+  // 渲染系统资源条
+  const renderSystemBar = (percent, label, colorClass) => {
+    if (percent === undefined || percent === null) return null;
+    return (
+      <div className="flex items-center gap-2 text-xs text-slate-500 min-w-[120px]">
+        <span className="w-8">{label}</span>
+        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full ${colorClass}`}
+            style={{ width: `${Math.max(0, Math.min(100, percent))}%` }}
+          />
+        </div>
+        <span className="w-8 text-right">{percent.toFixed(0)}%</span>
+      </div>
+    );
+  };
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-emerald-100 overflow-hidden hover:shadow-md transition-shadow duration-300">
       <div className="px-6 py-5 border-b border-emerald-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-emerald-50/30">
         <div className="flex items-center gap-4">
           <div className="relative">
-            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${online ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
-              <Server size={24} />
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${online ? 'bg-emerald-100' : 'bg-slate-100'}`}>
+              {osIcon}
             </div>
             <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${online ? 'bg-emerald-500' : 'bg-slate-400'}`} />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-              {editingName ? (
-                <span className="flex items-center gap-2">
-                  <input
-                    value={nameDraft}
-                    onChange={(e) => setNameDraft(e.target.value)}
-                    className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
-                  <button
-                    onClick={() => {
-                      setEditingName(false);
-                      onRename?.(nameDraft);
-                    }}
-                    className="text-xs px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white"
-                  >
-                    {t('save')}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setEditingName(false);
-                      setNameDraft(client.name);
-                    }}
-                    className="text-xs px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700"
-                  >
-                    {t('cancel')}
-                  </button>
-                </span>
-              ) : (
-                <span className="flex items-center gap-2">
-                  <span>{client.name}</span>
-                  <button
-                    onClick={() => setEditingName(true)}
-                    className="text-xs px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700"
-                  >
-                    {t('edit')}
-                  </button>
-                </span>
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+                {editingName ? (
+                  <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                    <input
+                      type="text"
+                      className="border border-emerald-200 rounded px-2 py-0.5 text-sm focus:outline-none focus:border-emerald-500"
+                      value={nameDraft}
+                      onChange={(e) => setNameDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          onRename(client.id, nameDraft);
+                          setEditingName(false);
+                        }
+                      }}
+                      autoFocus
+                    />
+                    <button
+                      onClick={() => {
+                        onRename(client.id, nameDraft);
+                        setEditingName(false);
+                      }}
+                      className="text-emerald-600 hover:text-emerald-700"
+                    >
+                      <CheckCircle size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {client.name}
+                    <button
+                      onClick={() => setEditingName(true)}
+                      className="text-slate-300 hover:text-emerald-600 transition-colors"
+                    >
+                      <span className="text-xs border border-slate-200 rounded px-1">编辑</span>
+                    </button>
+                  </>
+                )}
+              </h3>
+            </div>
+            <div className="flex flex-col gap-1 mt-1">
+              <div className="flex items-center gap-2 text-sm text-slate-500 font-mono">
+                <span className={`w-2 h-2 rounded-full ${online ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
+                <span>{online ? t('dashboard.clients.online') : t('dashboard.clients.offline')}</span>
+                <span className="text-slate-300">|</span>
+                <span>ID: {shortId}</span>
+                {client.hostname && (
+                  <>
+                    <span className="text-slate-300">|</span>
+                    <span title="Hostname">{client.hostname}</span>
+                  </>
+                )}
+                {client.agent_version && (
+                  <span className="px-1.5 py-0.5 bg-slate-100 rounded text-xs text-slate-500 border border-slate-200">
+                    v{client.agent_version}
+                  </span>
+                )}
+              </div>
+
+              {/* 系统资源条 (仅在线时显示) */}
+              {online && (client.cpu_percent !== undefined) && (
+                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
+                  {renderSystemBar(client.cpu_percent, "CPU", "bg-blue-500")}
+                  {renderSystemBar(client.memory_percent, "Mem", "bg-purple-500")}
+                </div>
               )}
-            </h3>
-            <div className="flex items-center gap-4 text-xs text-slate-500 mt-1">
-              <span className="flex items-center gap-1">
-                <div className={`w-1.5 h-1.5 rounded-full ${online ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-                {online ? t('dashboard.clients.online') : t('dashboard.clients.offline')}
-              </span>
-              {shortId && (
-                <span className="flex items-center gap-1 font-mono">
-                  {t('dashboard.clients.id')}: {shortId}
-                </span>
-              )}
-              <span className="flex items-center gap-1 font-mono">
-                <Activity size={12} />
-                {totalConns} {t('dashboard.clients.connections')}
-              </span>
             </div>
           </div>
         </div>
 
-        {/* Client Stats & Agent Monitor */}
-        <div className="flex items-center gap-6">
-          {/* Agent 系统监控 */}
-          {client.agent?.is_online && (
-            <div className="flex items-center gap-4 px-3 py-1.5 bg-blue-50 rounded-lg border border-blue-100">
-              <div className="flex items-center gap-2">
-                <svg className="w-3.5 h-3.5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                </svg>
-                <div className="text-xs">
-                  <span className="text-blue-600 font-medium">{client.agent.cpu_percent?.toFixed(1) || 0}%</span>
-                  <span className="text-blue-400 ml-1">CPU</span>
-                </div>
+        <div className="flex items-center gap-4 text-sm text-slate-500">
+          <div className="flex gap-4">
+            <div className="text-right">
+              <div className="flex items-center gap-1 justify-end text-slate-400 text-xs mb-0.5">
+                <ArrowDown size={12} /> {t('dashboard.clients.trafficIn')}
               </div>
-              <div className="flex items-center gap-2">
-                <svg className="w-3.5 h-3.5 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-                </svg>
-                <div className="text-xs">
-                  <span className="text-purple-600 font-medium">{client.agent.memory_percent?.toFixed(1) || 0}%</span>
-                  <span className="text-purple-400 ml-1">MEM</span>
-                </div>
+              <div className="font-mono text-emerald-600 font-medium">{formatBytes(totalIn)}</div>
+            </div>
+            <div className="text-right">
+              <div className="flex items-center gap-1 justify-end text-slate-400 text-xs mb-0.5">
+                <ArrowUp size={12} /> {t('dashboard.clients.trafficOut')}
               </div>
+              <div className="font-mono text-blue-600 font-medium">{formatBytes(totalOut)}</div>
             </div>
-          )}
-          {client.agent && !client.agent.is_online && (
-            <div className="flex items-center gap-2 px-2 py-1 bg-slate-100 rounded text-xs text-slate-500">
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-              </svg>
-              Agent 离线
-            </div>
-          )}
-          <div className="text-right">
-            <div className="text-xs text-slate-400 flex items-center justify-end gap-1"><ArrowDown size={10} /> {t('dashboard.clients.trafficIn')}</div>
-            <div className="font-mono text-sm font-medium text-slate-700">{formatBytes(totalIn)}</div>
           </div>
-          <div className="text-right">
-            <div className="text-xs text-slate-400 flex items-center justify-end gap-1"><ArrowUp size={10} /> {t('dashboard.clients.trafficOut')}</div>
-            <div className="font-mono text-sm font-medium text-slate-700">{formatBytes(totalOut)}</div>
-          </div>
-          <div className="text-right">
-            <button
-              onClick={onAddTunnel}
-              className="text-xs px-3 py-1 rounded-full font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-all"
-            >
-              {t('dashboard.clients.addTunnel')}
-            </button>
-          </div>
+
+          <button
+            onClick={() => onShowLogs && onShowLogs(client.id)}
+            className={`p-2 rounded-full transition-all ml-2 ${online ? 'text-slate-500 hover:text-emerald-600 hover:bg-emerald-50' : 'text-slate-300 cursor-not-allowed'}`}
+            title={t('dashboard.clients.viewLogs')}
+            disabled={!online}
+          >
+            <Terminal size={18} />
+          </button>
+
+          <button
+            onClick={() => onAddTunnel(client.id)}
+            className="flex items-center gap-1 bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shadow-sm shadow-emerald-200"
+          >
+            {t('add_tunnel')}
+          </button>
         </div>
       </div>
 
