@@ -1521,10 +1521,10 @@ async def get_agent_install_script(
     platform: linux, darwin, windows
     """
     # 获取服务器配置
-    auth_token = crud.get_system_config(db, models.ConfigKeys.FRPS_AUTH_TOKEN) or "frp-token"
-    server_ip = crud.get_system_config(db, models.ConfigKeys.SERVER_PUBLIC_IP) or "YOUR_SERVER_IP"
-    frps_port = crud.get_system_config(db, models.ConfigKeys.FRPS_PORT) or "7000"
-    frps_version = crud.get_system_config(db, models.ConfigKeys.FRPS_VERSION) or "0.61.1"
+    auth_token = crud.get_config(db, models.ConfigKeys.FRPS_AUTH_TOKEN) or "frp-token"
+    server_ip = crud.get_config(db, models.ConfigKeys.SERVER_PUBLIC_IP) or "YOUR_SERVER_IP"
+    frps_port = crud.get_config(db, models.ConfigKeys.FRPS_PORT) or "7000"
+    frps_version = crud.get_config(db, models.ConfigKeys.FRPS_VERSION) or "0.61.1"
     
     # 生成客户端 ID（如果未提供）
     if not client_id:
@@ -1895,10 +1895,10 @@ echo ""
 @app.get("/api/agent/install-script-info")
 async def get_install_script_info(db: Session = Depends(get_db)):
     """获取安装脚本信息（用于前端显示）"""
-    auth_token = crud.get_system_config(db, models.ConfigKeys.FRPS_AUTH_TOKEN) or "frp-token"
-    server_ip = crud.get_system_config(db, models.ConfigKeys.SERVER_PUBLIC_IP) or "YOUR_SERVER_IP"
-    frps_port = crud.get_system_config(db, models.ConfigKeys.FRPS_PORT) or "7000"
-    frps_version = crud.get_system_config(db, models.ConfigKeys.FRPS_VERSION) or "0.61.1"
+    auth_token = crud.get_config(db, models.ConfigKeys.FRPS_AUTH_TOKEN) or "frp-token"
+    server_ip = crud.get_config(db, models.ConfigKeys.SERVER_PUBLIC_IP) or "YOUR_SERVER_IP"
+    frps_port = crud.get_config(db, models.ConfigKeys.FRPS_PORT) or "7000"
+    frps_version = crud.get_config(db, models.ConfigKeys.FRPS_VERSION) or "0.61.1"
     
     return {
         "server_ip": server_ip,
