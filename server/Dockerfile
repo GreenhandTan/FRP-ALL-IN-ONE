@@ -21,14 +21,15 @@ RUN install -m 0755 -d /etc/apt/keyrings \
 WORKDIR /app
 
 # 配置 pip 使用国内镜像源并安装依赖
-COPY requirements.txt .
+COPY server/requirements.txt ./requirements.txt
 RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ \
     && pip config set global.trusted-host mirrors.aliyun.com \
     && pip install --upgrade pip \
     && pip install --no-cache-dir --timeout 120 -r requirements.txt
 
-# 复制源码
-COPY . .
+# 复制后端源码与 Agent 脚本
+COPY server/ ./
+COPY agent/ ./agent/
 
 # 数据卷挂载点 (用于 SQLite 和 FRP)
 VOLUME /app/data

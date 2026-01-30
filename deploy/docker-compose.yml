@@ -3,7 +3,9 @@ version: '3.8'
 services:
   # 1. 核心管理后台 (Python API)
   backend:
-    build: ../server
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
     container_name: frp-manager-backend
     restart: always
     user: root  # 需要 root 权限创建文件和启动进程

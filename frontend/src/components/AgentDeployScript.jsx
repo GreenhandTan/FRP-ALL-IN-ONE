@@ -84,7 +84,7 @@ export function AgentDeployScript({ onClose, onComplete }) {
     const getInstallCommand = () => {
         if (!scriptInfo || !selectedPlatform) return '';
 
-        const baseUrl = `http://${scriptInfo.server_ip}:8080`;
+        const baseUrl = window.location.origin;
 
         if (selectedPlatform === 'windows') {
             // Windows PowerShell 命令
@@ -121,7 +121,7 @@ curl -fsSL "${baseUrl}/api/agent/install-script/${selectedPlatform}" | sudo bash
     const handleDownloadScript = () => {
         if (!scriptInfo || !selectedPlatform) return;
 
-        const baseUrl = `http://${scriptInfo.server_ip}:8080`;
+        const baseUrl = window.location.origin;
         const url = `${baseUrl}/api/agent/install-script/${selectedPlatform}`;
         const ext = selectedPlatform === 'windows' ? 'ps1' : 'sh';
 

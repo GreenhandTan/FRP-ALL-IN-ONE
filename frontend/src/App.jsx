@@ -50,10 +50,26 @@ function App() {
 
   // 当 WebSocket 收到新数据时更新状态
   useEffect(() => {
-    if (wsStatus && wsStatus.success && wsStatus.server_info) {
-      setServerInfo(wsStatus.server_info);
-      // WebSocket 目前只推送基础信息，完整数据仍需 HTTP
+    if (!wsStatus) return;
+    const status = wsStatus.status;
+    if (status?.success) {
+      setServerInfo(status.server_info || {});
+      setFrpProxies(status.proxies || []);
+      setStats((prev) => ({
+        ...prev,
+        totalClients: status.total_clients || 0,
+        totalProxies: status.total_proxies || 0,
+        totalTrafficIn: status.server_info?.totalTrafficIn || 0,
+        totalTrafficOut: status.server_info?.totalTrafficOut || 0,
+      }));
     }
+    setDisabledPorts(wsStatus.disabled_ports || []);
+    setRegisteredClients(wsStatus.registered_clients || []);
+    const agents = wsStatus.agents || [];
+    setStats((prev) => ({
+      ...prev,
+      onlineAgents: agents.filter((a) => a.is_online).length,
+    }));
   }, [wsStatus]);
 
   // 格式化流量
@@ -259,20 +275,11 @@ function App() {
     }
   };
 
-  // 自动刷新 (可选，这里先只支持手动刷新)
-  useEffect(() => {
-    if (isAuthenticated) {
-      loadData();
-    }
-  }, [isAuthenticated]);
-
   useEffect(() => {
     if (!isAuthenticated) return;
-    const interval = setInterval(() => {
-      loadData();
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [isAuthenticated]);
+    if (!wsConnected) return;
+    setLoading(false);
+  }, [isAuthenticated, wsConnected]);
 
   // 启用/禁用端口
   const handleTogglePort = async (port, enable) => {
@@ -327,7 +334,6 @@ function App() {
   if (systemStatus && !systemStatus.frps_deployed) {
     return <SetupWizard onSetupComplete={() => {
       checkSystemStatus();
-      loadData();
     }} />;
   }
 
@@ -351,10 +357,10 @@ function App() {
                   ? 'bg-emerald-100 text-emerald-700'
                   : 'bg-amber-100 text-amber-700'
                   }`}
-                title={wsConnected ? 'WebSocket 实时连接中' : 'WebSocket 已断开，使用轮询模式'}
+                title={wsConnected ? 'WebSocket 实时连接中' : 'WebSocket 未连接'}
               >
                 <Radio size={12} className={wsConnected ? 'text-emerald-500' : 'text-amber-500'} />
-                <span>{wsConnected ? 'Live' : 'Polling'}</span>
+                <span>{wsConnected ? 'Live' : 'Offline'}</span>
               </div>
               {/* Agent 连接数指示器 */}
               {stats.onlineAgents > 0 && (

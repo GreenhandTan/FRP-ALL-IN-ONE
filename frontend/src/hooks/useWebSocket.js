@@ -35,7 +35,12 @@ export function useWebSocket(path, options = {}) {
     const getWebSocketUrl = useCallback(() => {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const host = window.location.host;
-        return `${protocol}//${host}${path}`;
+        const url = new URL(`${protocol}//${host}${path}`);
+        const token = localStorage.getItem('token');
+        if (token && path.startsWith('/ws/')) {
+            url.searchParams.set('token', token);
+        }
+        return url.toString();
     }, [path]);
 
     // 连接 WebSocket
@@ -43,7 +48,7 @@ export function useWebSocket(path, options = {}) {
         if (!enabled) return;
         
         const url = getWebSocketUrl();
-        console.log(`[WebSocket] 正在连接: ${url}`);
+        console.log(`[WebSocket] 正在连接: ${path}`);
         
         try {
             ws.current = new WebSocket(url);
@@ -141,7 +146,7 @@ export function useDashboardStatus() {
     const { data, isConnected, reconnect } = useWebSocket('/ws/dashboard');
     
     // 提取状态数据
-    const status = data?.type === 'status' ? data.data : null;
+    const status = data?.type === 'dashboard' ? data.data : null;
     
     return {
         status,

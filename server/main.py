@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, status, Header, WebSocket, WebSocketDisconnect
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 import models, schemas, crud, auth
 from database import SessionLocal, engine
@@ -11,6 +12,7 @@ import time
 import asyncio
 from websocket_manager import manager as ws_manager
 import frp_deploy
+from pathlib import Path
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -158,13 +160,15 @@ def update_client(
     return updated
 
 @app.post("/clients/{client_id}/tunnels/", response_model=schemas.Tunnel)
-def create_tunnel_for_client(
+async def create_tunnel_for_client(
     client_id: str, tunnel: schemas.TunnelCreate, db: Session = Depends(get_db), current_user: models.Admin = Depends(get_current_user)
 ):
-    return crud.create_tunnel(db=db, tunnel=tunnel, client_id=client_id)
+    created = crud.create_tunnel(db=db, tunnel=tunnel, client_id=client_id)
+    await _push_config_for_client(client_id)
+    return created
 
 @app.patch("/clients/{client_id}/tunnels/{tunnel_id}", response_model=schemas.Tunnel)
-def update_tunnel_for_client(
+async def update_tunnel_for_client(
     client_id: str,
     tunnel_id: int,
     payload: dict,
@@ -176,11 +180,12 @@ def update_tunnel_for_client(
         raise HTTPException(status_code=404, detail="Tunnel not found")
     if "enabled" in payload:
         updated = crud.set_tunnel_enabled(db, tunnel_id=tunnel_id, enabled=payload.get("enabled"))
+        await _push_config_for_client(client_id)
         return updated
     raise HTTPException(status_code=400, detail="No supported fields")
 
 @app.delete("/clients/{client_id}/tunnels/{tunnel_id}")
-def delete_tunnel_for_client(
+async def delete_tunnel_for_client(
     client_id: str,
     tunnel_id: int,
     db: Session = Depends(get_db),
@@ -190,107 +195,8 @@ def delete_tunnel_for_client(
     if not tunnel:
         raise HTTPException(status_code=404, detail="Tunnel not found")
     ok = crud.delete_tunnel(db, tunnel_id=tunnel_id)
+    await _push_config_for_client(client_id)
     return {"success": ok}
-
-@app.get("/clients/{client_id}/config")
-def get_client_config(
-    client_id: str,
-    db: Session = Depends(get_db),
-    x_client_token: str = Header(default=None, alias="X-Client-Token"),
-):
-    """
-    生成供客户端Agent下载的TOML配置。
-    此接口不需要认证 (Agent只持有Token，不持有JWT)，或者我们为Client也实现Bearer认证？
-    目前的 Client 模型有 'auth_token'，简单起见我们这里验证 Client Token。
-    或者保持开放但隐晦 (UUID路径)。
-    为安全起见，简单验证一下 Client 存在即可。Agent脚本通常是自动运行的。
-    """
-    client = crud.get_client(db, client_id=client_id)
-    if not client:
-        raise HTTPException(status_code=404, detail="Client not found")
-
-    if not x_client_token or x_client_token != client.auth_token:
-        raise HTTPException(status_code=403, detail="Invalid client token")
-    
-    # 生成配置内容
-    config_data = {
-        "proxies": []
-    }
-    
-    for tunnel in client.tunnels:
-        if hasattr(tunnel, "enabled") and not tunnel.enabled:
-            continue
-        proxy_name = f"{client.name}.{tunnel.name}"
-        proxy = {
-            "name": proxy_name,
-            "type": tunnel.type.value,
-            "localIP": tunnel.local_ip,
-            "localPort": tunnel.local_port,
-        }
-        if tunnel.remote_port:
-            proxy["remotePort"] = tunnel.remote_port
-        if tunnel.custom_domains:
-            proxy["customDomains"] = [d.strip() for d in tunnel.custom_domains.split(",")]
-        
-        config_data["proxies"].append(proxy)
-            
-    return config_data
-
-def _normalize_client_name(name: str):
-    name = (name or "").strip()
-    if not name:
-        name = "device"
-    name = re.sub(r"[^a-zA-Z0-9_-]+", "-", name)
-    name = re.sub(r"-{2,}", "-", name).strip("-")
-    return name or "device"
-
-@app.post("/api/agent/register")
-async def agent_register(payload: dict, db: Session = Depends(get_db)):
-    frps_token = (payload.get("frps_token") or "").strip()
-    name = _normalize_client_name(payload.get("name") or "")
-    client_id = (payload.get("client_id") or "").strip()
-    client_token = (payload.get("client_token") or "").strip()
-
-    expected_token = crud.get_config(db, models.ConfigKeys.FRPS_AUTH_TOKEN) or ""
-    if not expected_token or frps_token != expected_token:
-        raise HTTPException(status_code=403, detail="Invalid frps_token")
-
-    if client_id:
-        client = crud.get_client(db, client_id=client_id)
-        if not client:
-            raise HTTPException(status_code=404, detail="Client not found")
-        if not client_token or client_token != client.auth_token:
-            raise HTTPException(status_code=403, detail="Invalid client token")
-        crud.touch_client(db, client_id=client_id, status="online")
-        return {
-            "client_id": client.id,
-            "client_token": client.auth_token,
-            "name": client.name,
-        }
-
-    suffix = str(int(time.time()))[-6:]
-    client = crud.create_client_with_token(db, name=f"{name}-{suffix}")
-    return {
-        "client_id": client.id,
-        "client_token": client.auth_token,
-        "name": client.name,
-    }
-
-@app.post("/api/agent/heartbeat")
-async def agent_heartbeat(payload: dict, db: Session = Depends(get_db)):
-    client_id = (payload.get("client_id") or "").strip()
-    client_token = (payload.get("client_token") or "").strip()
-    if not client_id or not client_token:
-        raise HTTPException(status_code=400, detail="Missing client_id or client_token")
-
-    client = crud.get_client(db, client_id=client_id)
-    if not client:
-        raise HTTPException(status_code=404, detail="Client not found")
-    if client_token != client.auth_token:
-        raise HTTPException(status_code=403, detail="Invalid client token")
-
-    crud.touch_client(db, client_id=client_id, status="online")
-    return {"success": True}
 
 # 获取公网 IP 接口
 @app.get("/api/system/public-ip")
@@ -302,60 +208,83 @@ async def get_public_ip(current_user: models.Admin = Depends(get_current_user)):
 # WebSocket 端点
 # ===========================
 
+def _get_admin_from_token(db: Session, token: str):
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
+        username = payload.get("sub")
+        if not username:
+            return None
+        return crud.get_admin_by_username(db, username=username)
+    except Exception:
+        return None
+
 @app.websocket("/ws/dashboard")
 async def websocket_dashboard(websocket: WebSocket):
     """
     Dashboard 实时状态推送
     每秒推送一次 FRPS 状态，替代前端轮询
     """
+    db = SessionLocal()
+    try:
+        token = websocket.query_params.get("token")
+        admin = _get_admin_from_token(db, token)
+        if not admin:
+            await websocket.close(code=1008)
+            return
+    finally:
+        db.close()
+
+    await websocket.accept()
     await ws_manager.connect_dashboard(websocket)
     
     try:
-        import requests
         while True:
-            # 获取 FRPS 状态
             db = SessionLocal()
             try:
-                dashboard_pwd = crud.get_config(db, models.ConfigKeys.FRPS_DASHBOARD_PWD)
-                if dashboard_pwd:
-                    # 尝试连接 FRPS
-                    auth = ("admin", dashboard_pwd)
-                    possible_urls = [
-                        "http://127.0.0.1:7500/api",
-                        "http://host.docker.internal:7500/api",
-                        "http://172.17.0.1:7500/api",
-                        "http://frps:7500/api",
-                    ]
-                    
-                    status_data = {"success": False, "clients": [], "proxies": []}
-                    for url in possible_urls:
-                        try:
-                            resp = requests.get(f"{url}/serverinfo", auth=auth, timeout=2)
-                            if resp.status_code == 200:
-                                server_info = resp.json()
-                                status_data = {
-                                    "success": True,
-                                    "server_info": server_info,
-                                    "clients": [],
-                                    "proxies": []
-                                }
-                                break
-                        except:
-                            continue
-                    
-                    await websocket.send_json({
-                        "type": "status",
-                        "data": status_data
+                status = await get_frps_status(db=db, current_user=None)
+                disabled = await get_disabled_ports(db=db, current_user=None)
+                agents = await get_agents(db=db, current_user=None)
+
+                clients = crud.get_clients(db)
+                registered_clients = []
+                for c in clients:
+                    registered_clients.append({
+                        "id": c.id,
+                        "name": c.name,
+                        "auth_token": c.auth_token,
+                        "status": c.status,
+                        "last_seen": c.last_seen.isoformat() if c.last_seen else None,
+                        "tunnels": [
+                            {
+                                "id": t.id,
+                                "client_id": t.client_id,
+                                "name": t.name,
+                                "type": t.type.value if hasattr(t.type, "value") else str(t.type),
+                                "enabled": getattr(t, "enabled", True),
+                                "local_ip": t.local_ip,
+                                "local_port": t.local_port,
+                                "remote_port": t.remote_port,
+                                "custom_domains": t.custom_domains,
+                            }
+                            for t in (c.tunnels or [])
+                        ],
                     })
-                else:
-                    await websocket.send_json({
-                        "type": "status",
-                        "data": {"success": False, "message": "FRPS 未配置"}
-                    })
+
+                await websocket.send_json({
+                    "type": "dashboard",
+                    "data": {
+                        "status": status,
+                        "disabled_ports": disabled.get("disabled_ports", []),
+                        "agents": agents.get("agents", []),
+                        "registered_clients": registered_clients,
+                    }
+                })
             finally:
                 db.close()
-            
-            await asyncio.sleep(1)  # 1秒推送一次
+
+            await asyncio.sleep(1)
     except WebSocketDisconnect:
         ws_manager.disconnect_dashboard(websocket)
     except Exception as e:
@@ -369,6 +298,22 @@ async def websocket_agent(websocket: WebSocket, client_id: str):
     接收 Agent 上报的系统信息、日志等
     推送配置更新、命令等
     """
+    header_client_id = (websocket.headers.get("x-client-id") or "").strip()
+    header_token = (websocket.headers.get("x-client-token") or "").strip()
+    if header_client_id and header_client_id != client_id:
+        await websocket.close(code=1008)
+        return
+
+    db = SessionLocal()
+    try:
+        client = crud.get_client(db, client_id=client_id)
+        if not client or not header_token or header_token != client.auth_token:
+            await websocket.close(code=1008)
+            return
+    finally:
+        db.close()
+
+    await websocket.accept()
     await ws_manager.connect_agent(websocket, client_id)
     
     try:
@@ -387,6 +332,17 @@ async def websocket_logs(websocket: WebSocket, client_id: str):
     日志实时订阅
     前端订阅某个客户端的日志流
     """
+    db = SessionLocal()
+    try:
+        token = websocket.query_params.get("token")
+        admin = _get_admin_from_token(db, token)
+        if not admin:
+            await websocket.close(code=1008)
+            return
+    finally:
+        db.close()
+
+    await websocket.accept()
     await ws_manager.subscribe_logs(websocket, client_id)
     
     try:
@@ -397,6 +353,62 @@ async def websocket_logs(websocket: WebSocket, client_id: str):
         ws_manager.unsubscribe_logs(websocket, client_id)
     except Exception:
         ws_manager.unsubscribe_logs(websocket, client_id)
+
+
+def _render_frpc_toml(db: Session, client: models.Client) -> str | None:
+    server_ip = crud.get_config(db, models.ConfigKeys.SERVER_PUBLIC_IP)
+    frps_port = crud.get_config(db, models.ConfigKeys.FRPS_PORT)
+    auth_token = crud.get_config(db, models.ConfigKeys.FRPS_AUTH_TOKEN)
+    if not server_ip or not frps_port or not auth_token:
+        return None
+
+    lines = [
+        f'serverAddr = "{server_ip}"',
+        f"serverPort = {int(frps_port)}",
+        f'auth.token = "{auth_token}"',
+        "",
+        '# Admin API',
+        'webServer.addr = "127.0.0.1"',
+        "webServer.port = 7400",
+        "",
+    ]
+
+    for t in (client.tunnels or []):
+        if hasattr(t, "enabled") and not t.enabled:
+            continue
+
+        proxy_type = t.type.value if hasattr(t.type, "value") else str(t.type)
+        proxy_name = f"{client.name}.{t.name}"
+        lines.append("[[proxies]]")
+        lines.append(f'name = "{proxy_name}"')
+        lines.append(f'type = "{proxy_type}"')
+        lines.append(f'localIP = "{t.local_ip}"')
+        lines.append(f"localPort = {int(t.local_port)}")
+
+        if t.remote_port:
+            lines.append(f"remotePort = {int(t.remote_port)}")
+        if t.custom_domains:
+            domains = [d.strip() for d in (t.custom_domains or "").split(",") if d.strip()]
+            if domains:
+                items = '", "'.join(domains)
+                lines.append(f'customDomains = ["{items}"]')
+        lines.append("")
+
+    return "\n".join(lines).rstrip() + "\n"
+
+
+async def _push_config_for_client(client_id: str):
+    db = SessionLocal()
+    try:
+        client = crud.get_client(db, client_id=client_id)
+        if not client:
+            return False
+        toml = _render_frpc_toml(db, client)
+        if not toml:
+            return False
+        return await ws_manager.push_config_to_agent(client_id, toml)
+    finally:
+        db.close()
 
 
 async def _handle_agent_message(client_id: str, msg: dict):
@@ -412,6 +424,7 @@ async def _handle_agent_message(client_id: str, msg: dict):
         # Agent 注册/上线
         db = SessionLocal()
         try:
+            crud.touch_client(db, client_id=client_id, status="online")
             agent = db.query(models.AgentInfo).filter(
                 models.AgentInfo.client_id == client_id
             ).first()
@@ -440,13 +453,18 @@ async def _handle_agent_message(client_id: str, msg: dict):
                 db.add(agent)
             
             db.commit()
+            client = crud.get_client(db, client_id=client_id)
+            toml = _render_frpc_toml(db, client) if client else None
         finally:
             db.close()
+        if toml:
+            await ws_manager.push_config_to_agent(client_id, toml)
     
     elif msg_type == "heartbeat":
         # Agent 心跳
         db = SessionLocal()
         try:
+            crud.touch_client(db, client_id=client_id, status="online")
             agent = db.query(models.AgentInfo).filter(
                 models.AgentInfo.client_id == client_id
             ).first()
@@ -1020,419 +1038,8 @@ async def restart_frps(
     except Exception as e:
         return {"success": False, "message": str(e)}
 
-# FRPC 脚本生成接口
-@app.get("/api/frp/generate-client-script")
-async def generate_frpc_script(
-    db: Session = Depends(get_db),
-    current_user: models.Admin = Depends(get_current_user)
-):
-    """
-    生成 FRPC 自动部署脚本
-    """
-    # 从数据库读取 FRPS 配置
-    version = crud.get_config(db, models.ConfigKeys.FRPS_VERSION)
-    port = crud.get_config(db, models.ConfigKeys.FRPS_PORT)
-    auth_token = crud.get_config(db, models.ConfigKeys.FRPS_AUTH_TOKEN)
-    server_ip = crud.get_config(db, models.ConfigKeys.SERVER_PUBLIC_IP)
-    
-    if not all([version, port, auth_token, server_ip]):
-        raise HTTPException(
-            status_code=400,
-            detail="FRPS 尚未部署，请先完成服务端配置"
-        )
-    
-    # 生成 Shell 脚本（添加架构检测）
-    script = f'''#!/bin/bash
-# ============================================
-# FRP Client 自动部署脚本
-# 服务端地址: {server_ip}:{port}
-# FRP 版本: {version}
-# ============================================
-
-set -e
-
-# 颜色定义
-RED='\\033[0;31m'
-GREEN='\\033[0;32m'
-YELLOW='\\033[1;33m'
-NC='\\033[0m' # No Color
-
-echo_info() {{ echo -e "${{GREEN}}[INFO]${{NC}} $1"; }}
-echo_warn() {{ echo -e "${{YELLOW}}[WARN]${{NC}} $1"; }}
-echo_error() {{ echo -e "${{RED}}[ERROR]${{NC}} $1"; }}
-
-# 检查 root 权限
-if [ "$EUID" -ne 0 ]; then
-    echo_error "请以 root 用户运行此脚本"
-    exit 1
-fi
-
-# 检测系统架构
-detect_arch() {{
-    local arch=$(uname -m)
-    case "$arch" in
-        x86_64|amd64)
-            echo "amd64"
-            ;;
-        aarch64|arm64)
-            echo "arm64"
-            ;;
-        armv7l|armv7)
-            echo "arm"
-            ;;
-        i386|i686)
-            echo "386"
-            ;;
-        mips)
-            echo "mips"
-            ;;
-        mipsle)
-            echo "mipsle"
-            ;;
-        *)
-            echo_error "不支持的架构: $arch"
-            exit 1
-            ;;
-    esac
-}}
-
-# 检测操作系统
-detect_os() {{
-    local os=$(uname -s | tr '[:upper:]' '[:lower:]')
-    case "$os" in
-        linux)
-            echo "linux"
-            ;;
-        darwin)
-            echo "darwin"
-            ;;
-        freebsd)
-            echo "freebsd"
-            ;;
-        *)
-            echo_error "不支持的操作系统: $os"
-            exit 1
-            ;;
-    esac
-}}
-
-echo_info "开始部署 FRP Client..."
-
-# 1. 检测系统
-OS=$(detect_os)
-ARCH=$(detect_arch)
-echo_info "检测到系统: $OS, 架构: $ARCH"
-
-# 2. 设置变量
-FRP_VERSION="{version}"
-INSTALL_DIR="/opt/frp"
-DOWNLOAD_URL="https://github.com/fatedier/frp/releases/download/v${{FRP_VERSION}}/frp_${{FRP_VERSION}}_${{OS}}_${{ARCH}}.tar.gz"
-
-echo_info "下载地址: $DOWNLOAD_URL"
-
-# 3. 检查必要工具
-for cmd in wget tar; do
-    if ! command -v $cmd &> /dev/null; then
-        echo_error "缺少必要工具: $cmd"
-        echo "请先安装: apt install $cmd 或 yum install $cmd"
-        exit 1
-    fi
-done
-
-# 4. 下载 FRP
-echo_info "正在下载 FRP v${{FRP_VERSION}}..."
-wget -q --show-progress -O /tmp/frp.tar.gz "$DOWNLOAD_URL" || {{
-    echo_error "下载失败，请检查网络或手动下载"
-    exit 1
-}}
-
-# 5. 解压
-echo_info "正在解压..."
-mkdir -p $INSTALL_DIR
-tar -xzf /tmp/frp.tar.gz -C /tmp/
-cp -r /tmp/frp_${{FRP_VERSION}}_${{OS}}_${{ARCH}}/* $INSTALL_DIR/
-rm -rf /tmp/frp.tar.gz /tmp/frp_${{FRP_VERSION}}_${{OS}}_${{ARCH}}
-
-# 设置执行权限
-chmod +x $INSTALL_DIR/frpc
-
-# 验证二进制文件
-echo_info "验证 frpc 二进制文件..."
-if ! $INSTALL_DIR/frpc --version &> /dev/null; then
-    echo_error "frpc 二进制文件无法执行，可能是架构不匹配"
-    echo_error "当前系统架构: $ARCH"
-    file $INSTALL_DIR/frpc
-    exit 1
-fi
-echo_info "frpc 版本: $($INSTALL_DIR/frpc --version)"
-
-# 6. 创建配置文件
-echo_info "正在创建配置文件..."
-cat > $INSTALL_DIR/frpc.toml << 'FRPC_CONFIG'
-serverAddr = "{server_ip}"
-serverPort = {port}
-auth.token = "{auth_token}"
-
-# Admin API (用于热重载)
-webServer.addr = "127.0.0.1"
-webServer.port = 7400
-FRPC_CONFIG
-
-# 7. 创建 systemd service
-echo_info "正在创建系统服务..."
-cat > /etc/systemd/system/frpc.service << 'SYSTEMD_SERVICE'
-[Unit]
-Description=FRP Client Service
-Documentation=https://github.com/fatedier/frp
-After=network.target syslog.target
-Wants=network.target
-
-[Service]
-Type=simple
-ExecStart=/opt/frp/frpc -c /opt/frp/frpc.toml
-Restart=always
-RestartSec=5
-StartLimitInterval=0
-LimitNOFILE=65536
-
-[Install]
-WantedBy=multi-user.target
-SYSTEMD_SERVICE
-
-# 8. 启动服务
-echo_info "正在启动服务..."
-systemctl daemon-reload
-systemctl enable frpc
-systemctl start frpc
-
-# 等待并检查服务状态
-sleep 2
-if systemctl is-active --quiet frpc; then
-    echo ""
-    echo_info "============================================"
-    echo_info "FRP Client 部署完成！"
-    echo_info "============================================"
-    echo ""
-    echo "  服务端地址: {server_ip}:{port}"
-    echo "  安装目录:   $INSTALL_DIR"
-    echo "  配置文件:   $INSTALL_DIR/frpc.toml"
-    echo ""
-    echo "  常用命令:"
-    echo "    查看状态:   systemctl status frpc"
-    echo "    查看日志:   journalctl -u frpc -f"
-    echo "    重启服务:   systemctl restart frpc"
-    echo "    停止服务:   systemctl stop frpc"
-    echo ""
-    echo_info "安装并启动配置同步 Agent..."
-    if ! command -v python3 &> /dev/null; then
-        if command -v apt-get &> /dev/null; then
-            apt-get update -y && apt-get install -y python3 python3-venv python3-pip || true
-        elif command -v yum &> /dev/null; then
-            yum install -y python3 || true
-        fi
-    fi
-
-    if command -v python3 &> /dev/null; then
-        cat > /opt/frp/frp_agent.py << 'FRP_AGENT_PY'
-import os
-import time
-import json
-import hashlib
-import subprocess
-import sys
-
-import requests
-
-SERVER_URL = os.environ.get("FRP_MANAGER_URL", "http://localhost")
-REGISTER_TOKEN = os.environ.get("FRP_MANAGER_REGISTER_TOKEN", "")
-CLIENT_ID = os.environ.get("FRP_CLIENT_ID", "")
-CLIENT_TOKEN = os.environ.get("FRP_CLIENT_TOKEN", "")
-AGENT_STATE_PATH = os.environ.get("FRP_AGENT_STATE_PATH", "/opt/frp/agent.json")
-FRPC_CONFIG_PATH = os.environ.get("FRPC_CONFIG_PATH", "/opt/frp/frpc.toml")
-FRPC_BIN = os.environ.get("FRPC_BIN", "/opt/frp/frpc")
-
-def load_state():
-    try:
-        if os.path.exists(AGENT_STATE_PATH):
-            with open(AGENT_STATE_PATH, "r") as f:
-                return json.load(f)
-    except Exception:
-        return dict()
-    return dict()
-
-def save_state(state):
-    try:
-        os.makedirs(os.path.dirname(AGENT_STATE_PATH), exist_ok=True)
-        with open(AGENT_STATE_PATH, "w") as f:
-            json.dump(state, f)
-        return True
-    except Exception:
-        return False
-
-def register_if_needed():
-    global CLIENT_ID, CLIENT_TOKEN
-    state = load_state()
-    if not CLIENT_ID:
-        CLIENT_ID = state.get("client_id", "")
-    if not CLIENT_TOKEN:
-        CLIENT_TOKEN = state.get("client_token", "")
-    if CLIENT_ID and CLIENT_TOKEN:
-        return True
-    if not REGISTER_TOKEN:
-        print("Missing FRP_MANAGER_REGISTER_TOKEN", file=sys.stderr)
-        return False
-    try:
-        name = os.environ.get("FRP_CLIENT_NAME") or os.uname().nodename
-    except Exception:
-        name = "device"
-    try:
-        resp = requests.post(
-            SERVER_URL + "/api/agent/register",
-            json=dict(frps_token=REGISTER_TOKEN, name=name),
-            timeout=10,
-        )
-        if resp.status_code != 200:
-            print("Register failed: " + str(resp.status_code) + " - " + resp.text, file=sys.stderr)
-            return False
-        data = resp.json()
-        CLIENT_ID = data.get("client_id", "")
-        CLIENT_TOKEN = data.get("client_token", "")
-        if CLIENT_ID and CLIENT_TOKEN:
-            save_state(dict(client_id=CLIENT_ID, client_token=CLIENT_TOKEN, name=data.get("name")))
-            return True
-        return False
-    except Exception as e:
-        print("Register error: " + str(e), file=sys.stderr)
-        return False
-
-def heartbeat():
-    try:
-        requests.post(
-            SERVER_URL + "/api/agent/heartbeat",
-            json=dict(client_id=CLIENT_ID, client_token=CLIENT_TOKEN),
-            timeout=5,
-        )
-    except Exception:
-        pass
-
-def get_remote_config():
-    try:
-        resp = requests.get(
-            SERVER_URL + "/clients/" + CLIENT_ID + "/config",
-            headers=dict([("X-Client-Token", CLIENT_TOKEN)]),
-            timeout=10,
-        )
-        if resp.status_code == 200:
-            return resp.json()
-        print("Fetch config failed: " + str(resp.status_code) + " - " + resp.text, file=sys.stderr)
-        return None
-    except Exception as e:
-        print("Fetch config error: " + str(e), file=sys.stderr)
-        return None
-
-def generate_toml(config_data):
-    lines = []
-    for proxy in config_data.get("proxies", []) or []:
-        lines.append("[[proxies]]")
-        lines.append('name = "' + str(proxy.get("name", "")) + '"')
-        lines.append('type = "' + str(proxy.get("type", "")) + '"')
-        lines.append('localIP = "' + str(proxy.get("localIP", "")) + '"')
-        lines.append('localPort = ' + str(proxy.get("localPort", 0)))
-        if proxy.get("remotePort"):
-            lines.append('remotePort = ' + str(proxy.get("remotePort")))
-        if proxy.get("customDomains"):
-            domains = '", "'.join(proxy.get("customDomains") or [])
-            lines.append('customDomains = ["' + domains + '"]')
-        lines.append("")
-    return chr(10).join(lines)
-
-def update_config_file(new_toml_content):
-    common_part = ""
-    if os.path.exists(FRPC_CONFIG_PATH):
-        with open(FRPC_CONFIG_PATH, "r") as f:
-            content = f.read()
-            common_part = content.split("[[proxies]]")[0]
-    else:
-        common_part = 'serverAddr = "127.0.0.1"' + chr(10) + 'serverPort = 7000' + chr(10) + chr(10)
-    full_content = common_part.strip() + chr(10) + chr(10) + new_toml_content
-    with open(FRPC_CONFIG_PATH, "w") as f:
-        f.write(full_content)
-    return hashlib.md5(full_content.encode()).hexdigest()
-
-def reload_frpc():
-    try:
-        subprocess.run([FRPC_BIN, "reload", "-c", FRPC_CONFIG_PATH], check=False)
-    except Exception:
-        pass
-
-def main():
-    if not register_if_needed():
-        sys.exit(1)
-    last_hash = ""
-    while True:
-        heartbeat()
-        data = get_remote_config()
-        if data is not None:
-            toml = generate_toml(data)
-            current_hash = hashlib.md5(toml.encode()).hexdigest()
-            if current_hash != last_hash:
-                last_hash = current_hash
-                update_config_file(toml)
-                reload_frpc()
-        time.sleep(10)
-
-if __name__ == "__main__":
-    main()
-FRP_AGENT_PY
-
-        cat > /etc/systemd/system/frp-agent.service << 'FRP_AGENT_SERVICE'
-[Unit]
-Description=FRP Config Sync Agent
-After=network.target
-Wants=network.target
-
-[Service]
-Type=simple
-Environment=FRP_MANAGER_URL=http://{server_ip}
-Environment=FRP_MANAGER_REGISTER_TOKEN={auth_token}
-Environment=FRP_AGENT_STATE_PATH=/opt/frp/agent.json
-Environment=FRPC_CONFIG_PATH=/opt/frp/frpc.toml
-Environment=FRPC_BIN=/opt/frp/frpc
-ExecStart=/usr/bin/python3 /opt/frp/frp_agent.py
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-FRP_AGENT_SERVICE
-
-        systemctl daemon-reload
-        systemctl enable frp-agent
-        systemctl restart frp-agent
-    fi
-
-    echo_warn "============================================"
-    echo_warn "重要提示：安全组/防火墙配置"
-    echo_warn "============================================"
-    echo ""
-    echo "  后续在 frpc.toml 中配置的每个代理端口,"
-    echo "  都需要在云服务器安全组中开放对应端口！"
-    echo ""
-    echo "  建议：尽量使用私有端口范围 49152-65535（TCP/UDP），可减少端口冲突风险。"
-    echo "        同时建议在安全组放行：80/TCP、{port}/TCP，以及 49152-65535 的 TCP/UDP。"
-    echo ""
-    echo "  例如: 配置 remote_port = 6022 代理 SSH,"
-    echo "        需在安全组开放 6022/TCP 入站规则"
-    echo ""
-else
-    echo_error "服务启动失败"
-    echo "请查看日志: journalctl -u frpc -n 50"
-    systemctl status frpc --no-pager
-    exit 1
-fi
-'''
-    
-    return {"script": script}
+# 已移除旧版“FRPC 客户端脚本生成”接口。
+# 当前系统统一使用 Go 版 frp-agent（WebSocket 双向）与 /api/agent/install-script/* 安装脚本。
 
 
 # ===========================
@@ -1505,7 +1112,8 @@ async def get_available_agent_platforms():
 async def get_agent_install_script(
     platform: str,
     client_id: str = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.Admin = Depends(get_current_user),
 ):
     """
     获取动态生成的 Agent 安装脚本（包含服务器信息）
@@ -1516,12 +1124,17 @@ async def get_agent_install_script(
     server_ip = crud.get_config(db, models.ConfigKeys.SERVER_PUBLIC_IP) or "YOUR_SERVER_IP"
     frps_port = crud.get_config(db, models.ConfigKeys.FRPS_PORT) or "7000"
     frps_version = crud.get_config(db, models.ConfigKeys.FRPS_VERSION) or "0.61.1"
-    
-    # 生成客户端 ID（如果未提供）
-    if not client_id:
-        import random
-        import string
-        client_id = "client-" + ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+
+    # 确定客户端身份（用于 Agent WebSocket 鉴权）
+    if client_id:
+        client = crud.get_client(db, client_id=client_id)
+        if not client:
+            raise HTTPException(status_code=404, detail="Client not found")
+    else:
+        suffix = str(int(time.time()))[-6:]
+        client = crud.create_client_with_token(db, name=f"device-{suffix}")
+    client_id = client.id
+    client_token = client.auth_token
     
     # 服务器下载地址（GitHub Releases）
     download_base = "https://github.com/GreenhandTan/FRP-ALL-IN-ONE/releases/latest/download"
@@ -1539,7 +1152,8 @@ $ErrorActionPreference = "Stop"
 # 配置信息（由服务器自动生成）
 $SERVER_IP = "{server_ip}"
 $FRPS_PORT = "{frps_port}"
-$AUTH_TOKEN = "{auth_token}"
+            $FRPS_TOKEN = "{auth_token}"
+            $CLIENT_TOKEN = "{client_token}"
 $CLIENT_ID = "{client_id}"
 $FRP_VERSION = "{frps_version}"
 $INSTALL_DIR = "C:\\frp"
@@ -1590,7 +1204,7 @@ Write-Host "[4/5] 创建配置文件..." -ForegroundColor Blue
 $config = @"
 serverAddr = "$SERVER_IP"
 serverPort = $FRPS_PORT
-auth.token = "$AUTH_TOKEN"
+            auth.token = "$FRPS_TOKEN"
 
 # 管理 API
 webServer.addr = "127.0.0.1"
@@ -1608,15 +1222,31 @@ start /min "" "$INSTALL_DIR\\frpc.exe" -c "$INSTALL_DIR\\frpc.toml"
 "@
 $startScript | Out-File -FilePath "$INSTALL_DIR\\start-frpc.bat" -Encoding ASCII
 
+if (Test-Path "$INSTALL_DIR\\frp-agent.exe") {{
+    $agentStartScript = @"
+@echo off
+cd /d "$INSTALL_DIR"
+start /min "" "$INSTALL_DIR\\frp-agent.exe" -server ws://$SERVER_IP/ws/agent/$CLIENT_ID -id $CLIENT_ID -token $CLIENT_TOKEN -frpc "$INSTALL_DIR\\frpc.exe" -config "$INSTALL_DIR\\frpc.toml" -log "$INSTALL_DIR\\logs"
+"@
+    $agentStartScript | Out-File -FilePath "$INSTALL_DIR\\start-frp-agent.bat" -Encoding ASCII
+}}
+
 # 添加到开机启动
 $startupFolder = [Environment]::GetFolderPath('Startup')
 Copy-Item "$INSTALL_DIR\\start-frpc.bat" "$startupFolder\\start-frpc.bat" -Force
+if (Test-Path "$INSTALL_DIR\\start-frp-agent.bat") {{
+    Copy-Item "$INSTALL_DIR\\start-frp-agent.bat" "$startupFolder\\start-frp-agent.bat" -Force
+}}
 Write-Host "[OK] 已添加到开机启动" -ForegroundColor Green
 
 # 启动 FRPC
 Write-Host ""
 Write-Host "正在启动 FRPC..." -ForegroundColor Blue
 Start-Process -FilePath "$INSTALL_DIR\\frpc.exe" -ArgumentList "-c", "$INSTALL_DIR\\frpc.toml" -WindowStyle Minimized
+if (Test-Path "$INSTALL_DIR\\frp-agent.exe") {{
+    Write-Host "正在启动 Agent..." -ForegroundColor Blue
+    Start-Process -FilePath "$INSTALL_DIR\\frp-agent.exe" -ArgumentList "-server", "ws://$SERVER_IP/ws/agent/$CLIENT_ID", "-id", "$CLIENT_ID", "-token", "$CLIENT_TOKEN", "-frpc", "$INSTALL_DIR\\frpc.exe", "-config", "$INSTALL_DIR\\frpc.toml", "-log", "$INSTALL_DIR\\logs" -WindowStyle Minimized
+}}
 
 Write-Host ""
 Write-Host "===============================================" -ForegroundColor Green
@@ -1624,7 +1254,7 @@ Write-Host "  安装完成！" -ForegroundColor Green
 Write-Host "===============================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "安装目录: $INSTALL_DIR"
-Write-Host "客户端 ID: $CLIENT_ID"
+            Write-Host "客户端 ID: $CLIENT_ID"
 Write-Host "服务器: $SERVER_IP`:$FRPS_PORT"
 Write-Host ""
 Write-Host "现在可以返回 Web 管理面板继续操作！" -ForegroundColor Cyan
@@ -1647,7 +1277,8 @@ set -e
 # 配置信息（由服务器自动生成）
 SERVER_IP="{server_ip}"
 FRPS_PORT="{frps_port}"
-AUTH_TOKEN="{auth_token}"
+        FRPS_TOKEN="{auth_token}"
+        CLIENT_TOKEN="{client_token}"
 CLIENT_ID="{client_id}"
 FRP_VERSION="{frps_version}"
 INSTALL_DIR="/opt/frp"
@@ -1791,7 +1422,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=$INSTALL_DIR/frp-agent -server ws://$SERVER_IP/ws/agent -id $CLIENT_ID -token $AUTH_TOKEN
+ExecStart=$INSTALL_DIR/frp-agent -server ws://$SERVER_IP/ws/agent/$CLIENT_ID -id $CLIENT_ID -token $CLIENT_TOKEN -frpc $INSTALL_DIR/frpc -config $INSTALL_DIR/frpc.toml -log $INSTALL_DIR/logs
 Restart=always
 RestartSec=5
 Environment=FRP_INSTALL_DIR=$INSTALL_DIR
@@ -1847,11 +1478,17 @@ PLIST
     <array>
         <string>$INSTALL_DIR/frp-agent</string>
         <string>-server</string>
-        <string>ws://$SERVER_IP/ws/agent</string>
+        <string>ws://$SERVER_IP/ws/agent/$CLIENT_ID</string>
         <string>-id</string>
         <string>$CLIENT_ID</string>
         <string>-token</string>
-        <string>$AUTH_TOKEN</string>
+        <string>$CLIENT_TOKEN</string>
+        <string>-frpc</string>
+        <string>$INSTALL_DIR/frpc</string>
+        <string>-config</string>
+        <string>$INSTALL_DIR/frpc.toml</string>
+        <string>-log</string>
+        <string>$INSTALL_DIR/logs</string>
     </array>
     <key>RunAtLoad</key>
     <true/>

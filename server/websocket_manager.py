@@ -32,7 +32,6 @@ class ConnectionManager:
     
     async def connect_dashboard(self, websocket: WebSocket):
         """接受 Dashboard 前端连接"""
-        await websocket.accept()
         self.dashboard_connections.add(websocket)
         logger.info(f"Dashboard 已连接，当前连接数: {len(self.dashboard_connections)}")
     
@@ -66,8 +65,6 @@ class ConnectionManager:
     
     async def connect_agent(self, websocket: WebSocket, client_id: str):
         """接受 Agent 连接"""
-        await websocket.accept()
-        
         # 如果已有同 ID 的连接，先断开旧连接
         if client_id in self.agent_connections:
             try:
@@ -135,11 +132,9 @@ class ConnectionManager:
     
     async def subscribe_logs(self, websocket: WebSocket, client_id: str):
         """订阅某客户端的日志"""
-        await websocket.accept()
         
         if client_id not in self.log_subscribers:
             self.log_subscribers[client_id] = set()
-        
         self.log_subscribers[client_id].add(websocket)
         logger.info(f"日志订阅: {client_id}，当前订阅者: {len(self.log_subscribers[client_id])}")
     
