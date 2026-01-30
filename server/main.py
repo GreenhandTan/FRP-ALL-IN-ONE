@@ -1730,7 +1730,15 @@ AGENT_FILENAME="frp-agent-${{OS}}-${{ARCH}}"
 GITHUB_URL="$DOWNLOAD_BASE/$AGENT_FILENAME"
 log_info "下载地址: $GITHUB_URL"
 
-if curl -fsSL --connect-timeout 60 "$GITHUB_URL" -o "$AGENT_PATH"; then
+if command -v curl &> /dev/null; then
+    curl -fsSL --connect-timeout 60 "$GITHUB_URL" -o "$AGENT_PATH"
+elif command -v wget &> /dev/null; then
+    wget -q "$GITHUB_URL" -O "$AGENT_PATH"
+else
+    false
+fi
+
+if [ $? -eq 0 ] && [ -f "$AGENT_PATH" ]; then
     chmod +x "$AGENT_PATH"
     log_ok "Agent 下载完成"
 else
