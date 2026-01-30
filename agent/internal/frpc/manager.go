@@ -16,8 +16,8 @@ import (
 
 // Manager FRPC 进程管理器
 type Manager struct {
-	frpcPath   string
-	configPath string
+	frpcPath     string
+	configPath   string
 	logCollector *logger.Collector
 
 	process *exec.Cmd
@@ -103,10 +103,16 @@ func (m *Manager) Stop() error {
 	defer m.mu.Unlock()
 
 	if !m.isRunning || m.process == nil {
+		// 即使没有运行的进程，也尝试杀死所有 frpc 进程
+		m.killAllFrpc()
 		return nil
 	}
 
 	log.Println("[FRPC] 正在停止...")
+
+	// 先标记为已停止，防止 watchProcess 触发重启
+	m.isRunning = false
+	pid := m.process.Process.Pid
 
 	// 发送终止信号
 	if err := m.process.Process.Signal(os.Interrupt); err != nil {
@@ -114,22 +120,28 @@ func (m *Manager) Stop() error {
 		m.process.Process.Kill()
 	}
 
-	// 等待进程退出
-	done := make(chan error)
+	// 等待进程退出（带超时）
+	done := make(chan error, 1)
 	go func() {
 		done <- m.process.Wait()
 	}()
 
 	select {
 	case <-done:
-		log.Println("[FRPC] 进程已停止")
-	case <-time.After(5 * time.Second):
+		log.Printf("[FRPC] 进程 %d 已停止", pid)
+	case <-time.After(3 * time.Second):
 		log.Println("[FRPC] 等待超时，强制杀死进程")
 		m.process.Process.Kill()
+		<-done // 等待 Kill 后的退出
 	}
 
-	m.isRunning = false
 	m.process = nil
+
+	// 确保所有 frpc 进程都被杀死
+	m.killAllFrpc()
+
+	// 等待端口释放
+	time.Sleep(500 * time.Millisecond)
 
 	if m.OnStatus != nil {
 		m.OnStatus("stopped")
@@ -138,13 +150,25 @@ func (m *Manager) Stop() error {
 	return nil
 }
 
+// killAllFrpc 杀死所有 frpc 进程（防止僵尸进程占用端口）
+func (m *Manager) killAllFrpc() {
+	// 使用 pkill 杀死所有 frpc 进程
+	cmd := exec.Command("pkill", "-9", "-f", "frpc")
+	cmd.Run() // 忽略错误，因为可能没有进程
+}
+
 // Restart 重启 FRPC 进程
 func (m *Manager) Restart() error {
 	log.Println("[FRPC] 重启中...")
+
+	// 先解锁以便 Stop 可以获取锁
 	if err := m.Stop(); err != nil {
 		log.Printf("[FRPC] 停止失败: %v", err)
 	}
-	time.Sleep(500 * time.Millisecond)
+
+	// 额外等待确保端口完全释放
+	time.Sleep(1 * time.Second)
+
 	return m.Start()
 }
 
