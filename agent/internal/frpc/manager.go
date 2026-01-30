@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"sync"
@@ -187,10 +188,37 @@ func (m *Manager) UpdateConfig(newConfig string) error {
 		return fmt.Errorf("写入配置失败: %v", err)
 	}
 
-	log.Println("[FRPC] 配置已更新，正在重载...")
+	log.Println("[FRPC] 配置已更新，尝试热重载...")
 
-	// 重启以应用新配置
-	return m.Restart()
+	// 尝试通过 Admin API 热重载
+	if m.isRunning {
+		if err := m.hotReload(); err != nil {
+			log.Printf("[FRPC] 热重载失败: %v, 将重启进程", err)
+			return m.Restart()
+		}
+		log.Println("[FRPC] 热重载成功")
+		return nil
+	}
+
+	// 如果进程未运行，直接启动
+	return m.Start()
+}
+
+// hotReload 通过 Admin API 热重载配置
+func (m *Manager) hotReload() error {
+	// FRPC Admin API 默认监听 127.0.0.1:7400
+	resp, err := http.Post("http://127.0.0.1:7400/api/reload", "application/json", nil)
+	if err != nil {
+		return fmt.Errorf("请求失败: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("热重载返回错误: %d, %s", resp.StatusCode, string(body))
+	}
+
+	return nil
 }
 
 // IsRunning 检查 FRPC 是否在运行
