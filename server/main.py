@@ -204,7 +204,8 @@ def _get_admin_from_token(db: Session, token: str):
     if not token:
         return None
     try:
-        payload = jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
+        # 使用 auth 模块中的 jwt（从 jose 导入）
+        payload = auth.jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
         username = payload.get("sub")
         if not username:
             return None
@@ -417,28 +418,37 @@ async def _handle_agent_message(client_id: str, msg: dict):
         db = SessionLocal()
         try:
             crud.touch_client(db, client_id=client_id, status="online")
+            
+            # 获取 hostname 并自动更新客户端名称
+            hostname = data.get("hostname") if isinstance(data, dict) else None
+            if hostname:
+                client = crud.get_client(db, client_id=client_id)
+                # 如果客户端名称是默认生成的（device-XXXXX 格式），则使用 hostname 更新
+                if client and client.name and client.name.startswith("device-"):
+                    crud.update_client_name(db, client_id=client_id, new_name=hostname)
+            
             agent = db.query(models.AgentInfo).filter(
                 models.AgentInfo.client_id == client_id
             ).first()
             
             if agent:
                 # 更新现有记录
-                agent.hostname = data.get("hostname", agent.hostname)
-                agent.os = data.get("os", agent.os)
-                agent.arch = data.get("arch", agent.arch)
-                agent.agent_version = data.get("version", agent.agent_version)
-                agent.platform = data.get("platform", agent.platform)
+                agent.hostname = data.get("hostname", agent.hostname) if isinstance(data, dict) else agent.hostname
+                agent.os = data.get("os", agent.os) if isinstance(data, dict) else agent.os
+                agent.arch = data.get("arch", agent.arch) if isinstance(data, dict) else agent.arch
+                agent.agent_version = data.get("version", agent.agent_version) if isinstance(data, dict) else agent.agent_version
+                agent.platform = data.get("platform", agent.platform) if isinstance(data, dict) else agent.platform
                 agent.is_online = True
                 agent.last_heartbeat = datetime.utcnow()
             else:
                 # 创建新记录
                 agent = models.AgentInfo(
                     client_id=client_id,
-                    hostname=data.get("hostname"),
-                    os=data.get("os"),
-                    arch=data.get("arch"),
-                    agent_version=data.get("version"),
-                    platform=data.get("platform"),
+                    hostname=data.get("hostname") if isinstance(data, dict) else None,
+                    os=data.get("os") if isinstance(data, dict) else None,
+                    arch=data.get("arch") if isinstance(data, dict) else None,
+                    agent_version=data.get("version") if isinstance(data, dict) else None,
+                    platform=data.get("platform") if isinstance(data, dict) else None,
                     is_online=True,
                     last_heartbeat=datetime.utcnow()
                 )

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { api } from './api';
-import { RefreshCw, Server, CheckCircle, Terminal, LogOut, Key, Globe, Activity, ArrowDown, ArrowUp, Power, Wifi, AlertTriangle, Radio } from 'lucide-react';
+import { Server, CheckCircle, Terminal, LogOut, Key, Globe, Activity, ArrowDown, ArrowUp, Power, Wifi, AlertTriangle, Radio } from 'lucide-react';
 import Login from './Login';
 import SetupWizard from './SetupWizard';
 import ChangePassword from './ChangePassword';
@@ -382,13 +382,6 @@ function App() {
               >
                 <Globe size={16} />
                 {t(`language.${language === 'zh' ? 'en' : 'zh'}`)}
-              </button>
-              <button
-                onClick={loadData}
-                className="group flex items-center gap-2 px-4 py-2 bg-white text-slate-600 border border-slate-200 rounded-full text-sm font-medium hover:bg-slate-50 hover:text-emerald-600 transition-all shadow-sm"
-              >
-                <RefreshCw size={16} className={`text-slate-400 group-hover:text-emerald-500 transition-colors ${loading ? "animate-spin" : ""}`} />
-                {t('refresh')}
               </button>
               <button
                 onClick={() => setShowChangePassword(true)}

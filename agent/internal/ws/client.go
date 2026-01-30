@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
+	"runtime"
 	"sync"
 	"time"
 
@@ -23,12 +25,12 @@ type Client struct {
 	clientID  string
 	token     string
 
-	conn       *websocket.Conn
-	mu         sync.Mutex
-	isRunning  bool
-	reconnect  bool
-	OnMessage  func(Message)
-	OnConnect  func()
+	conn         *websocket.Conn
+	mu           sync.Mutex
+	isRunning    bool
+	reconnect    bool
+	OnMessage    func(Message)
+	OnConnect    func()
 	OnDisconnect func()
 }
 
@@ -84,10 +86,16 @@ func (c *Client) connect() error {
 
 	log.Println("[WebSocket] 连接成功")
 
-	// 发送注册消息
+	// 获取系统信息
+	hostname, _ := os.Hostname()
+
+	// 发送注册消息（包含系统信息）
 	c.Send("register", map[string]string{
 		"client_id": c.clientID,
 		"version":   "1.0.0",
+		"hostname":  hostname,
+		"os":        runtime.GOOS,
+		"arch":      runtime.GOARCH,
 	})
 
 	if c.OnConnect != nil {
