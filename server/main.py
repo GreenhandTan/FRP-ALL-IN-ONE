@@ -1575,15 +1575,15 @@ Write-Host "[OK] FRPC 下载完成" -ForegroundColor Green
 
 # 下载 Agent
 Write-Host "[3/5] 下载 Agent..." -ForegroundColor Blue
-try {
+try {{
     $agentUrl = "$DOWNLOAD_BASE/frp-agent-windows-amd64.exe"
     Write-Host "  下载地址: $agentUrl"
     Invoke-WebRequest -Uri $agentUrl -OutFile "$INSTALL_DIR\\frp-agent.exe" -UseBasicParsing -TimeoutSec 60
     Write-Host "[OK] Agent 下载完成" -ForegroundColor Green
-} catch {
+}} catch {{
     Write-Host "[WARN] Agent 下载失败: $_" -ForegroundColor Yellow
     Write-Host "[WARN] 跳过 Agent 安装（FRPC 仍可正常使用）" -ForegroundColor Yellow
-}
+}}
 
 # 创建配置文件
 Write-Host "[4/5] 创建配置文件..." -ForegroundColor Blue
