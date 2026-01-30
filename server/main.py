@@ -1534,7 +1534,7 @@ async def get_agent_install_script(
         client_id = "client-" + ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
     
     # 服务器下载地址（自托管）
-    download_base = f"http://{server_ip}:8080/api/agent/download"
+    download_base = f"http://{server_ip}/api/agent/download"
     
     if platform == "windows":
         # Windows PowerShell 脚本
@@ -1785,7 +1785,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=$INSTALL_DIR/frp-agent -server ws://$SERVER_IP:8080/ws/agent -id $CLIENT_ID -token $AUTH_TOKEN
+ExecStart=$INSTALL_DIR/frp-agent -server ws://$SERVER_IP/ws/agent -id $CLIENT_ID -token $AUTH_TOKEN
 Restart=always
 RestartSec=5
 Environment=FRP_INSTALL_DIR=$INSTALL_DIR
@@ -1841,7 +1841,7 @@ PLIST
     <array>
         <string>$INSTALL_DIR/frp-agent</string>
         <string>-server</string>
-        <string>ws://$SERVER_IP:8080/ws/agent</string>
+        <string>ws://$SERVER_IP/ws/agent</string>
         <string>-id</string>
         <string>$CLIENT_ID</string>
         <string>-token</string>
@@ -1906,8 +1906,8 @@ async def get_install_script_info(db: Session = Depends(get_db)):
         "frps_port": frps_port,
         "frps_version": frps_version,
         "scripts": {
-            "linux": f"http://{server_ip}:8080/api/agent/install-script/linux",
-            "darwin": f"http://{server_ip}:8080/api/agent/install-script/darwin",
-            "windows": f"http://{server_ip}:8080/api/agent/install-script/windows"
+            "linux": f"http://{server_ip}/api/agent/install-script/linux",
+            "darwin": f"http://{server_ip}/api/agent/install-script/darwin",
+            "windows": f"http://{server_ip}/api/agent/install-script/windows"
         }
     }
