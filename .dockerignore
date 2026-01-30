@@ -1,0 +1,56 @@
+# ============================================
+# Docker Build Ignore Rules
+# ============================================
+
+# Git
+.git/
+.github/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.so
+venv/
+env/
+.env
+*.egg-info/
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Database - 重要：防止旧数据库被复制到镜像
+*.db
+*.sqlite3
+server/frp_manager.db
+
+# Build artifacts
+dist/
+build/
+*.tar
+*.gz
+
+# Logs
+*.log
+logs/
+
+# Documentation (不需要在容器中)
+*.md
+!README.md
+
+# Agent binaries (运行时从 GitHub 下载)
+agent/dist/
