@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -188,26 +189,49 @@ func (m *Manager) UpdateConfig(newConfig string) error {
 		return fmt.Errorf("写入配置失败: %v", err)
 	}
 
-	log.Println("[FRPC] 配置已更新，尝试热重载...")
+	log.Println("[FRPC] 配置已更新，准备重载...")
 
 	// 尝试通过 Admin API 热重载
-	if m.isRunning {
+	// 只有当进程在运行，且 Admin API 端口可达时，才进行热重载
+	if m.isRunning && m.checkAdminAPIAvailable() {
+		log.Println("[FRPC] Admin API 可用，尝试热重载...")
 		if err := m.hotReload(); err != nil {
-			log.Printf("[FRPC] 热重载失败: %v, 将重启进程", err)
+			log.Printf("[FRPC] 热重载失败: %v, 将回退到重启进程", err)
 			return m.Restart()
 		}
 		log.Println("[FRPC] 热重载成功")
 		return nil
 	}
 
-	// 如果进程未运行，直接启动
+	// 其他情况（进程未运行，或 Admin API 不可用），直接重启/启动
+	log.Println("[FRPC] 进程未运行或 Admin API 不可用，执行重启...")
+	if m.isRunning {
+		return m.Restart() // 如果标志位是 running 但 API 不通，确实应该重启
+	}
 	return m.Start()
+}
+
+// checkAdminAPIAvailable 检查 Admin API 端口是否可达
+func (m *Manager) checkAdminAPIAvailable() bool {
+	timeout := 100 * time.Millisecond
+	conn, err := net.DialTimeout("tcp", "127.0.0.1:7400", timeout)
+	if err != nil {
+		return false
+	}
+	if conn != nil {
+		conn.Close()
+		return true
+	}
+	return false
 }
 
 // hotReload 通过 Admin API 热重载配置
 func (m *Manager) hotReload() error {
 	// FRPC Admin API 默认监听 127.0.0.1:7400
-	resp, err := http.Post("http://127.0.0.1:7400/api/reload", "application/json", nil)
+	client := &http.Client{
+		Timeout: 2 * time.Second,
+	}
+	resp, err := client.Post("http://127.0.0.1:7400/api/reload", "application/json", nil)
 	if err != nil {
 		return fmt.Errorf("请求失败: %v", err)
 	}
@@ -215,6 +239,7 @@ func (m *Manager) hotReload() error {
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
+		// 405 Method Not Allowed 也是失败的一种，需要重启
 		return fmt.Errorf("热重载返回错误: %d, %s", resp.StatusCode, string(body))
 	}
 
