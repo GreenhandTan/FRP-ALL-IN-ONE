@@ -16,11 +16,12 @@ export default function Login({ onLoginSuccess }) {
         setError("");
 
         try {
-            const formData = new FormData();
-            formData.append('username', username);
-            formData.append('password', password);
+            // 使用 URLSearchParams 以正确发送 x-www-form-urlencoded 格式
+            const params = new URLSearchParams();
+            params.append('username', username);
+            params.append('password', password);
 
-            const response = await api.post('/token', formData, {
+            const response = await api.post('/token', params, {
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
             });
 
