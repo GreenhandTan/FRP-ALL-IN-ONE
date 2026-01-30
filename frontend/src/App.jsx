@@ -1,12 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { api } from './api';
-import { RefreshCw, Server, CheckCircle, Terminal, LogOut, Key, Globe, Activity, ArrowDown, ArrowUp, Power, Wifi, AlertTriangle } from 'lucide-react';
+import { RefreshCw, Server, CheckCircle, Terminal, LogOut, Key, Globe, Activity, ArrowDown, ArrowUp, Power, Wifi, AlertTriangle, Radio } from 'lucide-react';
 import Login from './Login';
 import SetupWizard from './SetupWizard';
 import ChangePassword from './ChangePassword';
 import { useLanguage } from './LanguageContext';
 import Modal from './ui/Modal';
 import { useDialog } from './ui/DialogProvider';
+import { useDashboardStatus } from './hooks/useWebSocket';
 
 function App() {
   const { t, language, toggleLanguage } = useLanguage();
@@ -42,6 +43,17 @@ function App() {
 
   const nowSec = Math.floor(Date.now() / 1000);
   const loadInFlightRef = useRef(false);
+
+  // WebSocket 实时状态
+  const { status: wsStatus, isConnected: wsConnected } = useDashboardStatus();
+
+  // 当 WebSocket 收到新数据时更新状态
+  useEffect(() => {
+    if (wsStatus && wsStatus.success && wsStatus.server_info) {
+      setServerInfo(wsStatus.server_info);
+      // WebSocket 目前只推送基础信息，完整数据仍需 HTTP
+    }
+  }, [wsStatus]);
 
   // 格式化流量
   const formatBytes = (bytes, decimals = 2) => {
@@ -314,6 +326,17 @@ function App() {
               </div>
               <div>
                 <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-800 to-teal-700">{t('dashboard.title')}</h1>
+              </div>
+              {/* WebSocket 连接状态指示器 */}
+              <div
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${wsConnected
+                    ? 'bg-emerald-100 text-emerald-700'
+                    : 'bg-amber-100 text-amber-700'
+                  }`}
+                title={wsConnected ? 'WebSocket 实时连接中' : 'WebSocket 已断开，使用轮询模式'}
+              >
+                <Radio size={12} className={wsConnected ? 'text-emerald-500' : 'text-amber-500'} />
+                <span>{wsConnected ? 'Live' : 'Polling'}</span>
               </div>
             </div>
             <div className="flex items-center gap-3">

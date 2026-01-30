@@ -1,7 +1,8 @@
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Enum
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Enum, Float, BigInteger, DateTime
 from sqlalchemy.orm import relationship
 from database import Base
 import enum
+from datetime import datetime
 
 class TunnelType(str, enum.Enum):
     TCP = "tcp"
@@ -60,3 +61,41 @@ class Tunnel(Base):
     
     client_id = Column(String, ForeignKey("clients.id"))
     client = relationship("Client", back_populates="tunnels")
+
+
+# ===========================
+# Agent 相关模型
+# ===========================
+
+class AgentInfo(Base):
+    """Agent 信息表，存储每个客户端 Agent 的基本信息"""
+    __tablename__ = "agent_info"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(String, unique=True, index=True)  # 客户端唯一 ID
+    hostname = Column(String, nullable=True)              # 主机名
+    os = Column(String, nullable=True)                    # 操作系统
+    arch = Column(String, nullable=True)                  # 架构
+    agent_version = Column(String, nullable=True)         # Agent 版本
+    platform = Column(String, nullable=True)              # 平台详情
+    last_heartbeat = Column(DateTime, default=datetime.utcnow)  # 最后心跳时间
+    is_online = Column(Boolean, default=False)            # 是否在线
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class SystemMetrics(Base):
+    """系统监控指标表，存储 Agent 上报的系统信息"""
+    __tablename__ = "system_metrics"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(String, index=True)                # 客户端 ID
+    timestamp = Column(DateTime, default=datetime.utcnow) # 采集时间
+    cpu_percent = Column(Float, nullable=True)            # CPU 使用率
+    memory_used = Column(BigInteger, nullable=True)       # 已用内存 (bytes)
+    memory_total = Column(BigInteger, nullable=True)      # 总内存 (bytes)
+    memory_percent = Column(Float, nullable=True)         # 内存使用率
+    disk_used = Column(BigInteger, nullable=True)         # 已用磁盘 (bytes)
+    disk_total = Column(BigInteger, nullable=True)        # 总磁盘 (bytes)
+    disk_percent = Column(Float, nullable=True)           # 磁盘使用率
+    net_bytes_in = Column(BigInteger, nullable=True)      # 网络接收 (bytes)
+    net_bytes_out = Column(BigInteger, nullable=True)     # 网络发送 (bytes)

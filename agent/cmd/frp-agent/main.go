@@ -1,0 +1,130 @@
+/*
+FRP Manager Agent - 智能客户端代理
+
+功能:
+- 托管 FRPC 进程（启动、停止、重载）
+- 系统监控（CPU、内存、网络、磁盘）
+- 日志采集（实时推送 + 本地存储）
+- 配置热重载（WebSocket 接收配置更新）
+- 心跳上报（保持与服务端连接）
+
+使用:
+  frp-agent -server ws://your-server.com/ws/agent/CLIENT_ID -token YOUR_TOKEN
+*/
+package main
+
+import (
+	"flag"
+	"fmt"
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
+
+	"github.com/frp-manager/agent/internal/config"
+	"github.com/frp-manager/agent/internal/frpc"
+	"github.com/frp-manager/agent/internal/logger"
+	"github.com/frp-manager/agent/internal/monitor"
+	"github.com/frp-manager/agent/internal/ws"
+)
+
+var (
+	version   = "1.0.0"
+	buildTime = "unknown"
+)
+
+func main() {
+	// 命令行参数
+	serverURL := flag.String("server", "", "服务端 WebSocket 地址 (必填)")
+	clientID := flag.String("id", "", "客户端 ID (必填)")
+	token := flag.String("token", "", "认证 Token (必填)")
+	frpcPath := flag.String("frpc", "/opt/frp/frpc", "frpc 二进制路径")
+	configPath := flag.String("config", "/opt/frp/frpc.toml", "frpc 配置文件路径")
+	logPath := flag.String("log", "/opt/frp/logs", "日志存储目录")
+	showVersion := flag.Bool("version", false, "显示版本信息")
+
+	flag.Parse()
+
+	if *showVersion {
+		fmt.Printf("FRP Manager Agent v%s (built: %s)\n", version, buildTime)
+		os.Exit(0)
+	}
+
+	// 验证必填参数
+	if *serverURL == "" || *clientID == "" || *token == "" {
+		fmt.Println("错误: server, id, token 参数为必填项")
+		fmt.Println()
+		flag.Usage()
+		os.Exit(1)
+	}
+
+	log.Printf("FRP Manager Agent v%s 启动中...", version)
+	log.Printf("Server: %s", *serverURL)
+	log.Printf("Client ID: %s", *clientID)
+
+	// 创建配置
+	cfg := &config.Config{
+		ServerURL:  *serverURL,
+		ClientID:   *clientID,
+		Token:      *token,
+		FRPCPath:   *frpcPath,
+		ConfigPath: *configPath,
+		LogPath:    *logPath,
+	}
+
+	// 初始化各模块
+	logCollector := logger.NewCollector(cfg.LogPath, cfg.ClientID)
+	sysMonitor := monitor.NewMonitor()
+	frpcManager := frpc.NewManager(cfg.FRPCPath, cfg.ConfigPath, logCollector)
+	wsClient := ws.NewClient(cfg.ServerURL, cfg.ClientID, cfg.Token)
+
+	// 设置 WebSocket 消息处理器
+	wsClient.OnMessage = func(msg ws.Message) {
+		switch msg.Type {
+		case "config_update":
+			log.Println("收到配置更新，正在重载 FRPC...")
+			if configData, ok := msg.Data.(string); ok {
+				if err := frpcManager.UpdateConfig(configData); err != nil {
+					log.Printf("配置更新失败: %v", err)
+				} else {
+					log.Println("配置更新成功")
+				}
+			}
+		case "restart":
+			log.Println("收到重启命令...")
+			frpcManager.Restart()
+		case "ping":
+			wsClient.Send("pong", nil)
+		}
+	}
+
+	// 设置日志回调（推送到服务端）
+	logCollector.OnLog = func(line string) {
+		wsClient.Send("log", line)
+	}
+
+	// 设置系统监控回调
+	sysMonitor.OnMetrics = func(metrics monitor.SystemInfo) {
+		wsClient.Send("system_info", metrics)
+	}
+
+	// 启动各模块
+	go wsClient.Connect()
+	go sysMonitor.Start(5) // 每 5 秒采集一次
+	go logCollector.Start()
+
+	// 启动 FRPC
+	if err := frpcManager.Start(); err != nil {
+		log.Printf("警告: FRPC 启动失败: %v", err)
+	}
+
+	// 优雅退出
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	<-sigCh
+
+	log.Println("正在关闭...")
+	frpcManager.Stop()
+	wsClient.Close()
+	log.Println("Agent 已退出")
+}

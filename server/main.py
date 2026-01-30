@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, status, Header
+from fastapi import FastAPI, Depends, HTTPException, status, Header, WebSocket, WebSocketDisconnect
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 import models, schemas, crud, auth
@@ -8,6 +8,8 @@ from datetime import timedelta
 from typing import List
 import re
 import time
+import asyncio
+from websocket_manager import manager as ws_manager
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -294,6 +296,375 @@ async def agent_heartbeat(payload: dict, db: Session = Depends(get_db)):
 async def get_public_ip(current_user: models.Admin = Depends(get_current_user)):
     """获取服务器公网 IP"""
     return frp_deploy.get_public_ip_details()
+
+# ===========================
+# WebSocket 端点
+# ===========================
+
+@app.websocket("/ws/dashboard")
+async def websocket_dashboard(websocket: WebSocket):
+    """
+    Dashboard 实时状态推送
+    每秒推送一次 FRPS 状态，替代前端轮询
+    """
+    await ws_manager.connect_dashboard(websocket)
+    
+    try:
+        import requests
+        while True:
+            # 获取 FRPS 状态
+            db = SessionLocal()
+            try:
+                dashboard_pwd = crud.get_config(db, models.ConfigKeys.FRPS_DASHBOARD_PWD)
+                if dashboard_pwd:
+                    # 尝试连接 FRPS
+                    auth = ("admin", dashboard_pwd)
+                    possible_urls = [
+                        "http://127.0.0.1:7500/api",
+                        "http://host.docker.internal:7500/api",
+                        "http://172.17.0.1:7500/api",
+                        "http://frps:7500/api",
+                    ]
+                    
+                    status_data = {"success": False, "clients": [], "proxies": []}
+                    for url in possible_urls:
+                        try:
+                            resp = requests.get(f"{url}/serverinfo", auth=auth, timeout=2)
+                            if resp.status_code == 200:
+                                server_info = resp.json()
+                                status_data = {
+                                    "success": True,
+                                    "server_info": server_info,
+                                    "clients": [],
+                                    "proxies": []
+                                }
+                                break
+                        except:
+                            continue
+                    
+                    await websocket.send_json({
+                        "type": "status",
+                        "data": status_data
+                    })
+                else:
+                    await websocket.send_json({
+                        "type": "status",
+                        "data": {"success": False, "message": "FRPS 未配置"}
+                    })
+            finally:
+                db.close()
+            
+            await asyncio.sleep(1)  # 1秒推送一次
+    except WebSocketDisconnect:
+        ws_manager.disconnect_dashboard(websocket)
+    except Exception as e:
+        ws_manager.disconnect_dashboard(websocket)
+
+
+@app.websocket("/ws/agent/{client_id}")
+async def websocket_agent(websocket: WebSocket, client_id: str):
+    """
+    Agent 双向通信通道
+    接收 Agent 上报的系统信息、日志等
+    推送配置更新、命令等
+    """
+    await ws_manager.connect_agent(websocket, client_id)
+    
+    try:
+        while True:
+            data = await websocket.receive_json()
+            await _handle_agent_message(client_id, data)
+    except WebSocketDisconnect:
+        ws_manager.disconnect_agent(client_id)
+    except Exception as e:
+        ws_manager.disconnect_agent(client_id)
+
+
+@app.websocket("/ws/logs/{client_id}")
+async def websocket_logs(websocket: WebSocket, client_id: str):
+    """
+    日志实时订阅
+    前端订阅某个客户端的日志流
+    """
+    await ws_manager.subscribe_logs(websocket, client_id)
+    
+    try:
+        while True:
+            # 保持连接，等待日志推送
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        ws_manager.unsubscribe_logs(websocket, client_id)
+    except Exception:
+        ws_manager.unsubscribe_logs(websocket, client_id)
+
+
+async def _handle_agent_message(client_id: str, msg: dict):
+    """
+    处理 Agent 上报的消息
+    """
+    from datetime import datetime
+    
+    msg_type = msg.get("type")
+    data = msg.get("data")
+    
+    if msg_type == "register":
+        # Agent 注册/上线
+        db = SessionLocal()
+        try:
+            agent = db.query(models.AgentInfo).filter(
+                models.AgentInfo.client_id == client_id
+            ).first()
+            
+            if agent:
+                # 更新现有记录
+                agent.hostname = data.get("hostname", agent.hostname)
+                agent.os = data.get("os", agent.os)
+                agent.arch = data.get("arch", agent.arch)
+                agent.agent_version = data.get("version", agent.agent_version)
+                agent.platform = data.get("platform", agent.platform)
+                agent.is_online = True
+                agent.last_heartbeat = datetime.utcnow()
+            else:
+                # 创建新记录
+                agent = models.AgentInfo(
+                    client_id=client_id,
+                    hostname=data.get("hostname"),
+                    os=data.get("os"),
+                    arch=data.get("arch"),
+                    agent_version=data.get("version"),
+                    platform=data.get("platform"),
+                    is_online=True,
+                    last_heartbeat=datetime.utcnow()
+                )
+                db.add(agent)
+            
+            db.commit()
+        finally:
+            db.close()
+    
+    elif msg_type == "heartbeat":
+        # Agent 心跳
+        db = SessionLocal()
+        try:
+            agent = db.query(models.AgentInfo).filter(
+                models.AgentInfo.client_id == client_id
+            ).first()
+            
+            if agent:
+                agent.last_heartbeat = datetime.utcnow()
+                agent.is_online = True
+                db.commit()
+        finally:
+            db.close()
+    
+    elif msg_type == "system_info":
+        # 系统信息上报
+        if not isinstance(data, dict):
+            return
+        
+        db = SessionLocal()
+        try:
+            # 存储系统指标
+            metrics = models.SystemMetrics(
+                client_id=client_id,
+                timestamp=datetime.utcnow(),
+                cpu_percent=data.get("cpu_percent"),
+                memory_used=data.get("memory_used"),
+                memory_total=data.get("memory_total"),
+                memory_percent=data.get("memory_percent"),
+                disk_used=data.get("disk_used"),
+                disk_total=data.get("disk_total"),
+                disk_percent=data.get("disk_percent"),
+                net_bytes_in=data.get("net_bytes_in"),
+                net_bytes_out=data.get("net_bytes_out")
+            )
+            db.add(metrics)
+            
+            # 清理旧数据（保留最近 1000 条）
+            count = db.query(models.SystemMetrics).filter(
+                models.SystemMetrics.client_id == client_id
+            ).count()
+            
+            if count > 1000:
+                # 删除最旧的记录
+                oldest = db.query(models.SystemMetrics).filter(
+                    models.SystemMetrics.client_id == client_id
+                ).order_by(models.SystemMetrics.timestamp.asc()).limit(count - 1000).all()
+                
+                for old in oldest:
+                    db.delete(old)
+            
+            db.commit()
+        finally:
+            db.close()
+    
+    elif msg_type == "log":
+        # 日志上报，广播给订阅者
+        await ws_manager.broadcast_log(client_id, data)
+    
+    elif msg_type == "frpc_status":
+        # FRPC 进程状态更新
+        db = SessionLocal()
+        try:
+            client = db.query(models.Client).filter(
+                models.Client.id == client_id
+            ).first()
+            
+            if client:
+                status = data if isinstance(data, str) else data.get("status", "unknown")
+                client.status = "online" if status == "running" else "offline"
+                db.commit()
+        finally:
+            db.close()
+
+
+@app.get("/api/ws/stats")
+async def get_websocket_stats(current_user: models.Admin = Depends(get_current_user)):
+    """获取 WebSocket 连接统计"""
+    return ws_manager.get_stats()
+
+
+# ===========================
+# Agent 管理 API
+# ===========================
+
+@app.get("/api/agents")
+async def get_agents(
+    db: Session = Depends(get_db),
+    current_user: models.Admin = Depends(get_current_user)
+):
+    """获取所有 Agent 列表"""
+    agents = db.query(models.AgentInfo).all()
+    
+    result = []
+    for agent in agents:
+        # 检查是否真正在线（WebSocket 连接状态）
+        is_ws_connected = ws_manager.is_agent_online(agent.client_id)
+        
+        result.append({
+            "client_id": agent.client_id,
+            "hostname": agent.hostname,
+            "os": agent.os,
+            "arch": agent.arch,
+            "agent_version": agent.agent_version,
+            "platform": agent.platform,
+            "is_online": is_ws_connected,
+            "last_heartbeat": agent.last_heartbeat.isoformat() if agent.last_heartbeat else None,
+            "created_at": agent.created_at.isoformat() if agent.created_at else None
+        })
+    
+    return {"agents": result, "total": len(result)}
+
+
+@app.get("/api/agents/{client_id}")
+async def get_agent_detail(
+    client_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.Admin = Depends(get_current_user)
+):
+    """获取单个 Agent 详情"""
+    agent = db.query(models.AgentInfo).filter(
+        models.AgentInfo.client_id == client_id
+    ).first()
+    
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    
+    is_ws_connected = ws_manager.is_agent_online(client_id)
+    
+    return {
+        "client_id": agent.client_id,
+        "hostname": agent.hostname,
+        "os": agent.os,
+        "arch": agent.arch,
+        "agent_version": agent.agent_version,
+        "platform": agent.platform,
+        "is_online": is_ws_connected,
+        "last_heartbeat": agent.last_heartbeat.isoformat() if agent.last_heartbeat else None,
+        "created_at": agent.created_at.isoformat() if agent.created_at else None
+    }
+
+
+@app.get("/api/agents/{client_id}/metrics")
+async def get_agent_metrics(
+    client_id: str,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: models.Admin = Depends(get_current_user)
+):
+    """获取 Agent 系统指标历史"""
+    metrics = db.query(models.SystemMetrics).filter(
+        models.SystemMetrics.client_id == client_id
+    ).order_by(models.SystemMetrics.timestamp.desc()).limit(limit).all()
+    
+    # 反转顺序（从旧到新）
+    metrics = list(reversed(metrics))
+    
+    result = []
+    for m in metrics:
+        result.append({
+            "timestamp": m.timestamp.isoformat() if m.timestamp else None,
+            "cpu_percent": m.cpu_percent,
+            "memory_used": m.memory_used,
+            "memory_total": m.memory_total,
+            "memory_percent": m.memory_percent,
+            "disk_used": m.disk_used,
+            "disk_total": m.disk_total,
+            "disk_percent": m.disk_percent,
+            "net_bytes_in": m.net_bytes_in,
+            "net_bytes_out": m.net_bytes_out
+        })
+    
+    return {"metrics": result, "total": len(result)}
+
+
+@app.get("/api/agents/{client_id}/metrics/latest")
+async def get_agent_latest_metrics(
+    client_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.Admin = Depends(get_current_user)
+):
+    """获取 Agent 最新系统指标"""
+    latest = db.query(models.SystemMetrics).filter(
+        models.SystemMetrics.client_id == client_id
+    ).order_by(models.SystemMetrics.timestamp.desc()).first()
+    
+    if not latest:
+        return {"success": False, "message": "No metrics found"}
+    
+    return {
+        "success": True,
+        "timestamp": latest.timestamp.isoformat() if latest.timestamp else None,
+        "cpu_percent": latest.cpu_percent,
+        "memory_used": latest.memory_used,
+        "memory_total": latest.memory_total,
+        "memory_percent": latest.memory_percent,
+        "disk_used": latest.disk_used,
+        "disk_total": latest.disk_total,
+        "disk_percent": latest.disk_percent,
+        "net_bytes_in": latest.net_bytes_in,
+        "net_bytes_out": latest.net_bytes_out
+    }
+
+
+@app.post("/api/agents/{client_id}/push-config")
+async def push_config_to_agent(
+    client_id: str,
+    config: dict,
+    current_user: models.Admin = Depends(get_current_user)
+):
+    """推送配置更新到 Agent"""
+    config_content = config.get("config", "")
+    
+    if not config_content:
+        raise HTTPException(status_code=400, detail="Config content is required")
+    
+    success = await ws_manager.push_config_to_agent(client_id, config_content)
+    
+    if success:
+        return {"success": True, "message": "Config pushed successfully"}
+    else:
+        return {"success": False, "message": "Agent not connected"}
 
 # 获取 FRPS 实时状态（从 FRPS Dashboard API）
 @app.get("/api/frp/server-status")
@@ -1047,3 +1418,412 @@ fi
 '''
     
     return {"script": script}
+
+
+# ===========================
+# Agent 分发 API（服务器自托管）
+# ===========================
+
+from fastapi.responses import FileResponse, PlainTextResponse
+import os
+
+# Agent 二进制存放目录
+AGENT_BINARIES_DIR = "/opt/agent-binaries"
+
+@app.get("/api/agent/download/{platform}")
+async def download_agent_binary(
+    platform: str,
+    current_user: models.Admin = Depends(get_current_user)
+):
+    """
+    下载 Agent 二进制文件
+    platform: linux-amd64, linux-arm64, darwin-amd64, darwin-arm64, windows-amd64
+    """
+    valid_platforms = [
+        "linux-amd64", "linux-arm64", 
+        "darwin-amd64", "darwin-arm64", 
+        "windows-amd64"
+    ]
+    
+    if platform not in valid_platforms:
+        raise HTTPException(status_code=400, detail=f"Invalid platform. Valid: {valid_platforms}")
+    
+    # 确定文件名
+    if platform.startswith("windows"):
+        filename = f"frp-agent-{platform}.exe"
+    else:
+        filename = f"frp-agent-{platform}"
+    
+    filepath = os.path.join(AGENT_BINARIES_DIR, filename)
+    
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail=f"Agent binary not found: {filename}")
+    
+    return FileResponse(
+        path=filepath,
+        filename=filename,
+        media_type="application/octet-stream"
+    )
+
+
+@app.get("/api/agent/platforms")
+async def get_available_agent_platforms():
+    """获取可用的 Agent 平台列表"""
+    platforms = []
+    
+    platform_info = {
+        "linux-amd64": {"name": "Linux x64", "os": "linux", "arch": "amd64", "ext": ""},
+        "linux-arm64": {"name": "Linux ARM64", "os": "linux", "arch": "arm64", "ext": ""},
+        "darwin-amd64": {"name": "macOS Intel", "os": "darwin", "arch": "amd64", "ext": ""},
+        "darwin-arm64": {"name": "macOS Apple Silicon", "os": "darwin", "arch": "arm64", "ext": ""},
+        "windows-amd64": {"name": "Windows x64", "os": "windows", "arch": "amd64", "ext": ".exe"},
+    }
+    
+    for platform_id, info in platform_info.items():
+        filename = f"frp-agent-{platform_id}{info['ext']}"
+        filepath = os.path.join(AGENT_BINARIES_DIR, filename)
+        available = os.path.exists(filepath)
+        
+        platforms.append({
+            "id": platform_id,
+            "name": info["name"],
+            "os": info["os"],
+            "arch": info["arch"],
+            "available": available,
+            "filename": filename
+        })
+    
+    return {"platforms": platforms}
+
+
+@app.get("/api/agent/install-script/{platform}")
+async def get_agent_install_script(
+    platform: str,
+    client_id: str = None,
+    db: Session = Depends(get_db)
+):
+    """
+    获取动态生成的 Agent 安装脚本（包含服务器信息）
+    platform: linux, darwin, windows
+    """
+    # 获取服务器配置
+    auth_token = crud.get_system_config(db, models.ConfigKeys.FRPS_AUTH_TOKEN) or "frp-token"
+    server_ip = crud.get_system_config(db, models.ConfigKeys.SERVER_PUBLIC_IP) or "YOUR_SERVER_IP"
+    frps_port = crud.get_system_config(db, models.ConfigKeys.FRPS_PORT) or "7000"
+    frps_version = crud.get_system_config(db, models.ConfigKeys.FRPS_VERSION) or "0.61.1"
+    
+    # 生成客户端 ID（如果未提供）
+    if not client_id:
+        import random
+        import string
+        client_id = "client-" + ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+    
+    # 服务器下载地址（自托管）
+    download_base = f"http://{server_ip}:8080/api/agent/download"
+    
+    if platform == "windows":
+        # Windows PowerShell 脚本
+        script = f'''# ============================================================
+# FRP Manager Agent + FRPC 一键安装脚本 (Windows)
+# ============================================================
+# 使用方法: 以管理员身份运行 PowerShell，然后执行此脚本
+# ============================================================
+
+$ErrorActionPreference = "Stop"
+
+# 配置信息（由服务器自动生成）
+$SERVER_IP = "{server_ip}"
+$FRPS_PORT = "{frps_port}"
+$AUTH_TOKEN = "{auth_token}"
+$CLIENT_ID = "{client_id}"
+$FRP_VERSION = "{frps_version}"
+$INSTALL_DIR = "C:\\frp"
+$DOWNLOAD_BASE = "{download_base}"
+
+Write-Host ""
+Write-Host "===============================================" -ForegroundColor Cyan
+Write-Host "  FRP Manager Agent 一键安装 (Windows)" -ForegroundColor Cyan
+Write-Host "===============================================" -ForegroundColor Cyan
+Write-Host ""
+
+# 创建安装目录
+Write-Host "[1/5] 创建安装目录..." -ForegroundColor Blue
+if (!(Test-Path $INSTALL_DIR)) {{
+    New-Item -ItemType Directory -Path $INSTALL_DIR -Force | Out-Null
+}}
+if (!(Test-Path "$INSTALL_DIR\\logs")) {{
+    New-Item -ItemType Directory -Path "$INSTALL_DIR\\logs" -Force | Out-Null
+}}
+Write-Host "[OK] 目录创建完成: $INSTALL_DIR" -ForegroundColor Green
+
+# 下载 FRPC
+Write-Host "[2/5] 下载 FRPC..." -ForegroundColor Blue
+$frpUrl = "https://github.com/fatedier/frp/releases/download/v$FRP_VERSION/frp_${{FRP_VERSION}}_windows_amd64.zip"
+Write-Host "  下载地址: $frpUrl"
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+Invoke-WebRequest -Uri $frpUrl -OutFile "$INSTALL_DIR\\frp.zip" -UseBasicParsing
+Expand-Archive -Path "$INSTALL_DIR\\frp.zip" -DestinationPath $INSTALL_DIR -Force
+Copy-Item "$INSTALL_DIR\\frp_${{FRP_VERSION}}_windows_amd64\\frpc.exe" "$INSTALL_DIR\\frpc.exe" -Force
+Remove-Item "$INSTALL_DIR\\frp.zip" -Force
+Remove-Item "$INSTALL_DIR\\frp_${{FRP_VERSION}}_windows_amd64" -Recurse -Force
+Write-Host "[OK] FRPC 下载完成" -ForegroundColor Green
+
+# 下载 Agent
+Write-Host "[3/5] 下载 Agent..." -ForegroundColor Blue
+try {{
+    Invoke-WebRequest -Uri "$DOWNLOAD_BASE/windows-amd64" -OutFile "$INSTALL_DIR\\frp-agent.exe" -UseBasicParsing
+    Write-Host "[OK] Agent 下载完成" -ForegroundColor Green
+}} catch {{
+    Write-Host "[WARN] Agent 暂不可用，跳过" -ForegroundColor Yellow
+}}
+
+# 创建配置文件
+Write-Host "[4/5] 创建配置文件..." -ForegroundColor Blue
+$config = @"
+serverAddr = "$SERVER_IP"
+serverPort = $FRPS_PORT
+auth.token = "$AUTH_TOKEN"
+
+# 管理 API
+webServer.addr = "127.0.0.1"
+webServer.port = 7400
+"@
+$config | Out-File -FilePath "$INSTALL_DIR\\frpc.toml" -Encoding UTF8
+Write-Host "[OK] 配置文件已创建" -ForegroundColor Green
+
+# 创建启动脚本
+Write-Host "[5/5] 创建启动脚本..." -ForegroundColor Blue
+$startScript = @"
+@echo off
+cd /d "$INSTALL_DIR"
+start /min "" "$INSTALL_DIR\\frpc.exe" -c "$INSTALL_DIR\\frpc.toml"
+"@
+$startScript | Out-File -FilePath "$INSTALL_DIR\\start-frpc.bat" -Encoding ASCII
+
+# 添加到开机启动
+$startupFolder = [Environment]::GetFolderPath('Startup')
+Copy-Item "$INSTALL_DIR\\start-frpc.bat" "$startupFolder\\start-frpc.bat" -Force
+Write-Host "[OK] 已添加到开机启动" -ForegroundColor Green
+
+# 启动 FRPC
+Write-Host ""
+Write-Host "正在启动 FRPC..." -ForegroundColor Blue
+Start-Process -FilePath "$INSTALL_DIR\\frpc.exe" -ArgumentList "-c", "$INSTALL_DIR\\frpc.toml" -WindowStyle Minimized
+
+Write-Host ""
+Write-Host "===============================================" -ForegroundColor Green
+Write-Host "  安装完成！" -ForegroundColor Green
+Write-Host "===============================================" -ForegroundColor Green
+Write-Host ""
+Write-Host "安装目录: $INSTALL_DIR"
+Write-Host "客户端 ID: $CLIENT_ID"
+Write-Host "服务器: $SERVER_IP`:$FRPS_PORT"
+Write-Host ""
+Write-Host "现在可以返回 Web 管理面板继续操作！" -ForegroundColor Cyan
+Write-Host ""
+'''
+        return PlainTextResponse(content=script, media_type="text/plain")
+    
+    else:
+        # Linux/macOS Bash 脚本
+        os_type = "darwin" if platform == "darwin" else "linux"
+        script = f'''#!/bin/bash
+# ============================================================
+# FRP Manager Agent + FRPC 一键安装脚本 (Linux/macOS)
+# ============================================================
+# 使用方法: chmod +x install.sh && sudo ./install.sh
+# ============================================================
+
+set -e
+
+# 配置信息（由服务器自动生成）
+SERVER_IP="{server_ip}"
+FRPS_PORT="{frps_port}"
+AUTH_TOKEN="{auth_token}"
+CLIENT_ID="{client_id}"
+FRP_VERSION="{frps_version}"
+INSTALL_DIR="/opt/frp"
+DOWNLOAD_BASE="{download_base}"
+
+# 颜色输出
+RED='\\033[0;31m'
+GREEN='\\033[0;32m'
+BLUE='\\033[0;34m'
+YELLOW='\\033[1;33m'
+NC='\\033[0m'
+
+log_info() {{ echo -e "${{BLUE}}[INFO]${{NC}} $1"; }}
+log_ok() {{ echo -e "${{GREEN}}[OK]${{NC}} $1"; }}
+log_warn() {{ echo -e "${{YELLOW}}[WARN]${{NC}} $1"; }}
+log_error() {{ echo -e "${{RED}}[ERROR]${{NC}} $1"; }}
+
+# 检测系统类型
+detect_os() {{
+    case "$(uname -s)" in
+        Linux*) echo "linux" ;;
+        Darwin*) echo "darwin" ;;
+        *) echo "unknown" ;;
+    esac
+}}
+
+detect_arch() {{
+    case "$(uname -m)" in
+        x86_64|amd64) echo "amd64" ;;
+        aarch64|arm64) echo "arm64" ;;
+        *) echo "amd64" ;;
+    esac
+}}
+
+OS=$(detect_os)
+ARCH=$(detect_arch)
+
+echo ""
+echo -e "${{BLUE}}===============================================${{NC}}"
+echo -e "${{BLUE}}  FRP Manager Agent 一键安装 ($OS-$ARCH)${{NC}}"
+echo -e "${{BLUE}}===============================================${{NC}}"
+echo ""
+
+# 检查权限
+if [ "$EUID" -ne 0 ] && [ "$OS" = "linux" ]; then
+    log_warn "建议使用 sudo 运行"
+fi
+
+# 1. 创建安装目录
+log_info "[1/5] 创建安装目录..."
+mkdir -p $INSTALL_DIR
+mkdir -p $INSTALL_DIR/logs
+log_ok "目录创建完成: $INSTALL_DIR"
+
+# 2. 下载 FRPC
+log_info "[2/5] 下载 FRPC v$FRP_VERSION..."
+FRP_URL="https://github.com/fatedier/frp/releases/download/v${{FRP_VERSION}}/frp_${{FRP_VERSION}}_${{OS}}_${{ARCH}}.tar.gz"
+log_info "下载地址: $FRP_URL"
+
+if command -v curl &> /dev/null; then
+    curl -fsSL "$FRP_URL" -o /tmp/frp.tar.gz
+elif command -v wget &> /dev/null; then
+    wget -q "$FRP_URL" -O /tmp/frp.tar.gz
+else
+    log_error "需要 curl 或 wget"
+    exit 1
+fi
+
+tar -xzf /tmp/frp.tar.gz -C /tmp/
+cp /tmp/frp_${{FRP_VERSION}}_${{OS}}_${{ARCH}}/frpc $INSTALL_DIR/
+chmod +x $INSTALL_DIR/frpc
+rm -rf /tmp/frp.tar.gz /tmp/frp_*
+log_ok "FRPC 下载完成"
+
+# 3. 下载 Agent (可选)
+log_info "[3/5] 下载 Agent..."
+AGENT_URL="${{DOWNLOAD_BASE}}/${{OS}}-${{ARCH}}"
+if curl -fsSL "$AGENT_URL" -o $INSTALL_DIR/frp-agent 2>/dev/null; then
+    chmod +x $INSTALL_DIR/frp-agent
+    log_ok "Agent 下载完成"
+else
+    log_warn "Agent 暂不可用，跳过"
+fi
+
+# 4. 创建配置文件
+log_info "[4/5] 创建配置文件..."
+cat > $INSTALL_DIR/frpc.toml << 'FRPC_CONFIG'
+serverAddr = "{server_ip}"
+serverPort = {frps_port}
+auth.token = "{auth_token}"
+
+# 管理 API (用于热重载)
+webServer.addr = "127.0.0.1"
+webServer.port = 7400
+FRPC_CONFIG
+log_ok "配置文件已创建"
+
+# 5. 创建系统服务
+log_info "[5/5] 创建系统服务..."
+if [ "$OS" = "linux" ]; then
+    cat > /etc/systemd/system/frpc.service << 'SYSTEMD_SERVICE'
+[Unit]
+Description=FRP Client Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/opt/frp/frpc -c /opt/frp/frpc.toml
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+SYSTEMD_SERVICE
+
+    systemctl daemon-reload
+    systemctl enable frpc
+    systemctl start frpc
+    log_ok "systemd 服务已创建并启动"
+else
+    # macOS: 创建 launchd plist
+    PLIST_PATH="$HOME/Library/LaunchAgents/com.frp.client.plist"
+    mkdir -p "$HOME/Library/LaunchAgents"
+    cat > "$PLIST_PATH" << PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.frp.client</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>$INSTALL_DIR/frpc</string>
+        <string>-c</string>
+        <string>$INSTALL_DIR/frpc.toml</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+</dict>
+</plist>
+PLIST
+    launchctl load "$PLIST_PATH"
+    log_ok "launchd 服务已创建并启动"
+fi
+
+echo ""
+echo -e "${{GREEN}}===============================================${{NC}}"
+echo -e "${{GREEN}}  安装完成！${{NC}}"
+echo -e "${{GREEN}}===============================================${{NC}}"
+echo ""
+echo "安装目录: $INSTALL_DIR"
+echo "客户端 ID: $CLIENT_ID"
+echo "服务器: $SERVER_IP:$FRPS_PORT"
+echo ""
+log_info "现在可以返回 Web 管理面板继续操作！"
+echo ""
+
+if [ "$OS" = "linux" ]; then
+    echo "常用命令:"
+    echo "  查看状态: sudo systemctl status frpc"
+    echo "  查看日志: sudo journalctl -u frpc -f"
+fi
+echo ""
+'''
+        return PlainTextResponse(content=script, media_type="text/plain")
+
+
+@app.get("/api/agent/install-script-info")
+async def get_install_script_info(db: Session = Depends(get_db)):
+    """获取安装脚本信息（用于前端显示）"""
+    auth_token = crud.get_system_config(db, models.ConfigKeys.FRPS_AUTH_TOKEN) or "frp-token"
+    server_ip = crud.get_system_config(db, models.ConfigKeys.SERVER_PUBLIC_IP) or "YOUR_SERVER_IP"
+    frps_port = crud.get_system_config(db, models.ConfigKeys.FRPS_PORT) or "7000"
+    frps_version = crud.get_system_config(db, models.ConfigKeys.FRPS_VERSION) or "0.61.1"
+    
+    return {
+        "server_ip": server_ip,
+        "frps_port": frps_port,
+        "frps_version": frps_version,
+        "scripts": {
+            "linux": f"http://{server_ip}:8080/api/agent/install-script/linux",
+            "darwin": f"http://{server_ip}:8080/api/agent/install-script/darwin",
+            "windows": f"http://{server_ip}:8080/api/agent/install-script/windows"
+        }
+    }

@@ -1,0 +1,130 @@
+// Package monitor 提供系统监控功能
+package monitor
+
+import (
+	"log"
+	"time"
+
+	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/disk"
+	"github.com/shirou/gopsutil/v3/host"
+	"github.com/shirou/gopsutil/v3/mem"
+	"github.com/shirou/gopsutil/v3/net"
+)
+
+// SystemInfo 系统信息
+type SystemInfo struct {
+	Timestamp   int64   `json:"timestamp"`
+	Hostname    string  `json:"hostname"`
+	OS          string  `json:"os"`
+	Arch        string  `json:"arch"`
+	CPUPercent  float64 `json:"cpu_percent"`
+	MemoryUsed  uint64  `json:"memory_used"`
+	MemoryTotal uint64  `json:"memory_total"`
+	MemoryPercent float64 `json:"memory_percent"`
+	DiskUsed    uint64  `json:"disk_used"`
+	DiskTotal   uint64  `json:"disk_total"`
+	DiskPercent float64 `json:"disk_percent"`
+	NetBytesIn  uint64  `json:"net_bytes_in"`
+	NetBytesOut uint64  `json:"net_bytes_out"`
+	Uptime      uint64  `json:"uptime"`
+}
+
+// Monitor 系统监控器
+type Monitor struct {
+	isRunning bool
+	OnMetrics func(SystemInfo)
+	
+	// 用于计算网络增量
+	lastNetIn  uint64
+	lastNetOut uint64
+}
+
+// NewMonitor 创建新的监控器
+func NewMonitor() *Monitor {
+	return &Monitor{}
+}
+
+// Start 开始监控
+func (m *Monitor) Start(intervalSeconds int) {
+	m.isRunning = true
+
+	for m.isRunning {
+		info, err := m.Collect()
+		if err != nil {
+			log.Printf("[Monitor] 采集失败: %v", err)
+		} else if m.OnMetrics != nil {
+			m.OnMetrics(info)
+		}
+
+		time.Sleep(time.Duration(intervalSeconds) * time.Second)
+	}
+}
+
+// Stop 停止监控
+func (m *Monitor) Stop() {
+	m.isRunning = false
+}
+
+// Collect 采集一次系统信息
+func (m *Monitor) Collect() (SystemInfo, error) {
+	info := SystemInfo{
+		Timestamp: time.Now().Unix(),
+	}
+
+	// 主机信息
+	hostInfo, err := host.Info()
+	if err == nil {
+		info.Hostname = hostInfo.Hostname
+		info.OS = hostInfo.OS
+		info.Arch = hostInfo.KernelArch
+		info.Uptime = hostInfo.Uptime
+	}
+
+	// CPU 使用率
+	cpuPercent, err := cpu.Percent(time.Second, false)
+	if err == nil && len(cpuPercent) > 0 {
+		info.CPUPercent = cpuPercent[0]
+	}
+
+	// 内存使用
+	memInfo, err := mem.VirtualMemory()
+	if err == nil {
+		info.MemoryUsed = memInfo.Used
+		info.MemoryTotal = memInfo.Total
+		info.MemoryPercent = memInfo.UsedPercent
+	}
+
+	// 磁盘使用（根目录）
+	diskInfo, err := disk.Usage("/")
+	if err == nil {
+		info.DiskUsed = diskInfo.Used
+		info.DiskTotal = diskInfo.Total
+		info.DiskPercent = diskInfo.UsedPercent
+	}
+
+	// 网络流量（累计值）
+	netInfo, err := net.IOCounters(false)
+	if err == nil && len(netInfo) > 0 {
+		info.NetBytesIn = netInfo[0].BytesRecv
+		info.NetBytesOut = netInfo[0].BytesSent
+	}
+
+	return info, nil
+}
+
+// GetHostInfo 获取主机基本信息（用于注册）
+func GetHostInfo() map[string]string {
+	result := make(map[string]string)
+
+	hostInfo, err := host.Info()
+	if err == nil {
+		result["hostname"] = hostInfo.Hostname
+		result["os"] = hostInfo.OS
+		result["arch"] = hostInfo.KernelArch
+		result["platform"] = hostInfo.Platform
+		result["platform_version"] = hostInfo.PlatformVersion
+	}
+
+	return result
+}
