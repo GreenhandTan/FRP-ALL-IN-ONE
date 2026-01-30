@@ -23,6 +23,7 @@ type Manager struct {
 	logCollector *logger.Collector
 
 	process *exec.Cmd
+	doneCh  chan struct{}
 	stdout  io.ReadCloser
 	stderr  io.ReadCloser
 	mu      sync.Mutex
@@ -89,6 +90,9 @@ func (m *Manager) Start() error {
 	go m.streamLogs(stdout, "stdout")
 	go m.streamLogs(stderr, "stderr")
 
+	// 创建 done channel 用于通知进程退出
+	m.doneCh = make(chan struct{})
+
 	// 监控进程状态
 	go m.watchProcess()
 
@@ -105,16 +109,10 @@ func (m *Manager) Stop() error {
 	defer m.mu.Unlock()
 
 	if !m.isRunning || m.process == nil {
-		// 即使没有运行的进程，也尝试杀死所有 frpc 进程
-		m.killAllFrpc()
 		return nil
 	}
 
 	log.Println("[FRPC] 正在停止...")
-
-	// 先标记为已停止，防止 watchProcess 触发重启
-	m.isRunning = false
-	pid := m.process.Process.Pid
 
 	// 发送终止信号
 	if err := m.process.Process.Signal(os.Interrupt); err != nil {
@@ -122,25 +120,25 @@ func (m *Manager) Stop() error {
 		m.process.Process.Kill()
 	}
 
-	// 等待进程退出（带超时）
-	done := make(chan error, 1)
-	go func() {
-		done <- m.process.Wait()
-	}()
-
+	// 等待进程退出（通过 check watchProcess 的 doneCh）
 	select {
-	case <-done:
-		log.Printf("[FRPC] 进程 %d 已停止", pid)
+	case <-m.doneCh:
+		log.Printf("[FRPC] 进程已停止")
 	case <-time.After(3 * time.Second):
 		log.Println("[FRPC] 等待超时，强制杀死进程")
 		m.process.Process.Kill()
-		<-done // 等待 Kill 后的退出
+
+		// 再次等待
+		select {
+		case <-m.doneCh:
+			log.Printf("[FRPC] 进程已停止 (Killed)")
+		case <-time.After(1 * time.Second):
+			log.Println("[FRPC] 进程停止超时，不再等待")
+		}
 	}
 
 	m.process = nil
-
-	// 确保所有 frpc 进程都被杀死
-	m.killAllFrpc()
+	m.isRunning = false
 
 	// 等待端口释放
 	time.Sleep(500 * time.Millisecond)
@@ -150,13 +148,6 @@ func (m *Manager) Stop() error {
 	}
 
 	return nil
-}
-
-// killAllFrpc 杀死所有 frpc 进程（防止僵尸进程占用端口）
-func (m *Manager) killAllFrpc() {
-	// 使用 pkill 杀死所有 frpc 进程
-	cmd := exec.Command("pkill", "-9", "-f", "frpc")
-	cmd.Run() // 忽略错误，因为可能没有进程
 }
 
 // Restart 重启 FRPC 进程
@@ -193,7 +184,7 @@ func (m *Manager) UpdateConfig(newConfig string) error {
 
 	// 尝试通过 Admin API 热重载
 	// 只有当进程在运行，且 Admin API 端口可达时，才进行热重载
-	if m.isRunning && m.checkAdminAPIAvailable() {
+	if m.IsRunning() && m.checkAdminAPIAvailable() {
 		log.Println("[FRPC] Admin API 可用，尝试热重载...")
 		if err := m.hotReload(); err != nil {
 			log.Printf("[FRPC] 热重载失败: %v, 将回退到重启进程", err)
@@ -205,8 +196,8 @@ func (m *Manager) UpdateConfig(newConfig string) error {
 
 	// 其他情况（进程未运行，或 Admin API 不可用），直接重启/启动
 	log.Println("[FRPC] 进程未运行或 Admin API 不可用，执行重启...")
-	if m.isRunning {
-		return m.Restart() // 如果标志位是 running 但 API 不通，确实应该重启
+	if m.IsRunning() {
+		return m.Restart()
 	}
 	return m.Start()
 }
@@ -231,7 +222,22 @@ func (m *Manager) hotReload() error {
 	client := &http.Client{
 		Timeout: 2 * time.Second,
 	}
-	resp, err := client.Post("http://127.0.0.1:7400/api/reload", "application/json", nil)
+
+	// 尝试 PUT /api/v1/reload (新版 API)
+	req, _ := http.NewRequest("PUT", "http://127.0.0.1:7400/api/v1/reload", nil)
+	resp, err := client.Do(req)
+
+	if err == nil && resp.StatusCode == http.StatusOK {
+		resp.Body.Close()
+		return nil
+	}
+	if resp != nil {
+		resp.Body.Close()
+	}
+
+	// 如果失败（例如 404），尝试旧版 API /api/reload
+	log.Println("[FRPC] v1 API 失败，尝试旧版 API /api/reload")
+	resp, err = client.Get("http://127.0.0.1:7400/api/reload")
 	if err != nil {
 		return fmt.Errorf("请求失败: %v", err)
 	}
@@ -239,8 +245,7 @@ func (m *Manager) hotReload() error {
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		// 405 Method Not Allowed 也是失败的一种，需要重启
-		return fmt.Errorf("热重载返回错误: %d, %s", resp.StatusCode, string(body))
+		return fmt.Errorf("热重载失败: %d, %s", resp.StatusCode, string(body))
 	}
 
 	return nil
@@ -267,6 +272,8 @@ func (m *Manager) streamLogs(reader io.Reader, source string) {
 
 // 监控进程状态
 func (m *Manager) watchProcess() {
+	defer close(m.doneCh) // 通知 Stop 协程进程已退出
+
 	if m.process == nil {
 		return
 	}
@@ -278,7 +285,8 @@ func (m *Manager) watchProcess() {
 	m.mu.Unlock()
 
 	if err != nil {
-		log.Printf("[FRPC] 进程异常退出: %v", err)
+		// 如果是被 Signal Killed，也会返回 err
+		log.Printf("[FRPC] 进程退出: %v", err)
 	} else {
 		log.Println("[FRPC] 进程已退出")
 	}
