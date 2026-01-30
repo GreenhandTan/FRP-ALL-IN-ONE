@@ -27,42 +27,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 数据库自动初始化 + 默认管理员
+# 数据库初始化
 @app.on_event("startup")
 def init_database():
-    """确保所有表都已创建，并创建默认管理员"""
+    """初始化数据库表和默认管理员"""
+    # 创建所有表
     models.Base.metadata.create_all(bind=engine)
-    try:
-        from sqlalchemy import text
-        with engine.connect() as conn:
-            cols = [r[1] for r in conn.execute(text("PRAGMA table_info(tunnels)")).fetchall()]
-            if "enabled" not in cols:
-                conn.execute(text("ALTER TABLE tunnels ADD COLUMN enabled BOOLEAN NOT NULL DEFAULT 1"))
-                conn.commit()
-    except Exception:
-        pass
     
-    # 创建或重置默认管理员
+    # 创建默认管理员（如果不存在）
     db = SessionLocal()
     try:
-        admin = crud.get_admin_by_username(db, "admin")
-        if not admin:
-            # 没有管理员，创建默认管理员
+        if not crud.get_admin_by_username(db, "admin"):
             default_admin = schemas.UserCreate(username="admin", password="123456")
             crud.create_admin(db, default_admin)
             print("[OK] 默认管理员已创建 (admin / 123456)")
         else:
-            # 管理员存在，验证默认密码是否有效
-            if not auth.verify_password("123456", admin.hashed_password):
-                # 密码不匹配（可能是旧数据库），重置为默认密码
-                crud.update_admin_password(db, admin.id, "123456")
-                print("[OK] 管理员密码已重置为默认密码 (admin / 123456)")
-            else:
-                print("[OK] 管理员账号已存在")
+            print("[OK] 管理员账号已存在")
     finally:
         db.close()
     
-    print("[OK] 数据库表已初始化")
+    print("[OK] 数据库初始化完成")
 
 # 依赖项
 def get_db():
