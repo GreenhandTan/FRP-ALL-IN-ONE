@@ -1726,7 +1726,7 @@ log_ok "FRPC 下载完成"
 log_info "[3/5] 下载 Agent ($OS-$ARCH)..."
 AGENT_PATH="$INSTALL_DIR/frp-agent"
 # 构造 GitHub Release 文件名
-AGENT_FILENAME="frp-agent-${OS}-${ARCH}"
+AGENT_FILENAME="frp-agent-${{OS}}-${{ARCH}}"
 GITHUB_URL="$DOWNLOAD_BASE/$AGENT_FILENAME"
 log_info "下载地址: $GITHUB_URL"
 
