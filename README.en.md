@@ -57,27 +57,33 @@
 <a id="features"></a>
 ## Key Features
 
-- One-click deployment: Docker Compose brings up the Manager, Web UI, and FRPS
-- Setup Wizard: configure FRPS bind port, token, and public IP in the UI
-- One-click script: generate client script (arch detection, systemd, autostart)
-- Agent mechanism: auto register, heartbeat, config sync, and `frpc reload`
-- Near real-time dashboard: periodic polling (default every 3 seconds)
-- i18n: Chinese/English switching
-- Unified dialogs: lightweight custom modals (no browser default alert/confirm)
+- **One-click deployment**: Docker Compose brings up the Manager, Web UI, and FRPS
+- **Setup Wizard**: configure FRPS bind port, token, and public IP in the UI
+- **One-click script**: generate client script (arch detection, systemd, autostart)
+- **Agent mechanism**: auto register, heartbeat, system monitoring, hot config reload
+- **Real-time dashboard**: WebSocket pushes status/traffic/connections every second
+- **Auto device recognition**: Agent reports hostname, OS, architecture; auto-names devices
+- **i18n**: Chinese/English switching
+- **Unified dialogs**: lightweight custom modals
 
 <a id="architecture"></a>
 ## Architecture
 
 Runs as **3 containers** (all with `network_mode: host`):
 
-- Web (Nginx + React): management UI (default 80/TCP)
-- Backend (FastAPI + SQLite): APIs, config generation, FRPS restart, FRPS Dashboard fetch
-- FRPS: FRP server (default 7000/TCP) + Dashboard (default 7500/TCP; restrict to private access)
+- **Web** (Nginx + React): management UI (default 80/TCP)
+- **Backend** (FastAPI + SQLite): APIs, WebSocket real-time push, config management
+- **FRPS**: FRP server (default 7000/TCP) + Dashboard (default 7500/TCP)
 
-On each client machine:
+Client side is managed by Agent:
 
-- `frpc`: connects to FRPS and carries proxy traffic
-- `frp-agent`: registers to the manager, sends heartbeat, pulls mappings, performs `frpc reload`
+- **frp-agent**: core daemon, responsible for:
+  - Establishing WebSocket connection with the manager
+  - Auto-registering device (reports hostname, OS, architecture)
+  - Periodic heartbeat and system metrics (CPU, memory)
+  - Managing `frpc` process lifecycle
+  - Hot-reloading config via FRPC Admin API (no restart needed)
+- **frpc**: managed by Agent, connects to FRPS and carries proxy traffic
 
 <a id="quick-start-server"></a>
 ## Quick Start (Server)

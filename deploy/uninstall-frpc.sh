@@ -1,7 +1,7 @@
 #!/bin/bash
 # ============================================
-# FRP Client + Agent 一键移除脚本
-# 适用于新架构 (FRPC + Go Agent)
+# FRP Manager Agent 一键移除脚本
+# Agent 负责管理 FRPC 进程
 # ============================================
 
 set -e
@@ -14,7 +14,7 @@ NC='\033[0m'
 
 echo ""
 echo "============================================"
-echo "  FRP Client + Agent 移除脚本"
+echo "  FRP Manager Agent 移除脚本"
 echo "============================================"
 echo ""
 
@@ -25,12 +25,8 @@ if [ "$OS" = "darwin" ]; then
     # macOS 移除
     echo -e "${YELLOW}[macOS]${NC} 正在移除 FRP 服务..."
     
-    # 卸载 launchd 服务
-    launchctl unload ~/Library/LaunchAgents/com.frp.client.plist 2>/dev/null || true
+    # 卸载 Agent launchd 服务
     launchctl unload ~/Library/LaunchAgents/com.frp-manager.agent.plist 2>/dev/null || true
-    
-    # 删除 plist 文件
-    rm -f ~/Library/LaunchAgents/com.frp.client.plist
     rm -f ~/Library/LaunchAgents/com.frp-manager.agent.plist
     
     # 删除安装目录
@@ -51,16 +47,9 @@ elif [ "$OS" = "linux" ]; then
     
     echo "[INFO] 正在停止服务..."
     
-    # 停止并禁用 systemd 服务（兼容新旧架构）
-    # 新架构: 只有 frp-agent.service（Agent 管理 frpc 进程）
-    # 旧架构: frpc.service + frp-agent.service
-    systemctl stop frpc 2>/dev/null || true
+    # 停止并禁用 Agent 服务
     systemctl stop frp-agent 2>/dev/null || true
-    systemctl disable frpc 2>/dev/null || true
     systemctl disable frp-agent 2>/dev/null || true
-    
-    # 删除 systemd 服务文件
-    rm -f /etc/systemd/system/frpc.service
     rm -f /etc/systemd/system/frp-agent.service
     systemctl daemon-reload
     
@@ -83,9 +72,9 @@ fi
 
 echo ""
 echo "已清理内容:"
-echo "  - systemd/launchd 服务"
+echo "  - frp-agent systemd/launchd 服务"
 echo "  - /opt/frp 目录"
-echo "  - 相关进程"
+echo "  - frpc 和 frp-agent 进程"
 echo ""
 echo -e "${GREEN}移除完成！${NC}"
 echo ""

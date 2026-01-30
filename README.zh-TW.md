@@ -57,27 +57,33 @@
 <a id="features"></a>
 ## 核心特性
 
-- 一鍵部署：Docker Compose 啟動管理後台、Web、FRPS
-- 配置嚮導：Web 中完成 FRPS 連接埠、Token、公網 IP 設定
-- 一鍵腳本：自動生成客戶端腳本（含架構辨識、systemd、開機自啟）
-- Agent 機制：客戶端自動註冊、心跳上報、配置同步、`frpc reload` 熱更新
-- 近即時面板：狀態/流量/連線數輪詢刷新（預設每 3 秒）
-- 國際化：中文/英文切換
-- 統一彈窗：全站使用同一套輕量彈窗元件（取代瀏覽器預設 alert/confirm）
+- **一鍵部署**：Docker Compose 啟動管理後台、Web、FRPS
+- **配置嚮導**：Web 中完成 FRPS 連接埠、Token、公網 IP 設定
+- **一鍵腳本**：自動生成客戶端腳本（含架構辨識、systemd、開機自啟）
+- **Agent 機制**：客戶端自動註冊、心跳上報、系統監控、配置熱重載
+- **即時面板**：WebSocket 每秒推送狀態/流量/連線數（無需手動刷新）
+- **裝置自動辨識**：Agent 自動上報 hostname、OS、架構，自動命名裝置
+- **國際化**：中文/英文切換
+- **統一彈窗**：全站使用同一套輕量彈窗元件
 
 <a id="architecture"></a>
 ## 架構說明
 
 本專案以 **3 個容器** 運行（皆使用 `network_mode: host`）：
 
-- Web（Nginx + React）：對外提供管理介面（預設 80/TCP）
-- Backend（FastAPI + SQLite）：提供 API、生成配置、重啟 FRPS、拉取 FRPS Dashboard 數據
-- FRPS：FRP 服務端（預設 7000/TCP）+ Dashboard（預設 7500/TCP，建議僅內網可存取）
+- **Web**（Nginx + React）：對外提供管理介面（預設 80/TCP）
+- **Backend**（FastAPI + SQLite）：提供 API、WebSocket 即時推送、配置管理
+- **FRPS**：FRP 服務端（預設 7000/TCP）+ Dashboard（預設 7500/TCP）
 
-客戶端側由兩部分組成：
+客戶端側由 Agent 統一管理：
 
-- `frpc`：與 FRPS 建立控制連線並承載代理轉發
-- `frp-agent`：向管理端自註冊、上報心跳、拉取你在 Web 裡配置的連接埠映射，並對 `frpc` 執行熱重載
+- **frp-agent**：核心守護進程，負責：
+  - 與管理端建立 WebSocket 連線
+  - 自動註冊裝置（上報 hostname、OS、架構）
+  - 定時上報心跳和系統指標（CPU、記憶體）
+  - 管理 `frpc` 進程生命週期
+  - 透過 FRPC Admin API 熱重載配置（無需重啟）
+- **frpc**：由 Agent 託管，與 FRPS 建立控制連線並承載代理轉發
 
 <a id="quick-start-server"></a>
 ## 快速開始（服務端）

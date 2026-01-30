@@ -1391,17 +1391,9 @@ webServer.port = 7400
 FRPC_CONFIG
 log_ok "配置文件已创建"
 
-# 5. 创建系统服务（只创建 Agent 服务，由 Agent 管理 FRPC）
+# 5. 创建 Agent 系统服务
 log_info "[5/5] 创建系统服务..."
 if [ "$OS" = "linux" ]; then
-    # 如果存在旧的 frpc.service，停止并禁用它
-    if systemctl is-active --quiet frpc 2>/dev/null; then
-        log_info "停止并禁用旧的 frpc.service..."
-        systemctl stop frpc
-        systemctl disable frpc
-        rm -f /etc/systemd/system/frpc.service
-    fi
-    
     # 创建 Agent 服务（Agent 会管理 FRPC 进程）
     if [ -f "$INSTALL_DIR/frp-agent" ]; then
         cat > /etc/systemd/system/frp-agent.service << AGENT_SERVICE
@@ -1428,15 +1420,7 @@ AGENT_SERVICE
         log_warn "Agent 不存在，FRPC 需要手动启动"
     fi
 else
-    # macOS: 如果存在旧的 frpc launchd 服务，停止并移除
-    FRPC_PLIST="$HOME/Library/LaunchAgents/com.frp.client.plist"
-    if [ -f "$FRPC_PLIST" ]; then
-        log_info "停止并移除旧的 frpc launchd 服务..."
-        launchctl unload "$FRPC_PLIST" 2>/dev/null || true
-        rm -f "$FRPC_PLIST"
-    fi
-    
-    # 创建 Agent launchd 服务（Agent 会管理 FRPC 进程）
+    # macOS: 创建 Agent launchd 服务（Agent 会管理 FRPC 进程）
     if [ -f "$INSTALL_DIR/frp-agent" ]; then
         AGENT_PLIST="$HOME/Library/LaunchAgents/com.frp-manager.agent.plist"
         mkdir -p "$HOME/Library/LaunchAgents"
