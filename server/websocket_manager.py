@@ -20,6 +20,9 @@ class ConnectionManager:
         # Agent 连接（client_id -> WebSocket）
         self.agent_connections: Dict[str, WebSocket] = {}
         
+        # Agent 系统信息（client_id -> system_info）
+        self.agent_system_info: Dict[str, dict] = {}
+        
         # 日志订阅者（client_id -> 订阅该客户端日志的 WebSocket 集合）
         self.log_subscribers: Dict[str, Set[WebSocket]] = {}
     
@@ -80,6 +83,28 @@ class ConnectionManager:
         if client_id in self.agent_connections:
             del self.agent_connections[client_id]
             logger.info(f"Agent {client_id} 已断开，当前 Agent 数: {len(self.agent_connections)}")
+        # 保留系统信息一段时间，标记为离线
+        if client_id in self.agent_system_info:
+            self.agent_system_info[client_id]["online"] = False
+    
+    def update_agent_system_info(self, client_id: str, system_info: dict):
+        """更新 Agent 系统信息"""
+        self.agent_system_info[client_id] = {
+            **system_info,
+            "online": True,
+            "last_update": asyncio.get_event_loop().time() if asyncio.get_event_loop().is_running() else 0
+        }
+    
+    def get_all_agents_info(self) -> list:
+        """获取所有 Agent 信息"""
+        result = []
+        for client_id, info in self.agent_system_info.items():
+            result.append({
+                "client_id": client_id,
+                "online": client_id in self.agent_connections,
+                **info
+            })
+        return result
     
     def is_agent_online(self, client_id: str) -> bool:
         """检查 Agent 是否在线"""

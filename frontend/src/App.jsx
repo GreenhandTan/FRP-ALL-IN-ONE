@@ -28,6 +28,7 @@ function App() {
     totalProxies: 0,
     totalTrafficIn: 0,
     totalTrafficOut: 0,
+    onlineAgents: 0, // 新增：在线 Agent 数
   });
   const [disabledPorts, setDisabledPorts] = useState([]);
   const [showAddTunnel, setShowAddTunnel] = useState(false);
@@ -108,16 +109,31 @@ function App() {
     setLoading(true);
     try {
       // 并行请求
-      const [statusRes, disabledRes, registeredRes] = await Promise.all([
+      const [statusRes, disabledRes, registeredRes, agentsRes] = await Promise.all([
         api.get('/api/frp/server-status'),
         api.get('/api/frp/disabled-ports'),
         api.get('/clients/').catch(() => ({ data: [] })),
+        api.get('/api/agents').catch(() => ({ data: { agents: [] } })),
       ]);
 
       if (statusRes.data.success) {
         setServerInfo(statusRes.data.server_info);
         const registered = registeredRes.data || [];
-        setRegisteredClients(registered);
+
+        // 合并 Agent 信息到客户端
+        const agents = agentsRes.data?.agents || [];
+        const agentMap = agents.reduce((acc, agent) => {
+          acc[agent.client_id] = agent;
+          return acc;
+        }, {});
+
+        // 为每个注册客户端添加 Agent 信息
+        const enrichedClients = registered.map(client => ({
+          ...client,
+          agent: agentMap[client.id] || null, // 添加 Agent 信息
+        }));
+
+        setRegisteredClients(enrichedClients);
         setFrpProxies(statusRes.data.proxies || []);
 
         // Calculate stats
@@ -135,6 +151,7 @@ function App() {
 
         const now = Math.floor(Date.now() / 1000);
         const onlineClients = registered.filter((c) => c.last_seen && (now - c.last_seen) < 30).length;
+        const onlineAgents = agents.filter(a => a.is_online).length;
         const si = statusRes.data.server_info || {};
 
         setStats({
@@ -142,7 +159,8 @@ function App() {
           onlineClients,
           totalProxies: statusRes.data.total_proxies ?? totalProxies,
           totalTrafficIn: si.totalTrafficIn ?? totalTrafficIn,
-          totalTrafficOut: si.totalTrafficOut ?? totalTrafficOut
+          totalTrafficOut: si.totalTrafficOut ?? totalTrafficOut,
+          onlineAgents,
         });
         setError(null); // Clear error on success
       } else {
@@ -330,14 +348,26 @@ function App() {
               {/* WebSocket 连接状态指示器 */}
               <div
                 className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${wsConnected
-                    ? 'bg-emerald-100 text-emerald-700'
-                    : 'bg-amber-100 text-amber-700'
+                  ? 'bg-emerald-100 text-emerald-700'
+                  : 'bg-amber-100 text-amber-700'
                   }`}
                 title={wsConnected ? 'WebSocket 实时连接中' : 'WebSocket 已断开，使用轮询模式'}
               >
                 <Radio size={12} className={wsConnected ? 'text-emerald-500' : 'text-amber-500'} />
                 <span>{wsConnected ? 'Live' : 'Polling'}</span>
               </div>
+              {/* Agent 连接数指示器 */}
+              {stats.onlineAgents > 0 && (
+                <div
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700"
+                  title={`${stats.onlineAgents} 个 Agent 在线（WebSocket 实时推送）`}
+                >
+                  <svg className="w-3 h-3 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                  </svg>
+                  <span>{stats.onlineAgents} Agent</span>
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-3">
               <button
@@ -688,8 +718,39 @@ function RegisteredClientCard({ client, frpProxies, formatBytes, t, nowSec, onAd
           </div>
         </div>
 
-        {/* Client Stats */}
+        {/* Client Stats & Agent Monitor */}
         <div className="flex items-center gap-6">
+          {/* Agent 系统监控 */}
+          {client.agent?.is_online && (
+            <div className="flex items-center gap-4 px-3 py-1.5 bg-blue-50 rounded-lg border border-blue-100">
+              <div className="flex items-center gap-2">
+                <svg className="w-3.5 h-3.5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                </svg>
+                <div className="text-xs">
+                  <span className="text-blue-600 font-medium">{client.agent.cpu_percent?.toFixed(1) || 0}%</span>
+                  <span className="text-blue-400 ml-1">CPU</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <svg className="w-3.5 h-3.5 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                </svg>
+                <div className="text-xs">
+                  <span className="text-purple-600 font-medium">{client.agent.memory_percent?.toFixed(1) || 0}%</span>
+                  <span className="text-purple-400 ml-1">MEM</span>
+                </div>
+              </div>
+            </div>
+          )}
+          {client.agent && !client.agent.is_online && (
+            <div className="flex items-center gap-2 px-2 py-1 bg-slate-100 rounded text-xs text-slate-500">
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+              </svg>
+              Agent 离线
+            </div>
+          )}
           <div className="text-right">
             <div className="text-xs text-slate-400 flex items-center justify-end gap-1"><ArrowDown size={10} /> {t('dashboard.clients.trafficIn')}</div>
             <div className="font-mono text-sm font-medium text-slate-700">{formatBytes(totalIn)}</div>

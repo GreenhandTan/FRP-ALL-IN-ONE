@@ -462,6 +462,9 @@ async def _handle_agent_message(client_id: str, msg: dict):
         if not isinstance(data, dict):
             return
         
+        # 更新内存缓存（用于实时显示）
+        ws_manager.update_agent_system_info(client_id, data)
+        
         db = SessionLocal()
         try:
             # 存储系统指标
@@ -541,6 +544,9 @@ async def get_agents(
         # 检查是否真正在线（WebSocket 连接状态）
         is_ws_connected = ws_manager.is_agent_online(agent.client_id)
         
+        # 获取实时系统信息
+        system_info = ws_manager.agent_system_info.get(agent.client_id, {})
+        
         result.append({
             "client_id": agent.client_id,
             "hostname": agent.hostname,
@@ -550,7 +556,15 @@ async def get_agents(
             "platform": agent.platform,
             "is_online": is_ws_connected,
             "last_heartbeat": agent.last_heartbeat.isoformat() if agent.last_heartbeat else None,
-            "created_at": agent.created_at.isoformat() if agent.created_at else None
+            "created_at": agent.created_at.isoformat() if agent.created_at else None,
+            # 实时系统信息
+            "cpu_percent": system_info.get("cpu_percent"),
+            "memory_percent": system_info.get("memory_percent"),
+            "memory_used": system_info.get("memory_used"),
+            "memory_total": system_info.get("memory_total"),
+            "disk_percent": system_info.get("disk_percent"),
+            "disk_used": system_info.get("disk_used"),
+            "disk_total": system_info.get("disk_total"),
         })
     
     return {"agents": result, "total": len(result)}
@@ -1738,7 +1752,7 @@ FRPC_CONFIG
 log_ok "配置文件已创建"
 
 # 5. 创建系统服务
-log_info "[5/5] 创建系统服务..."
+log_info "[5/6] 创建 FRPC 系统服务..."
 if [ "$OS" = "linux" ]; then
     cat > /etc/systemd/system/frpc.service << 'SYSTEMD_SERVICE'
 [Unit]
@@ -1758,9 +1772,34 @@ SYSTEMD_SERVICE
     systemctl daemon-reload
     systemctl enable frpc
     systemctl start frpc
-    log_ok "systemd 服务已创建并启动"
+    log_ok "FRPC systemd 服务已创建并启动"
+    
+    # 如果 Agent 存在，创建 Agent 服务
+    if [ -f "$INSTALL_DIR/frp-agent" ]; then
+        log_info "[6/6] 创建 Agent 系统服务..."
+        cat > /etc/systemd/system/frp-agent.service << AGENT_SERVICE
+[Unit]
+Description=FRP Manager Agent
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=$INSTALL_DIR/frp-agent -server ws://$SERVER_IP:8080/ws/agent -id $CLIENT_ID -token $AUTH_TOKEN
+Restart=always
+RestartSec=5
+Environment=FRP_INSTALL_DIR=$INSTALL_DIR
+
+[Install]
+WantedBy=multi-user.target
+AGENT_SERVICE
+
+        systemctl daemon-reload
+        systemctl enable frp-agent
+        systemctl start frp-agent
+        log_ok "Agent systemd 服务已创建并启动"
+    fi
 else
-    # macOS: 创建 launchd plist
+    # macOS: 创建 launchd plist for FRPC
     PLIST_PATH="$HOME/Library/LaunchAgents/com.frp.client.plist"
     mkdir -p "$HOME/Library/LaunchAgents"
     cat > "$PLIST_PATH" << PLIST
@@ -1784,7 +1823,44 @@ else
 </plist>
 PLIST
     launchctl load "$PLIST_PATH"
-    log_ok "launchd 服务已创建并启动"
+    log_ok "FRPC launchd 服务已创建并启动"
+    
+    # 如果 Agent 存在，创建 Agent 服务
+    if [ -f "$INSTALL_DIR/frp-agent" ]; then
+        log_info "[6/6] 创建 Agent launchd 服务..."
+        AGENT_PLIST="$HOME/Library/LaunchAgents/com.frp-manager.agent.plist"
+        cat > "$AGENT_PLIST" << AGENT_PLIST_CONTENT
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.frp-manager.agent</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>$INSTALL_DIR/frp-agent</string>
+        <string>-server</string>
+        <string>ws://$SERVER_IP:8080/ws/agent</string>
+        <string>-id</string>
+        <string>$CLIENT_ID</string>
+        <string>-token</string>
+        <string>$AUTH_TOKEN</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>FRP_INSTALL_DIR</key>
+        <string>$INSTALL_DIR</string>
+    </dict>
+</dict>
+</plist>
+AGENT_PLIST_CONTENT
+        launchctl load "$AGENT_PLIST"
+        log_ok "Agent launchd 服务已创建并启动"
+    fi
 fi
 
 echo ""
@@ -1796,12 +1872,19 @@ echo "安装目录: $INSTALL_DIR"
 echo "客户端 ID: $CLIENT_ID"
 echo "服务器: $SERVER_IP:$FRPS_PORT"
 echo ""
+if [ -f "$INSTALL_DIR/frp-agent" ]; then
+    echo -e "${{GREEN}}✓ Agent 已安装并启动 (WebSocket 实时监控)${{NC}}"
+else
+    echo -e "${{YELLOW}}! Agent 未安装 (仅 FRPC 隧道功能)${{NC}}"
+fi
+echo ""
 log_info "现在可以返回 Web 管理面板继续操作！"
 echo ""
 
 if [ "$OS" = "linux" ]; then
     echo "常用命令:"
-    echo "  查看状态: sudo systemctl status frpc"
+    echo "  查看 FRPC 状态: sudo systemctl status frpc"
+    echo "  查看 Agent 状态: sudo systemctl status frp-agent"
     echo "  查看日志: sudo journalctl -u frpc -f"
 fi
 echo ""
