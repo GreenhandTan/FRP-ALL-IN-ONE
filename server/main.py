@@ -10,6 +10,7 @@ import re
 import time
 import asyncio
 from websocket_manager import manager as ws_manager
+import frp_deploy
 
 models.Base.metadata.create_all(bind=engine)
 

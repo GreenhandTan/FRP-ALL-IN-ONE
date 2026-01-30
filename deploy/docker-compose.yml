@@ -12,6 +12,7 @@ services:
       - frp-data:/opt/frp       # FRP 文件持久化
       - ./frps.toml:/app/frps.toml  # FRPS 配置文件（可读写）
       - /var/run/docker.sock:/var/run/docker.sock  # Docker Socket（允许重启容器）
+      - /opt/agent-binaries:/opt/agent-binaries:ro # Agent 二进制文件（只读）
     # 注意：数据库不持久化，每次部署都是全新开始
 
   # 2. Web 界面 (Nginx + React)
