@@ -736,15 +736,16 @@ function RegisteredClientCard({ client, frpProxies, formatBytes, t, nowSec, onAd
                 <span>{online ? t('dashboard.clients.online') : t('dashboard.clients.offline')}</span>
                 <span className="text-slate-300">|</span>
                 <span>ID: {shortId}</span>
-                {client.hostname && (
+                {client.hostname && client.hostname !== client.name && (
                   <>
                     <span className="text-slate-300">|</span>
                     <span title="Hostname">{client.hostname}</span>
                   </>
                 )}
                 {client.agent_version && (
-                  <span className="px-1.5 py-0.5 bg-slate-100 rounded text-xs text-slate-500 border border-slate-200">
-                    v{client.agent_version}
+                  <span className="flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200" title="Agent Version">
+                    <span className="text-[10px] text-slate-400 uppercase">Agent</span>
+                    <span className="text-xs text-slate-600 font-medium">v{client.agent_version}</span>
                   </span>
                 )}
               </div>
@@ -789,7 +790,7 @@ function RegisteredClientCard({ client, frpProxies, formatBytes, t, nowSec, onAd
             onClick={() => onAddTunnel(client.id)}
             className="flex items-center gap-1 bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shadow-sm shadow-emerald-200"
           >
-            {t('add_tunnel')}
+            {t('dashboard.clients.addTunnel')}
           </button>
         </div>
       </div>
