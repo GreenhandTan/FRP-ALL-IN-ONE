@@ -1391,32 +1391,19 @@ webServer.port = 7400
 FRPC_CONFIG
 log_ok "配置文件已创建"
 
-# 5. 创建系统服务
-log_info "[5/6] 创建 FRPC 系统服务..."
+# 5. 创建系统服务（只创建 Agent 服务，由 Agent 管理 FRPC）
+log_info "[5/5] 创建系统服务..."
 if [ "$OS" = "linux" ]; then
-    cat > /etc/systemd/system/frpc.service << 'SYSTEMD_SERVICE'
-[Unit]
-Description=FRP Client Service
-After=network.target
-
-[Service]
-Type=simple
-ExecStart=/opt/frp/frpc -c /opt/frp/frpc.toml
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-SYSTEMD_SERVICE
-
-    systemctl daemon-reload
-    systemctl enable frpc
-    systemctl start frpc
-    log_ok "FRPC systemd 服务已创建并启动"
+    # 如果存在旧的 frpc.service，停止并禁用它
+    if systemctl is-active --quiet frpc 2>/dev/null; then
+        log_info "停止并禁用旧的 frpc.service..."
+        systemctl stop frpc
+        systemctl disable frpc
+        rm -f /etc/systemd/system/frpc.service
+    fi
     
-    # 如果 Agent 存在，创建 Agent 服务
+    # 创建 Agent 服务（Agent 会管理 FRPC 进程）
     if [ -f "$INSTALL_DIR/frp-agent" ]; then
-        log_info "[6/6] 创建 Agent 系统服务..."
         cat > /etc/systemd/system/frp-agent.service << AGENT_SERVICE
 [Unit]
 Description=FRP Manager Agent
@@ -1436,39 +1423,23 @@ AGENT_SERVICE
         systemctl daemon-reload
         systemctl enable frp-agent
         systemctl start frp-agent
-        log_ok "Agent systemd 服务已创建并启动"
+        log_ok "Agent 服务已创建并启动（Agent 将管理 FRPC 进程）"
+    else
+        log_warn "Agent 不存在，FRPC 需要手动启动"
     fi
 else
-    # macOS: 创建 launchd plist for FRPC
-    PLIST_PATH="$HOME/Library/LaunchAgents/com.frp.client.plist"
-    mkdir -p "$HOME/Library/LaunchAgents"
-    cat > "$PLIST_PATH" << PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.frp.client</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>$INSTALL_DIR/frpc</string>
-        <string>-c</string>
-        <string>$INSTALL_DIR/frpc.toml</string>
-    </array>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <true/>
-</dict>
-</plist>
-PLIST
-    launchctl load "$PLIST_PATH"
-    log_ok "FRPC launchd 服务已创建并启动"
+    # macOS: 如果存在旧的 frpc launchd 服务，停止并移除
+    FRPC_PLIST="$HOME/Library/LaunchAgents/com.frp.client.plist"
+    if [ -f "$FRPC_PLIST" ]; then
+        log_info "停止并移除旧的 frpc launchd 服务..."
+        launchctl unload "$FRPC_PLIST" 2>/dev/null || true
+        rm -f "$FRPC_PLIST"
+    fi
     
-    # 如果 Agent 存在，创建 Agent 服务
+    # 创建 Agent launchd 服务（Agent 会管理 FRPC 进程）
     if [ -f "$INSTALL_DIR/frp-agent" ]; then
-        log_info "[6/6] 创建 Agent launchd 服务..."
         AGENT_PLIST="$HOME/Library/LaunchAgents/com.frp-manager.agent.plist"
+        mkdir -p "$HOME/Library/LaunchAgents"
         cat > "$AGENT_PLIST" << AGENT_PLIST_CONTENT
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -1505,7 +1476,9 @@ PLIST
 </plist>
 AGENT_PLIST_CONTENT
         launchctl load "$AGENT_PLIST"
-        log_ok "Agent launchd 服务已创建并启动"
+        log_ok "Agent launchd 服务已创建并启动（Agent 将管理 FRPC 进程）"
+    else
+        log_warn "Agent 不存在，FRPC 需要手动启动"
     fi
 fi
 
