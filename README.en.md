@@ -1,17 +1,17 @@
 <div align="center">
   <h1>FRP-ALL-IN-ONE</h1>
-  <p>A web-based FRP intranet tunneling management system. Configure <b>FRPS</b>, generate <b>one-click client deployment scripts</b>, manage <b>device registration/heartbeat</b> and <b>port mappings</b> in the browser, with near real-time status/traffic and troubleshooting guidance.</p>
+  <p>A web-based FRP management system: <b>FRPS configuration</b>, <b>one-click client deployment</b>, <b>device registration/heartbeat</b>, <b>port mapping management</b>, with <b>real-time traffic monitoring</b> and <b>system resource monitoring</b>.</p>
   <p>
     <a href="https://github.com/GreenhandTan/FRP-ALL-IN-ONE/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/GreenhandTan/FRP-ALL-IN-ONE?style=flat&logo=github"></a>
     <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/GreenhandTan/FRP-ALL-IN-ONE?style=flat"></a>
     <img alt="Docker" src="https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white">
+    <img alt="Go" src="https://img.shields.io/badge/Go-00ADD8?style=flat&logo=go&logoColor=white">
     <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-009688?style=flat&logo=fastapi&logoColor=white">
     <img alt="React" src="https://img.shields.io/badge/React-61DAFB?style=flat&logo=react&logoColor=000">
-    <img alt="Vite" src="https://img.shields.io/badge/Vite-646CFF?style=flat&logo=vite&logoColor=white">
   </p>
   <p>
     <a href="#features">Features</a> ·
-    <a href="#quick-start-server">Quick Start</a> ·
+    <a href="#quick-start-server">Deployment</a> ·
     <a href="#ports">Ports</a> ·
     <a href="#troubleshooting">Troubleshooting</a> ·
     <a href="#license">License</a>
@@ -24,82 +24,125 @@
 </div>
 
 <a id="author"></a>
+
 ## Author & Community
 
 - Blog: https://greenhandtan.top
 
 <a id="stars"></a>
+
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=GreenhandTan/FRP-ALL-IN-ONE&type=date&legend=top-left)](https://www.star-history.com/#GreenhandTan/FRP-ALL-IN-ONE&type=date&legend=top-left)
 
 <a id="demo"></a>
-## Demo Screenshot
+
+## Demo
+
+### Main Dashboard
 
 <img src="demo.png" alt="FRP-ALL-IN-ONE Demo" width="900" />
 
+### Real-time Logs
+
+<img src="demo-logs.png" alt="FRP-ALL-IN-ONE Logs" width="900" />
+
 <a id="toc"></a>
+
 ## Table of Contents
 
-- [Key Features](#features)
+- [Core Features](#features)
 - [Architecture](#architecture)
 - [Quick Start (Server)](#quick-start-server)
 - [First-time Workflow](#first-time-workflow)
-- [Ports & Security Group](#ports)
-- [Monitoring & Metrics Semantics](#monitoring)
-- [Common Ops Commands](#ops)
+- [Ports & Security Groups](#ports)
+- [Monitoring & Statistics](#monitoring)
+- [Common Operations](#ops)
 - [Troubleshooting](#troubleshooting)
 - [Uninstall Client](#uninstall)
-- [Project Layout](#layout)
-- [Development](#development)
-- [License & Attribution Requirements](#license)
+- [Project Structure](#layout)
+- [Development & Build](#development)
+- [License & Requirements](#license)
 
 <a id="features"></a>
-## Key Features
 
-- **One-click deployment**: Docker Compose brings up the Manager, Web UI, and FRPS
-- **Setup Wizard**: configure FRPS bind port, token, and public IP in the UI
-- **One-click script**: generate client script (arch detection, systemd, autostart)
-- **Agent mechanism**: auto register, heartbeat, system monitoring, hot config reload
-- **Real-time dashboard**: WebSocket pushes status/traffic/connections every second
-- **Auto device recognition**: Agent reports hostname, OS, architecture; auto-names devices
-- **i18n**: Chinese/English switching
-- **Unified dialogs**: lightweight custom modals
+## Core Features
+
+### 🚀 Deployment & Management
+
+- **One-click Deployment**: Start management backend, web, and FRPS with Docker Compose
+- **Configuration Wizard**: Web interface for FRPS port, token, and public IP settings
+- **One-click Scripts**: Auto-generate client deployment scripts (multi-arch, systemd, auto-start)
+
+### 📊 Real-time Monitoring
+
+- **Real-time Traffic Monitoring**: Agent collects network speed every 3 seconds, pushed via WebSocket
+- **System Resource Monitoring**: Real-time display of CPU, memory, and disk usage
+- **Cumulative Traffic Statistics**: Top cards show total cumulative traffic from all clients
+- **Tunnel Traffic Statistics**: Each tunnel displays its own cumulative traffic
+
+### 🔧 Agent Mechanism
+
+- **Auto Registration**: Clients auto-report hostname, OS, architecture for device naming
+- **Heartbeat Reporting**: Periodic system metrics reporting (CPU, memory, disk, network speed)
+- **Hot Reload**: Hot reload configuration via FRPC Admin API without service restart
+- **Real-time Logs**: WebSocket push FRPC logs to console
+
+### 🌐 Other Features
+
+- **WebSocket Real-time Push**: Status updates every second, no manual refresh needed
+- **Internationalization**: Chinese/English language switching
+- **Unified Dialogs**: Site-wide lightweight dialog components
 
 <a id="architecture"></a>
+
 ## Architecture
 
-Runs as **3 containers** (all with `network_mode: host`):
-
-- **Web** (Nginx + React): management UI (default 80/TCP)
-- **Backend** (FastAPI + SQLite): APIs, WebSocket real-time push, config management
-- **FRPS**: FRP server (default 7000/TCP) + Dashboard (default 7500/TCP)
-
-Client side is managed by Agent:
-
-- **frp-agent**: core daemon, responsible for:
-  - Establishing WebSocket connection with the manager
-  - Auto-registering device (reports hostname, OS, architecture)
-  - Periodic heartbeat and system metrics (CPU, memory)
-  - Managing `frpc` process lifecycle
-  - Hot-reloading config via FRPC Admin API (no restart needed)
-- **frpc**: managed by Agent, connects to FRPS and carries proxy traffic
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        Server (3 Containers)                            │
+├─────────────────────────────────────────────────────────────────────────┤
+│  ┌─────────────┐    ┌─────────────────────┐    ┌─────────────────────┐  │
+│  │    Web      │    │      Backend        │    │       FRPS          │  │
+│  │ Nginx+React │◄──►│ FastAPI + SQLite    │◄──►│  FRP Server         │  │
+│  │   :80/TCP   │    │ WebSocket Real-time │    │  :7000 + :7500      │  │
+│  └─────────────┘    └─────────────────────┘    └─────────────────────┘  │
+│                              ▲                           ▲              │
+└──────────────────────────────│───────────────────────────│──────────────┘
+                               │ WebSocket                 │ Control
+                               │                           │
+┌──────────────────────────────│───────────────────────────│──────────────┐
+│                           Client                         │              │
+├──────────────────────────────────────────────────────────────────────────┤
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │                        frp-agent (Go)                           │    │
+│  │  • WebSocket connection to management server                    │    │
+│  │  • Auto-register device (hostname/OS/architecture)              │    │
+│  │  • Collect system metrics every 3 seconds (CPU/mem/disk/net)    │    │
+│  │  • Manage frpc process lifecycle                                │    │
+│  │  • Hot reload via FRPC Admin API                                │    │
+│  │  • Real-time log streaming                                      │    │
+│  └─────────────────────────────────────────────────────────────────┘    │
+│                              │                                           │
+│                              ▼                                           │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │                          frpc                                   │    │
+│  │              Connects to FRPS for proxy forwarding              │    │
+│  └─────────────────────────────────────────────────────────────────┘    │
+└──────────────────────────────────────────────────────────────────────────┘
+```
 
 <a id="quick-start-server"></a>
+
 ## Quick Start (Server)
 
 ### Prerequisites
 
-- A server with a public IP
+- A server with public IP
 - Docker & Docker Compose
-- Open ports at minimum: 80/TCP and FRPS bind port (default 7000/TCP)
+- Port forwarding (minimum): 80/TCP, FRPS port (default 7000/TCP)
 
-### Note on China-oriented mirrors (important for overseas users)
-
-Some images/mirror sources in this repository are configured for **users inside mainland China** (e.g. Docker image mirrors in `deploy/docker-compose.yml` and PyPI mirrors in `server/Dockerfile`).  
-If you are on an overseas network, you may need to edit those files and replace them with mirrors that best fit your environment before building.
-
-### One-click deployment
+### One-click Deployment
 
 ```bash
 git clone https://github.com/GreenhandTan/FRP-ALL-IN-ONE.git
@@ -109,15 +152,15 @@ chmod +x deploy.sh
 sudo ./deploy.sh
 ```
 
-### Default account
+### Default Credentials
 
 | Username | Password |
-|---------|----------|
-| admin | 123456 |
+| -------- | -------- |
+| admin    | 123456   |
 
-Change the default password immediately after first login.
+> ⚠️ Please change the default password immediately after login!
 
-### Low-memory servers (512MB–1GB)
+### Low Memory Servers (512MB-1GB)
 
 ```bash
 cd FRP-ALL-IN-ONE/deploy
@@ -126,176 +169,151 @@ sudo ./setup-swap.sh
 sudo ./deploy.sh
 ```
 
-### Data persistence (important)
+### Data Persistence Note
 
-The current `deploy/docker-compose.yml` does **not** mount the backend SQLite database persistently. If you recreate/clean containers, **device/tunnel data may be lost**.  
-FRPS config `deploy/frps.toml` is persisted on the host.
-
-If you need persistence, add a volume mount for the SQLite file (e.g. `frp_manager.db`) in `deploy/docker-compose.yml`.
+The current `docker-compose.yml` does not persist the backend SQLite database. To enable persistence, add a volume mount for the backend in `deploy/docker-compose.yml`.
 
 <a id="first-time-workflow"></a>
+
 ## First-time Workflow
 
-### 1) Login
+### 1) Login to Dashboard
 
-Open: `http://<your-server-public-ip>`
+Visit: `http://<SERVER_PUBLIC_IP>`
 
 ### 2) Configure FRPS (Wizard)
 
-Set:
+In the wizard, set:
 
-- bind port (default 7000)
-- public IP (auto-detect supported; enter manually if detection fails)
+- Listen port (default 7000)
+- Public IP (supports auto-detection)
 
-After deployment:
+### 3) Deploy Client
 
-- generates `deploy/frps.toml`
-- restarts the FRPS container (to apply Token)
-- displays Token & public IP in the UI
-
-Public IP detection supports multi-source probing. You can override sources via:
-
-- `PUBLIC_IP_URLS`: comma-separated URL list (optional)
-
-### 3) Deploy client (frpc + frp-agent)
-
-In the wizard “Client Script” step, download/copy the script and run on the intranet machine:
+Download the script from the wizard "Client Script" page and run on your LAN machine:
 
 ```bash
 chmod +x deploy-frpc.sh
 sudo ./deploy-frpc.sh
 ```
 
-The script will:
+### 4) Create Port Mapping
 
-- download the correct `frpc` binary
-- write `/opt/frp/frpc.toml` and systemd unit
-- install and start `frp-agent` (registration/heartbeat/config sync)
+In the "Device List" on the dashboard:
 
-### 4) Create port mappings
-
-In “Devices”:
-
-1. select a device → add mapping (TCP/UDP/HTTP/HTTPS)
-2. wait for agent sync & hot reload (no service restart required)
-3. access via `publicIP:remote_port` → `local_ip:local_port`
+1. Select device → Add mapping (TCP/UDP/HTTP/HTTPS)
+2. Wait for Agent to sync and hot reload
+3. Access internal service via `PUBLIC_IP:remote_port`
 
 <a id="ports"></a>
-## Ports & Security Group
 
-Recommended allow rules:
+## Ports & Security Groups
 
-| Port | Protocol | Usage |
-|------|----------|------|
-| 80 | TCP | Web UI |
-| 7000 (or your bindPort) | TCP | frpc control connection |
-| 49152-65535 | TCP/UDP | Recommended private port range for mappings (lower collision risk) |
+| Port                      | Protocol | Purpose                        |
+| ------------------------- | -------- | ------------------------------ |
+| 80                        | TCP      | Web management interface       |
+| 7000 (or custom bindPort) | TCP      | frpc control connection        |
+| 49152-65535               | TCP/UDP  | Recommended private port range |
 
-Notes:
-
-- Every `remote_port` you configure must be allowed inbound in your security group/firewall.
-- We recommend using the private range `49152-65535`, but it is not mandatory.
-
-Security:
-
-- FRPS Dashboard listens on 7500/TCP by default. Restrict its access (local-only or by firewall/security group).
+> 💡 Each `remote_port` needs to be allowed in security groups for external access.
 
 <a id="monitoring"></a>
-## Monitoring & Metrics Semantics
 
-- Data source: backend fetches `serverinfo` and `proxy/*` from FRPS Dashboard API.
-- Refresh: polling every ~3 seconds (near real-time).
-- “Online devices”: based on agent heartbeat `last_seen` (within 30 seconds).
-- “Traffic/Conns are 0” common reasons:
-  - `frpc` is connected, but no proxy traffic is passing
-  - port is not reachable (security group not allowed, not listening, etc.)
-  - mapping was just created and not synced/reloaded yet
+## Monitoring & Statistics
+
+### Data Refresh Frequency
+
+| Component                       | Refresh Rate             |
+| ------------------------------- | ------------------------ |
+| Agent system metrics collection | Every 3 seconds          |
+| WebSocket push to frontend      | Every 1 second           |
+| Frontend UI update              | Real-time (event-driven) |
+
+### Traffic Statistics Scope
+
+| Metric                       | Description                                                                         |
+| ---------------------------- | ----------------------------------------------------------------------------------- |
+| Top "Total Traffic"          | Machine-level cumulative traffic from all clients (includes all network traffic)    |
+| Client Card "In/Out Traffic" | Real-time network speed for that client (B/s, KB/s, MB/s)                           |
+| Tunnel "Total Traffic"       | Cumulative traffic for that tunnel (from FRPS API, updated after connection closes) |
+
+### Online Status Detection
+
+- Agent heartbeat `last_seen` within 30 seconds is considered online
+- WebSocket connection status displayed in real-time
 
 <a id="ops"></a>
-## Common Ops Commands
+
+## Common Operations
 
 ### Server (Docker)
 
 ```bash
 cd FRP-ALL-IN-ONE/deploy
 
+# Check status
 docker-compose ps
 docker-compose logs -f
 
+# Restart services
 docker-compose restart
 docker restart frps
 
+# Rebuild
 docker-compose down
 docker-compose up -d --build
 ```
 
-### Client (frpc)
+### Client
 
 ```bash
+# frpc status
 systemctl status frpc --no-pager
 journalctl -u frpc -n 200 --no-pager
 
-systemctl restart frpc
-```
-
-### Client (frp-agent)
-
-```bash
+# frp-agent status
 systemctl status frp-agent --no-pager
 journalctl -u frp-agent -n 200 --no-pager
-
-cat /opt/frp/agent.json
 ```
 
 <a id="troubleshooting"></a>
+
 ## Troubleshooting
 
-### Port mapping created but not accessible (SSH 6022→22 example)
+### Port Mapping Created but Cannot Access
 
-Check the path from outside to inside:
+1. **Check external connectivity** (test from a machine other than the server)
 
-1. connectivity from an external machine:
    ```bash
-   nc -vz <publicIP> 6022
+   nc -vz <PUBLIC_IP> <remote_port>
    ```
-2. security group/firewall: allow 6022/TCP (or your chosen port)
-3. is FRPS listening (on server):
+
+2. **Check security groups/firewall**: Ensure port is allowed
+
+3. **Check if FRPS is listening**
+
    ```bash
-   ss -lntp | grep :6022 || echo "no listener"
+   ss -lntp | grep :<remote_port>
    docker logs frps --tail 200
    ```
-4. did the client sync the mapping (on client machine):
+
+4. **Check client config sync**
    ```bash
-   grep -n "6022" /opt/frp/frpc.toml || true
+   grep -n "<remote_port>" /opt/frp/frpc.toml
    journalctl -u frp-agent -n 200 --no-pager
-   journalctl -u frpc -n 200 --no-pager
-   ```
-5. is SSH really listening on 22:
-   ```bash
-   ss -lntp | grep :22 || true
-   systemctl status ssh --no-pager || systemctl status sshd --no-pager
    ```
 
-### Device not shown / cannot register
+### Device Cannot Register / Not Showing
 
 ```bash
 systemctl status frp-agent --no-pager
 cat /opt/frp/agent.json
-systemctl cat frp-agent
 ```
 
-Ensure `FRP_MANAGER_URL` points to your manager and `FRP_MANAGER_REGISTER_TOKEN` is set in the service.
-
-### Token mismatch
-
-If server Token changed after re-deploy, clients must update. Recommended: re-download and run the latest client script; or edit manually:
-
-```bash
-nano /opt/frp/frpc.toml
-systemctl restart frpc
-```
+Ensure Agent service is running properly and can connect to the management server.
 
 <a id="uninstall"></a>
+
 ## Uninstall Client
 
 ```bash
@@ -304,22 +322,30 @@ chmod +x uninstall-frpc.sh
 sudo ./uninstall-frpc.sh
 ```
 
-Uninstall stops/disables `frpc/frp-agent` and cleans `/opt/frp` and systemd units.
-
 <a id="layout"></a>
-## Project Layout
+
+## Project Structure
 
 ```
 FRP-ALL-IN-ONE/
-├── agent/                 # device agent (register/heartbeat/config sync)
-├── server/                # backend API (FastAPI)
-├── frontend/              # web UI (React + Vite)
-├── deploy/                # deployment scripts & docker-compose
-└── README.md
+├── agent/                 # Client Agent (Go)
+│   ├── cmd/frp-agent/     # Main entry point
+│   └── internal/          # Internal modules
+│       ├── config/        # Configuration management
+│       ├── frpc/          # FRPC process management
+│       ├── logger/        # Log collection
+│       ├── monitor/       # System monitoring (CPU/memory/disk/network)
+│       └── ws/            # WebSocket client
+├── server/                # Backend API (FastAPI + SQLite)
+├── frontend/              # Web interface (React + Vite + TailwindCSS)
+├── deploy/                # Deployment scripts & docker-compose
+├── demo.png               # Demo screenshot
+└── demo-logs.png          # Logs feature screenshot
 ```
 
 <a id="development"></a>
-## Development
+
+## Development & Build
 
 ### Frontend
 
@@ -329,24 +355,47 @@ npm install
 npm run dev
 ```
 
+### Agent
+
+```bash
+cd agent
+go build -o frp-agent ./cmd/frp-agent
+```
+
 ### Backend
 
-Docker is the recommended way to run backend for consistency. If you need local run, refer to `server/` (FastAPI + SQLite).
+Backend runs most stably via Docker; for local development, refer to the `server/` directory.
 
 <a id="license"></a>
-## License & Attribution Requirements
 
-This project is licensed under the **MIT License**. See [LICENSE](LICENSE).
+## License & Requirements
 
-You may:
+This project is licensed under the **MIT License** (see [LICENSE](LICENSE)).
 
-- use it for free (personal/organization)
-- use it commercially for free
-- modify, redistribute, and ship derivatives
+You can:
+
+- Free use (personal/organizational)
+- Free commercial use
+- Modify, redistribute, and create derivative works
 
 You must:
 
-- keep the license and copyright notice
-- when re-posting, redistributing, or developing derivatives, attribute the original author as **GreenhandTan**
+- Retain license and copyright notice
+- Attribute original author as **GreenhandTan**
 
-For alternative licensing/authorization, contact via the blog: https://greenhandtan.top
+## 🛡️ Security Recommendations
+
+- ✅ Change default password immediately after first login
+- ✅ Use strong passwords (at least 12 characters)
+- ✅ Regularly update Docker images
+- ✅ Only open necessary ports in security groups
+- ✅ FRPS Dashboard (7500) should only allow localhost access
+
+## 🙏 Acknowledgements
+
+- [FRP](https://github.com/fatedier/frp) - Excellent reverse proxy tool
+- [gopsutil](https://github.com/shirou/gopsutil) - Go system monitoring library
+
+---
+
+**⭐ If this project helps you, please give us a Star!**

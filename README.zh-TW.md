@@ -1,98 +1,146 @@
 <div align="center">
   <h1>FRP-ALL-IN-ONE</h1>
-  <p>一個基於 Web 的 FRP 內網穿透管理系統：用瀏覽器完成 <b>FRPS 配置</b>、<b>客戶端一鍵部署</b>、<b>裝置註冊/心跳</b>、<b>連接埠映射管理</b>，並提供近即時的連線/流量展示與排障路徑。</p>
+  <p>一個基於 Web 的 FRP 內網穿透管理系統：用瀏覽器完成 <b>FRPS 配置</b>、<b>客戶端一鍵部署</b>、<b>設備註冊/心跳</b>、<b>端口映射管理</b>，並提供<b>實時流量監控</b>與<b>系統資源監控</b>。</p>
   <p>
     <a href="https://github.com/GreenhandTan/FRP-ALL-IN-ONE/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/GreenhandTan/FRP-ALL-IN-ONE?style=flat&logo=github"></a>
     <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/GreenhandTan/FRP-ALL-IN-ONE?style=flat"></a>
     <img alt="Docker" src="https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white">
+    <img alt="Go" src="https://img.shields.io/badge/Go-00ADD8?style=flat&logo=go&logoColor=white">
     <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-009688?style=flat&logo=fastapi&logoColor=white">
     <img alt="React" src="https://img.shields.io/badge/React-61DAFB?style=flat&logo=react&logoColor=000">
-    <img alt="Vite" src="https://img.shields.io/badge/Vite-646CFF?style=flat&logo=vite&logoColor=white">
   </p>
   <p>
-    <a href="#features">核心特性</a> ·
+    <a href="#features">功能特性</a> ·
     <a href="#quick-start-server">部署指南</a> ·
-    <a href="#ports">連接埠放行</a> ·
+    <a href="#ports">端口放行</a> ·
     <a href="#troubleshooting">排障</a> ·
     <a href="#license">開源協議</a>
   </p>
   <p>
-    <a href="README.md">簡體中文</a> |
+    <a href="README.md">简体中文</a> |
     <a href="README.en.md">English</a> |
     <a href="README.zh-TW.md">繁體中文</a>
   </p>
 </div>
 
 <a id="author"></a>
-## 作者與社群
+
+## 作者與社區
 
 - 部落格：https://greenhandtan.top
 
 <a id="stars"></a>
+
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=GreenhandTan/FRP-ALL-IN-ONE&type=date&legend=top-left)](https://www.star-history.com/#GreenhandTan/FRP-ALL-IN-ONE&type=date&legend=top-left)
 
 <a id="demo"></a>
+
 ## 效果演示
+
+### 主控制台
 
 <img src="demo.png" alt="FRP-ALL-IN-ONE Demo" width="900" />
 
+### 實時日誌
+
+<img src="demo-logs.png" alt="FRP-ALL-IN-ONE Logs" width="900" />
+
 <a id="toc"></a>
+
 ## 目錄
 
 - [核心特性](#features)
 - [架構說明](#architecture)
-- [快速開始（服務端）](#quick-start-server)
+- [快速開始（伺服器端）](#quick-start-server)
 - [首次使用流程](#first-time-workflow)
-- [連接埠與安全組](#ports)
-- [監控與統計口徑](#monitoring)
+- [端口與安全組](#ports)
+- [監控與統計說明](#monitoring)
 - [常用運維命令](#ops)
 - [排障指南](#troubleshooting)
 - [卸載客戶端](#uninstall)
-- [專案結構](#layout)
-- [開發與建置](#development)
+- [項目結構](#layout)
+- [開發與構建](#development)
 - [開源協議與使用要求](#license)
 
 <a id="features"></a>
+
 ## 核心特性
 
+### 🚀 部署與管理
+
 - **一鍵部署**：Docker Compose 啟動管理後台、Web、FRPS
-- **配置嚮導**：Web 中完成 FRPS 連接埠、Token、公網 IP 設定
-- **一鍵腳本**：自動生成客戶端腳本（含架構辨識、systemd、開機自啟）
-- **Agent 機制**：客戶端自動註冊、心跳上報、系統監控、配置熱重載
-- **即時面板**：WebSocket 每秒推送狀態/流量/連線數（無需手動刷新）
-- **裝置自動辨識**：Agent 自動上報 hostname、OS、架構，自動命名裝置
-- **國際化**：中文/英文切換
-- **統一彈窗**：全站使用同一套輕量彈窗元件
+- **配置嚮導**：Web 介面完成 FRPS 端口、Token、公網 IP 設置
+- **一鍵腳本**：自動生成客戶端部署腳本（支持多架構、systemd、開機自啟）
+
+### 📊 實時監控
+
+- **實時流量監控**：Agent 每 3 秒採集網路流量速率，WebSocket 實時推送
+- **系統資源監控**：CPU、記憶體、磁碟使用率實時顯示
+- **累計流量統計**：頂部卡片展示所有客戶端的累計總流量
+- **隧道流量統計**：每個隧道獨立顯示累計流量
+
+### 🔧 Agent 機制
+
+- **自動註冊**：客戶端自動上報 hostname、OS、架構，自動命名設備
+- **心跳上報**：定時上報系統指標（CPU、記憶體、磁碟、網路速率）
+- **配置熱重載**：通過 FRPC Admin API 熱重載配置，無需重啟服務
+- **實時日誌**：WebSocket 推送 FRPC 運行日誌到控制台
+
+### 🌐 其他特性
+
+- **WebSocket 實時推送**：每秒推送狀態更新，無需手動刷新
+- **國際化**：支持中文/英文切換
+- **統一彈窗**：全站使用輕量級彈窗組件
 
 <a id="architecture"></a>
+
 ## 架構說明
 
-本專案以 **3 個容器** 運行（皆使用 `network_mode: host`）：
-
-- **Web**（Nginx + React）：對外提供管理介面（預設 80/TCP）
-- **Backend**（FastAPI + SQLite）：提供 API、WebSocket 即時推送、配置管理
-- **FRPS**：FRP 服務端（預設 7000/TCP）+ Dashboard（預設 7500/TCP）
-
-客戶端側由 Agent 統一管理：
-
-- **frp-agent**：核心守護進程，負責：
-  - 與管理端建立 WebSocket 連線
-  - 自動註冊裝置（上報 hostname、OS、架構）
-  - 定時上報心跳和系統指標（CPU、記憶體）
-  - 管理 `frpc` 進程生命週期
-  - 透過 FRPC Admin API 熱重載配置（無需重啟）
-- **frpc**：由 Agent 託管，與 FRPS 建立控制連線並承載代理轉發
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           伺服器端（3 個容器）                            │
+├─────────────────────────────────────────────────────────────────────────┤
+│  ┌─────────────┐    ┌─────────────────────┐    ┌─────────────────────┐  │
+│  │    Web      │    │      Backend        │    │       FRPS          │  │
+│  │ Nginx+React │◄──►│ FastAPI + SQLite    │◄──►│  FRP Server         │  │
+│  │   :80/TCP   │    │ WebSocket 實時推送   │    │  :7000 + :7500      │  │
+│  └─────────────┘    └─────────────────────┘    └─────────────────────┘  │
+│                              ▲                           ▲              │
+└──────────────────────────────│───────────────────────────│──────────────┘
+                               │ WebSocket                 │ 控制連接
+                               │                           │
+┌──────────────────────────────│───────────────────────────│──────────────┐
+│                           客戶端                          │              │
+├──────────────────────────────────────────────────────────────────────────┤
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │                        frp-agent (Go)                           │    │
+│  │  • WebSocket 連接管理端                                          │    │
+│  │  • 自動註冊設備（hostname/OS/架構）                               │    │
+│  │  • 每 3 秒採集系統指標（CPU/記憶體/磁碟/網路速率）                  │    │
+│  │  • 管理 frpc 進程生命週期                                         │    │
+│  │  • 配置熱重載（通過 FRPC Admin API）                              │    │
+│  │  • 實時日誌推送                                                   │    │
+│  └─────────────────────────────────────────────────────────────────┘    │
+│                              │                                           │
+│                              ▼                                           │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │                          frpc                                   │    │
+│  │              與 FRPS 建立連接，承載代理轉發                         │    │
+│  └─────────────────────────────────────────────────────────────────┘    │
+└──────────────────────────────────────────────────────────────────────────┘
+```
 
 <a id="quick-start-server"></a>
-## 快速開始（服務端）
+
+## 快速開始（伺服器端）
 
 ### 前置要求
 
 - 一台具備公網 IP 的伺服器
 - Docker & Docker Compose
-- 連接埠放行（至少）：80/TCP、FRPS 連接埠（預設 7000/TCP）
+- 端口放行（至少）：80/TCP、FRPS 端口（預設 7000/TCP）
 
 ### 一鍵部署
 
@@ -104,13 +152,13 @@ chmod +x deploy.sh
 sudo ./deploy.sh
 ```
 
-### 預設帳號
+### 預設帳戶
 
-| 使用者名稱 | 密碼 |
-|--------|------|
-| admin | 123456 |
+| 用戶名 | 密碼   |
+| ------ | ------ |
+| admin  | 123456 |
 
-請登入後立即修改預設密碼。
+> ⚠️ 請登入後立即修改預設密碼！
 
 ### 低記憶體伺服器（512MB-1GB）
 
@@ -121,14 +169,12 @@ sudo ./setup-swap.sh
 sudo ./deploy.sh
 ```
 
-### 資料持久化說明（重要）
+### 數據持久化說明
 
-目前 `deploy/docker-compose.yml` 未對後端 SQLite 資料庫做持久化掛載；若你重建/清理容器，**裝置/隧道等管理資料可能會遺失**。  
-FRPS 配置檔 `deploy/frps.toml` 已在宿主機上持久化。
-
-若需持久化後台資料，可自行在 `deploy/docker-compose.yml` 中為 backend 增加卷掛載（例如將 `frp_manager.db` 掛載到宿主機目錄）。
+當前 `docker-compose.yml` 未對後端 SQLite 資料庫做持久化掛載。如需持久化，請在 `deploy/docker-compose.yml` 中為 backend 增加卷掛載。
 
 <a id="first-time-workflow"></a>
+
 ## 首次使用流程
 
 ### 1) 登入管理台
@@ -137,162 +183,137 @@ FRPS 配置檔 `deploy/frps.toml` 已在宿主機上持久化。
 
 ### 2) 配置 FRPS（嚮導）
 
-在嚮導中設定：
+在嚮導中設置：
 
-- 監聽連接埠（預設 7000）
-- 公網 IP（支援自動探測；失敗時手動輸入）
+- 監聽端口（預設 7000）
+- 公網 IP（支持自動探測）
 
-點擊部署後會：
+### 3) 部署客戶端
 
-- 生成 `deploy/frps.toml`
-- 重啟 FRPS 容器（確保 Token 生效）
-- 在頁面展示 Token、公網 IP
-
-公網 IP 自動探測支援多源探測，可用環境變數自訂探測源：
-
-- `PUBLIC_IP_URLS`：以逗號分隔 URL 清單（可選）
-
-### 3) 部署客戶端（frpc + frp-agent）
-
-在嚮導「客戶端腳本」頁面下載/複製腳本，在內網機器執行：
+在嚮導「客戶端腳本」頁面下載腳本，在內網機器執行：
 
 ```bash
 chmod +x deploy-frpc.sh
 sudo ./deploy-frpc.sh
 ```
 
-腳本會自動：
+### 4) 創建端口映射
 
-- 下載對應架構的 `frpc`
-- 寫入 `/opt/frp/frpc.toml` 與 systemd 服務
-- 安裝並啟動 `frp-agent`（用於裝置註冊/心跳/配置同步）
+在控制台「設備列表」中：
 
-### 4) 建立連接埠映射
-
-在控制台「裝置列表」中：
-
-1. 選擇裝置 → 新增映射（TCP/UDP/HTTP/HTTPS）
-2. 等待 Agent 同步並熱重載（無需重啟服務）
-3. 外部即可透過 `公網IP:remote_port` 存取到 `local_ip:local_port`
+1. 選擇設備 → 新增映射（TCP/UDP/HTTP/HTTPS）
+2. 等待 Agent 同步並熱重載
+3. 通過 `公網IP:remote_port` 訪問內網服務
 
 <a id="ports"></a>
-## 連接埠與安全組
 
-雲伺服器安全組/防火牆建議放行：
+## 端口與安全組
 
-| 連接埠 | 協議 | 用途 |
-|------|------|------|
-| 80 | TCP | Web 管理介面 |
-| 7000（或你設定的 bindPort） | TCP | frpc 控制連線 |
-| 49152-65535 | TCP/UDP | 推薦作為映射使用的私有連接埠範圍（衝突風險更低） |
+| 端口                      | 協議    | 用途               |
+| ------------------------- | ------- | ------------------ |
+| 80                        | TCP     | Web 管理介面       |
+| 7000（或自定義 bindPort） | TCP     | frpc 控制連接      |
+| 49152-65535               | TCP/UDP | 推薦的私有端口範圍 |
 
-說明：
-
-- 你在 Web 中建立的每個 `remote_port`，都必須在安全組中允許入站，否則外部無法存取。
-- 建議盡量使用 `49152-65535` 私有連接埠範圍；但不強制，你也可以使用其他連接埠（需確認未被占用且已放行）。
-
-安全建議：
-
-- FRPS Dashboard 預設監聽 7500/TCP，為避免暴露管理介面，建議僅允許本機存取（或透過安全組/防火牆限制來源 IP）。
+> 💡 每個 `remote_port` 都需要在安全組中放行才能從外部訪問。
 
 <a id="monitoring"></a>
-## 監控與統計口徑
 
-- 面板資料來源：後端從 FRPS Dashboard API 拉取 `serverinfo` 與各類 `proxy` 清單。
-- 頁面刷新：預設每 3 秒輪詢更新（近即時）。
-- 「線上裝置」：依據 Agent 上報心跳的 `last_seen` 計算（近 30 秒視為線上）。
-- 「流量/連線數為 0」的常見原因：
-  - 僅建立了 frpc 控制連線，但沒有任何代理流量
-  - 外部沒有存取到你的 `remote_port`（安全組未放行、連接埠未監聽等）
-  - 新建映射剛下發，尚未完成同步/熱重載
+## 監控與統計說明
+
+### 數據刷新頻率
+
+| 環節                 | 刷新頻率         |
+| -------------------- | ---------------- |
+| Agent 系統指標採集   | 每 3 秒          |
+| WebSocket 推送到前端 | 每 1 秒          |
+| 前端 UI 更新         | 實時（事件驅動） |
+
+### 流量統計口徑
+
+| 指標                        | 說明                                              |
+| --------------------------- | ------------------------------------------------- |
+| 頂部「總流量」              | 所有客戶端的機器級別累計流量（包含所有網路流量）  |
+| 客戶端卡片「傳入/傳出流量」 | 該客戶端的實時網路速率（B/s、KB/s、MB/s）         |
+| 隧道「總流量」              | 該隧道的累計流量（來自 FRPS API，連接關閉後更新） |
+
+### 在線狀態判斷
+
+- Agent 心跳 `last_seen` 在 30 秒內視為在線
+- WebSocket 連接狀態實時顯示
 
 <a id="ops"></a>
+
 ## 常用運維命令
 
-### 服務端（Docker）
+### 伺服器端（Docker）
 
 ```bash
 cd FRP-ALL-IN-ONE/deploy
 
+# 查看狀態
 docker-compose ps
 docker-compose logs -f
 
+# 重啟服務
 docker-compose restart
 docker restart frps
 
+# 重新構建
 docker-compose down
 docker-compose up -d --build
 ```
 
-### 客戶端（frpc）
+### 客戶端
 
 ```bash
+# frpc 狀態
 systemctl status frpc --no-pager
 journalctl -u frpc -n 200 --no-pager
 
-systemctl restart frpc
-```
-
-### 客戶端（frp-agent）
-
-```bash
+# frp-agent 狀態
 systemctl status frp-agent --no-pager
 journalctl -u frp-agent -n 200 --no-pager
-
-cat /opt/frp/agent.json
 ```
 
 <a id="troubleshooting"></a>
+
 ## 排障指南
 
-### 連接埠映射建立了但存取不了（以 SSH 6022→22 為例）
+### 端口映射創建了但訪問不了
 
-依鏈路由外到內排查：
+1. **檢查外網連通性**（在非伺服器本機測試）
 
-1. 外網連通性（在非伺服器本機測試）
    ```bash
-   nc -vz <公網IP> 6022
+   nc -vz <公網IP> <remote_port>
    ```
-2. 雲安全組/防火牆：確認 6022/TCP（或你選擇的連接埠）已放行
-3. FRPS 是否監聽該連接埠（在伺服器上）
+
+2. **檢查安全組/防火牆**：確認端口已放行
+
+3. **檢查 FRPS 是否監聽**
+
    ```bash
-   ss -lntp | grep :6022 || echo "no listener"
+   ss -lntp | grep :<remote_port>
    docker logs frps --tail 200
    ```
-4. 客戶端是否已同步到映射（在客戶端機器）
+
+4. **檢查客戶端配置同步**
    ```bash
-   grep -n "6022" /opt/frp/frpc.toml || true
+   grep -n "<remote_port>" /opt/frp/frpc.toml
    journalctl -u frp-agent -n 200 --no-pager
-   journalctl -u frpc -n 200 --no-pager
-   ```
-5. 客戶端本機 SSH 是否在 22 監聽
-   ```bash
-   ss -lntp | grep :22 || true
-   systemctl status ssh --no-pager || systemctl status sshd --no-pager
    ```
 
-### 客戶端看不到裝置/無法註冊
-
-檢查 `frp-agent` 是否啟動並寫入狀態：
+### 設備無法註冊/不顯示
 
 ```bash
 systemctl status frp-agent --no-pager
 cat /opt/frp/agent.json
-systemctl cat frp-agent
 ```
 
-確認 `FRP_MANAGER_URL` 指向你的管理端、`FRP_MANAGER_REGISTER_TOKEN` 已注入。
-
-### Token 不匹配導致 frpc 連線失敗
-
-服務端重新部署後 Token 變化，客戶端仍使用舊 Token。建議重新下載並執行最新客戶端腳本；或手動更新：
-
-```bash
-nano /opt/frp/frpc.toml
-systemctl restart frpc
-```
+確認 Agent 服務正常運行且能連接到管理端。
 
 <a id="uninstall"></a>
+
 ## 卸載客戶端
 
 ```bash
@@ -301,22 +322,30 @@ chmod +x uninstall-frpc.sh
 sudo ./uninstall-frpc.sh
 ```
 
-卸載會停止並禁用 `frpc/frp-agent`，並清理 `/opt/frp` 與 systemd 檔案。
-
 <a id="layout"></a>
-## 專案結構
+
+## 項目結構
 
 ```
 FRP-ALL-IN-ONE/
-├── agent/                 # 裝置端 Agent（自註冊/心跳/配置同步）
-├── server/                # 後端 API (FastAPI)
-├── frontend/              # Web 介面 (React + Vite)
+├── agent/                 # 設備端 Agent（Go 語言）
+│   ├── cmd/frp-agent/     # 主程式入口
+│   └── internal/          # 內部模組
+│       ├── config/        # 配置管理
+│       ├── frpc/          # FRPC 進程管理
+│       ├── logger/        # 日誌採集
+│       ├── monitor/       # 系統監控（CPU/記憶體/磁碟/網路）
+│       └── ws/            # WebSocket 客戶端
+├── server/                # 後端 API（FastAPI + SQLite）
+├── frontend/              # Web 介面（React + Vite + TailwindCSS）
 ├── deploy/                # 部署腳本 & docker-compose
-└── README.md
+├── demo.png               # 演示截圖
+└── demo-logs.png          # 日誌功能截圖
 ```
 
 <a id="development"></a>
-## 開發與建置
+
+## 開發與構建
 
 ### 前端
 
@@ -326,14 +355,22 @@ npm install
 npm run dev
 ```
 
+### Agent
+
+```bash
+cd agent
+go build -o frp-agent ./cmd/frp-agent
+```
+
 ### 後端
 
-後端以 Docker 方式運行最穩定；若需本機運行可參考 `server/` 目錄（FastAPI + SQLite）。
+後端以 Docker 方式運行最穩定；如需本地運行可參考 `server/` 目錄。
 
 <a id="license"></a>
+
 ## 開源協議與使用要求
 
-本專案採用 **MIT License**（見 [LICENSE](LICENSE)）。
+本項目採用 **MIT License**（見 [LICENSE](LICENSE)）。
 
 你可以：
 
@@ -343,7 +380,22 @@ npm run dev
 
 你需要遵守：
 
-- 轉載、二次開發、分發原始碼/二進位時，必須保留授權條款與版權聲明，並註明原作者為 **GreenhandTan（我）**
-- 不得移除或竄改專案中的版權/署名資訊
+- 保留許可證與版權聲明
+- 註明原作者為 **GreenhandTan**
 
-如需更寬鬆或更嚴格的授權方式，可透過部落格聯絡我： https://greenhandtan.top
+## 🛡️ 安全建議
+
+- ✅ 首次登入後立即修改預設密碼
+- ✅ 使用強密碼（至少 12 位）
+- ✅ 定期更新 Docker 映像
+- ✅ 安全組僅開放必要端口
+- ✅ FRPS Dashboard（7500）建議僅允許本機訪問
+
+## 🙏 致謝
+
+- [FRP](https://github.com/fatedier/frp) - 優秀的內網穿透工具
+- [gopsutil](https://github.com/shirou/gopsutil) - Go 系統監控庫
+
+---
+
+**⭐ 如果這個項目對您有幫助，請給我們一個 Star！**
