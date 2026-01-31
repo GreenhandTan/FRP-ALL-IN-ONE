@@ -312,6 +312,8 @@ async def websocket_dashboard(websocket: WebSocket):
                             "disk_total": ws_info.get("disk_total"),
                             "net_bytes_in": ws_info.get("net_bytes_in"),
                             "net_bytes_out": ws_info.get("net_bytes_out"),
+                            "net_speed_in": ws_info.get("net_speed_in"),
+                            "net_speed_out": ws_info.get("net_speed_out"),
                         })
                     else:
                         client_data["is_online"] = False
@@ -574,7 +576,9 @@ async def _handle_agent_message(client_id: str, msg: dict):
                 disk_total=data.get("disk_total"),
                 disk_percent=data.get("disk_percent"),
                 net_bytes_in=data.get("net_bytes_in"),
-                net_bytes_out=data.get("net_bytes_out")
+                net_bytes_out=data.get("net_bytes_out"),
+                net_speed_in=data.get("net_speed_in"),
+                net_speed_out=data.get("net_speed_out")
             )
             db.add(metrics)
             
@@ -752,7 +756,9 @@ async def get_agent_latest_metrics(
         "disk_total": latest.disk_total,
         "disk_percent": latest.disk_percent,
         "net_bytes_in": latest.net_bytes_in,
-        "net_bytes_out": latest.net_bytes_out
+        "net_bytes_out": latest.net_bytes_out,
+        "net_speed_in": latest.net_speed_in,
+        "net_speed_out": latest.net_speed_out
     }
 
 

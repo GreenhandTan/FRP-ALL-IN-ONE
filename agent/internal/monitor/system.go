@@ -27,6 +27,9 @@ type SystemInfo struct {
 	DiskPercent float64 `json:"disk_percent"`
 	NetBytesIn  uint64  `json:"net_bytes_in"`
 	NetBytesOut uint64  `json:"net_bytes_out"`
+	// 实时网络速率（字节/秒）
+	NetSpeedIn  uint64  `json:"net_speed_in"`
+	NetSpeedOut uint64  `json:"net_speed_out"`
 	Uptime      uint64  `json:"uptime"`
 }
 
@@ -35,9 +38,11 @@ type Monitor struct {
 	isRunning bool
 	OnMetrics func(SystemInfo)
 	
-	// 用于计算网络增量
-	lastNetIn  uint64
-	lastNetOut uint64
+	// 用于计算网络速率
+	lastNetIn   uint64
+	lastNetOut  uint64
+	lastCollect time.Time
+	initialized bool
 }
 
 // NewMonitor 创建新的监控器
@@ -106,8 +111,31 @@ func (m *Monitor) Collect() (SystemInfo, error) {
 	// 网络流量（累计值）
 	netInfo, err := net.IOCounters(false)
 	if err == nil && len(netInfo) > 0 {
-		info.NetBytesIn = netInfo[0].BytesRecv
-		info.NetBytesOut = netInfo[0].BytesSent
+		currentNetIn := netInfo[0].BytesRecv
+		currentNetOut := netInfo[0].BytesSent
+		
+		info.NetBytesIn = currentNetIn
+		info.NetBytesOut = currentNetOut
+		
+		// 计算网络速率（字节/秒）
+		if m.initialized {
+			elapsed := time.Since(m.lastCollect).Seconds()
+			if elapsed > 0 {
+				// 处理计数器溢出或重置的情况
+				if currentNetIn >= m.lastNetIn {
+					info.NetSpeedIn = uint64(float64(currentNetIn-m.lastNetIn) / elapsed)
+				}
+				if currentNetOut >= m.lastNetOut {
+					info.NetSpeedOut = uint64(float64(currentNetOut-m.lastNetOut) / elapsed)
+				}
+			}
+		}
+		
+		// 更新上次采集的值
+		m.lastNetIn = currentNetIn
+		m.lastNetOut = currentNetOut
+		m.lastCollect = time.Now()
+		m.initialized = true
 	}
 
 	return info, nil

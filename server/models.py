@@ -98,5 +98,7 @@ class SystemMetrics(Base):
     disk_used = Column(BigInteger, nullable=True)         # 已用磁盘 (bytes)
     disk_total = Column(BigInteger, nullable=True)        # 总磁盘 (bytes)
     disk_percent = Column(Float, nullable=True)           # 磁盘使用率
-    net_bytes_in = Column(BigInteger, nullable=True)      # 网络接收 (bytes)
-    net_bytes_out = Column(BigInteger, nullable=True)     # 网络发送 (bytes)
+    net_bytes_in = Column(BigInteger, nullable=True)      # 网络接收累计 (bytes)
+    net_bytes_out = Column(BigInteger, nullable=True)     # 网络发送累计 (bytes)
+    net_speed_in = Column(BigInteger, nullable=True)      # 网络接收速率 (bytes/s)
+    net_speed_out = Column(BigInteger, nullable=True)     # 网络发送速率 (bytes/s)

@@ -134,7 +134,7 @@ func main() {
 
 	// 启动各模块
 	go wsClient.Connect()
-	go sysMonitor.Start(5) // 每 5 秒采集一次
+	go sysMonitor.Start(3) // 每 3 秒采集一次（平衡实时性与资源开销）
 	go logCollector.Start()
 
 	// 启动 FRPC
