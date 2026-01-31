@@ -9,7 +9,8 @@ FRP Manager Agent - 智能客户端代理
 - 心跳上报（保持与服务端连接）
 
 使用:
-  frp-agent -server ws://your-server.com/ws/agent/CLIENT_ID -token YOUR_TOKEN
+
+	frp-agent -server ws://your-server.com/ws/agent/CLIENT_ID -token YOUR_TOKEN
 */
 package main
 
@@ -76,7 +77,7 @@ func main() {
 	logCollector := logger.NewCollector(cfg.LogPath, cfg.ClientID)
 	sysMonitor := monitor.NewMonitor()
 	frpcManager := frpc.NewManager(cfg.FRPCPath, cfg.ConfigPath, logCollector)
-	wsClient := ws.NewClient(cfg.ServerURL, cfg.ClientID, cfg.Token)
+	wsClient := ws.NewClient(cfg.ServerURL, cfg.ClientID, cfg.Token, version)
 
 	// 设置 WebSocket 消息处理器
 	wsClient.OnMessage = func(msg ws.Message) {

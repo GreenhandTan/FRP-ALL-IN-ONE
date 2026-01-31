@@ -24,6 +24,7 @@ type Client struct {
 	serverURL string
 	clientID  string
 	token     string
+	version   string // Agent 版本
 
 	conn         *websocket.Conn
 	mu           sync.Mutex
@@ -35,11 +36,12 @@ type Client struct {
 }
 
 // NewClient 创建新的 WebSocket 客户端
-func NewClient(serverURL, clientID, token string) *Client {
+func NewClient(serverURL, clientID, token, version string) *Client {
 	return &Client{
 		serverURL: serverURL,
 		clientID:  clientID,
 		token:     token,
+		version:   version,
 		reconnect: true,
 	}
 }
@@ -92,7 +94,7 @@ func (c *Client) connect() error {
 	// 发送注册消息（包含系统信息）
 	c.Send("register", map[string]string{
 		"client_id": c.clientID,
-		"version":   "1.0.0",
+		"version":   c.version,
 		"hostname":  hostname,
 		"os":        runtime.GOOS,
 		"arch":      runtime.GOARCH,
