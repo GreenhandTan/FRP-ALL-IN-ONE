@@ -326,6 +326,17 @@ npm install
 npm run dev
 ```
 
+### Agent (Go)
+
+如果修改了 Agent 代码，受限于当前 CI/CD 设置，你需要手动触发 GitHub Action 来重新编译二进制文件：
+
+1. 进入 GitHub 仓库 `Actions` 页签
+2. 选择左侧 `Build and Release Agent`
+3. 点击右侧 `Run workflow` 按钮
+4. 等待 Release 页面出现新的 `frp-agent` 二进制文件
+
+完成发布后，新安装的客户端将自动下载此版本。已安装的客户端需手动升级或卸载重装。
+
 ### 后端
 
 后端以 Docker 方式运行最稳定；如需本地运行可参考 `server/` 目录（FastAPI + SQLite）。
