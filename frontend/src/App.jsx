@@ -141,6 +141,7 @@ function App() {
     localStorage.removeItem('token');
     delete api.defaults.headers.common['Authorization'];
     setIsAuthenticated(false);
+    setShowChangePassword(false);
     setError(null); // Clear error on logout
   };
 
