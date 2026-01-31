@@ -17,6 +17,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/signal"
@@ -29,10 +30,30 @@ import (
 	"github.com/frp-manager/agent/internal/ws"
 )
 
+	"io"
+)
+
 var (
 	version   = "1.0.0"
 	buildTime = "unknown"
 )
+
+// LogBridge 实现 io.Writer，将日志写入 Collector
+type LogBridge struct {
+	collector *logger.Collector
+}
+
+func (l *LogBridge) Write(p []byte) (n int, err error) {
+	if len(p) > 0 {
+		// 去除末尾换行符
+		line := string(p)
+		if line[len(line)-1] == '\n' {
+			line = line[:len(line)-1]
+		}
+		l.collector.AddLine(line)
+	}
+	return len(p), nil
+}
 
 func main() {
 	// 命令行参数
@@ -75,6 +96,11 @@ func main() {
 
 	// 初始化各模块
 	logCollector := logger.NewCollector(cfg.LogPath, cfg.ClientID)
+
+	// 重定向标准日志到 Collector，以便捕获启动日志
+	logBridge := &LogBridge{collector: logCollector}
+	log.SetOutput(io.MultiWriter(os.Stdout, logBridge)) // 既输出到控制台，也输出到 Collector
+
 	sysMonitor := monitor.NewMonitor()
 	frpcManager := frpc.NewManager(cfg.FRPCPath, cfg.ConfigPath, logCollector)
 	wsClient := ws.NewClient(cfg.ServerURL, cfg.ClientID, cfg.Token, version)

@@ -25,6 +25,9 @@ class ConnectionManager:
         
         # 日志订阅者（client_id -> 订阅该客户端日志的 WebSocket 集合）
         self.log_subscribers: Dict[str, Set[WebSocket]] = {}
+        
+        # Agent 日志缓存（client_id -> deque）
+        self.agent_log_buffer: Dict[str, any] = {}
     
     # ========================
     # Dashboard 连接管理
@@ -137,6 +140,19 @@ class ConnectionManager:
             self.log_subscribers[client_id] = set()
         self.log_subscribers[client_id].add(websocket)
         logger.info(f"日志订阅: {client_id}，当前订阅者: {len(self.log_subscribers[client_id])}")
+
+        # 发送历史日志（如果有）
+        if client_id in self.agent_log_buffer:
+            history = list(self.agent_log_buffer[client_id])
+            if history:
+                try:
+                    # 批量发送或逐条发送，这里选择批量包装，但当前前端可能期待逐条
+                    # 为了兼容前端逐条处理：
+                    for log_entry in history:
+                        await websocket.send_json(log_entry)
+                except Exception as e:
+                    logger.warning(f"发送历史日志失败: {e}")
+
     
     def unsubscribe_logs(self, websocket: WebSocket, client_id: str):
         """取消日志订阅"""
@@ -146,12 +162,21 @@ class ConnectionManager:
                 del self.log_subscribers[client_id]
     
     async def broadcast_log(self, client_id: str, log_line: str):
-        """广播日志到所有订阅者"""
+        """广播日志到所有订阅者，并缓存最近日志"""
+        
+        message = {"type": "log", "data": log_line, "client_id": client_id}
+        
+        # 1. 缓存日志
+        if client_id not in self.agent_log_buffer:
+            from collections import deque
+            self.agent_log_buffer[client_id] = deque(maxlen=2000)
+        self.agent_log_buffer[client_id].append(message)
+        
+        # 2. 广播给订阅者
         subscribers = self.log_subscribers.get(client_id, set())
         if not subscribers:
             return
         
-        message = {"type": "log", "data": log_line, "client_id": client_id}
         disconnected = []
         
         for ws in subscribers:
