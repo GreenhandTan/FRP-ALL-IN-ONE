@@ -349,8 +349,12 @@ async def websocket_dashboard(websocket: WebSocket):
 
             await asyncio.sleep(1)
     except WebSocketDisconnect:
+        print("[WS Dashboard] Client disconnected normally")
         ws_manager.disconnect_dashboard(websocket)
     except Exception as e:
+        import traceback
+        print(f"[WS Dashboard] FATAL ERROR: {type(e).__name__}: {e}")
+        traceback.print_exc()  # 打印完整堆栈
         ws_manager.disconnect_dashboard(websocket)
 
 
