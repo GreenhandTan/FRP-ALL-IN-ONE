@@ -98,38 +98,24 @@
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        Server (3 Containers)                            │
-├─────────────────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐    ┌─────────────────────┐    ┌─────────────────────┐  │
-│  │    Web      │    │      Backend        │    │       FRPS          │  │
-│  │ Nginx+React │◄──►│ FastAPI + SQLite    │◄──►│  FRP Server         │  │
-│  │   :80/TCP   │    │ WebSocket Real-time │    │  :7000 + :7500      │  │
-│  └─────────────┘    └─────────────────────┘    └─────────────────────┘  │
-│                              ▲                           ▲              │
-└──────────────────────────────│───────────────────────────│──────────────┘
-                               │ WebSocket                 │ Control
-                               │                           │
-┌──────────────────────────────│───────────────────────────│──────────────┐
-│                           Client                         │              │
-├──────────────────────────────────────────────────────────────────────────┤
-│  ┌─────────────────────────────────────────────────────────────────┐    │
-│  │                        frp-agent (Go)                           │    │
-│  │  • WebSocket connection to management server                    │    │
-│  │  • Auto-register device (hostname/OS/architecture)              │    │
-│  │  • Collect system metrics every 3 seconds (CPU/mem/disk/net)    │    │
-│  │  • Manage frpc process lifecycle                                │    │
-│  │  • Hot reload via FRPC Admin API                                │    │
-│  │  • Real-time log streaming                                      │    │
-│  └─────────────────────────────────────────────────────────────────┘    │
-│                              │                                           │
-│                              ▼                                           │
-│  ┌─────────────────────────────────────────────────────────────────┐    │
-│  │                          frpc                                   │    │
-│  │              Connects to FRPS for proxy forwarding              │    │
-│  └─────────────────────────────────────────────────────────────────┘    │
-└──────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph Server["Server Docker Compose"]
+        Web["Web<br/>Nginx + React<br/>:80/TCP"]
+        Backend["Backend<br/>FastAPI + SQLite<br/>WebSocket Real-time"]
+        FRPS["FRPS<br/>FRP Server<br/>:7000 + :7500"]
+        Web <--> Backend
+        Backend <--> FRPS
+    end
+
+    subgraph Client["Client"]
+        Agent["frp-agent Go<br/>WebSocket connection<br/>Auto-register device<br/>Collect metrics every 3s<br/>Hot reload config"]
+        FRPC["frpc<br/>Connects to FRPS<br/>for proxy forwarding"]
+        Agent --> FRPC
+    end
+
+    Backend <-.->|"WebSocket<br/>heartbeat/metrics/logs"| Agent
+    FRPS <-->|"Control connection<br/>Data forwarding"| FRPC
 ```
 
 <a id="quick-start-server"></a>
