@@ -1200,11 +1200,8 @@ async def get_agent_install_script(
     download_base = "https://github.com/GreenhandTan/FRP-ALL-IN-ONE/releases/latest/download"
     
     if platform == "windows":
-        # Windows PowerShell 脚本
-        script = f'''# ============================================================
-# FRP Manager Agent + FRPC 一键安装脚本 (Windows)
 # ============================================================
-# 使用方法: 以管理员身份运行 PowerShell，然后执行此脚本
+# FRP Manager Agent + FRPC 一键安装脚本 (Windows)
 # ============================================================
 
 $ErrorActionPreference = "Stop"
@@ -1328,8 +1325,6 @@ Write-Host ""
         script = f'''#!/bin/bash
 # ============================================================
 # FRP Manager Agent + FRPC 一键安装脚本 (Linux/macOS)
-# ============================================================
-# 使用方法: chmod +x install.sh && sudo ./install.sh
 # ============================================================
 
 set -e

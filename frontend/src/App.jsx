@@ -53,25 +53,42 @@ function App() {
   // 当 WebSocket 收到新数据时更新状态
   useEffect(() => {
     if (!wsStatus) return;
-    const status = wsStatus.status;
+    const { status, registered_clients, agents } = wsStatus;
+
+    // 计算在线客户端数 (Agent在线 或 FRPC最近活跃)
+    const now = Math.floor(Date.now() / 1000);
+    const onlineClientsCount = (registered_clients || []).filter(c => {
+      const agent = (agents || []).find(a => a.client_id === c.id);
+      const agentOnline = agent?.is_online;
+      const frpcOnline = c.last_seen && (now - c.last_seen) < 90;
+      return agentOnline || frpcOnline;
+    }).length;
+
     if (status?.success) {
       setServerInfo(status.server_info || {});
       setFrpProxies(status.proxies || []);
       setStats((prev) => ({
         ...prev,
-        totalClients: status.total_clients || 0,
+        // 如果 FRPS 返回的 clientCounts 为 0 (可能因为没有活跃隧道)，则回退使用注册客户端总数
+        totalClients: Math.max(status.server_info?.clientCounts || 0, (registered_clients || []).length),
+        onlineClients: onlineClientsCount,
         totalProxies: status.total_proxies || 0,
         totalTrafficIn: status.aggregated_traffic_in ?? status.server_info?.totalTrafficIn ?? 0,
         totalTrafficOut: status.aggregated_traffic_out ?? status.server_info?.totalTrafficOut ?? 0,
+        onlineAgents: (agents || []).filter(a => a.is_online).length,
+      }));
+    } else {
+      // 即使 FRPSStatus 失败，也更新基于 DB 的统计
+      setStats((prev) => ({
+        ...prev,
+        totalClients: (registered_clients || []).length,
+        onlineClients: onlineClientsCount,
+        onlineAgents: (agents || []).filter(a => a.is_online).length,
       }));
     }
+
     setDisabledPorts(wsStatus.disabled_ports || []);
-    setRegisteredClients(wsStatus.registered_clients || []);
-    const agents = wsStatus.agents || [];
-    setStats((prev) => ({
-      ...prev,
-      onlineAgents: agents.filter((a) => a.is_online).length,
-    }));
+    setRegisteredClients(registered_clients || []);
   }, [wsStatus]);
 
   // 格式化流量
@@ -188,9 +205,12 @@ function App() {
         });
         setError(null); // Clear error on success
       } else {
-        // Show error message
-        setError(statusRes.data.message || "Failed to fetch server status");
-        // Don't clear old data to avoid flicker if just a temporary glitch
+        // Show warning but don't block UI
+        console.warn("Failed to fetch FRPS server status", statusRes.data.message);
+        // Fallback stats update
+        const registered = registeredRes.data || [];
+        setRegisteredClients(registered.map(c => ({ ...c, agent: (agentsRes.data?.agents || []).find(a => a.client_id === c.id) })));
+        // Don't set global error
       }
 
       setDisabledPorts(disabledRes.data.disabled_ports || []);
@@ -662,8 +682,12 @@ function RegisteredClientCard({ client, frpProxies, formatBytes, t, nowSec, onAd
   }, 0);
 
   // 优先使用 Agent 上报的机器总流量，如果不可用则回退到隧道流量之和
-  const machineIn = client.net_bytes_in !== undefined ? client.net_bytes_in : totalIn;
-  const machineOut = client.net_bytes_out !== undefined ? client.net_bytes_out : totalOut;
+  // Revert: 用户反馈机器总流量在重新部署时显示历史累计值，造成困惑，因此改回显示隧道流量之和（Session Traffic）
+  const trafficIn = totalIn;
+  const trafficOut = totalOut;
+
+  // const machineIn = client.net_bytes_in !== undefined ? client.net_bytes_in : totalIn;
+  // const machineOut = client.net_bytes_out !== undefined ? client.net_bytes_out : totalOut;
 
   const online = client.is_online !== undefined ? client.is_online : (client.last_seen && (nowSec - client.last_seen) < 30);
   const shortId = (client.id || '').slice(0, 8);
@@ -776,17 +800,17 @@ function RegisteredClientCard({ client, frpProxies, formatBytes, t, nowSec, onAd
         <div className="flex items-center gap-4 text-sm text-slate-500">
           <div className="flex gap-4">
             <div className="text-right">
-              {/* 修改 3: 此处显示机器总流量 (传入/传出) */}
-              <div className="flex items-center gap-1 justify-end text-slate-400 text-xs mb-0.5" title="机器总传入流量">
+              {/* 修改 3: 此处显示隧道总流量 (App Traffic) */}
+              <div className="flex items-center gap-1 justify-end text-slate-400 text-xs mb-0.5" title="隧道总传入流量">
                 <ArrowDown size={12} /> {t('dashboard.clients.trafficIn')}
               </div>
-              <div className="font-mono text-emerald-600 font-medium">{formatBytes(machineIn)}</div>
+              <div className="font-mono text-emerald-600 font-medium">{formatBytes(trafficIn)}</div>
             </div>
             <div className="text-right">
-              <div className="flex items-center gap-1 justify-end text-slate-400 text-xs mb-0.5" title="机器总传出流量">
+              <div className="flex items-center gap-1 justify-end text-slate-400 text-xs mb-0.5" title="隧道总传出流量">
                 <ArrowUp size={12} /> {t('dashboard.clients.trafficOut')}
               </div>
-              <div className="font-mono text-blue-600 font-medium">{formatBytes(machineOut)}</div>
+              <div className="font-mono text-blue-600 font-medium">{formatBytes(trafficOut)}</div>
             </div>
           </div>
 
