@@ -5,7 +5,7 @@ FROM docker.1ms.run/library/node:22-slim AS builder
 RUN npm config set registry https://registry.npmmirror.com
 
 # 限制 Node.js 内存为 512MB（避免 OOM）
-ENV NODE_OPTIONS="--max-old-space-size=512"
+ENV NODE_OPTIONS="--max-old-space-size=1024"
 
 WORKDIR /app
 COPY package*.json ./
