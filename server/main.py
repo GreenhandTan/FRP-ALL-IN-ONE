@@ -492,16 +492,11 @@ async def _handle_agent_message(client_id: str, msg: dict):
         try:
             crud.touch_client(db, client_id=client_id, status="online")
             
-            # 获取 hostname 并自动更新客户端名称
+            # 获取 hostname 并强制更新客户端名称 (废除手动改名)
             hostname = data.get("hostname") if isinstance(data, dict) else None
             if hostname:
                 client = crud.get_client(db, client_id=client_id)
-                # 如果客户端名称是默认生成的（device-XXXXXX, 6位数字）或等于 ID，则使用 hostname 更新
-                # 这样允许用户手动设置以 device- 开头的自定义名称（只要不是纯数字后缀）
-                import re
-                is_default_device_name = bool(re.match(r"^device-\d{6}$", client.name)) if client.name else False
-                
-                if client and (is_default_device_name or client.name == client_id):
+                if client and client.name != hostname:
                     crud.update_client_name(db, client_id=client_id, new_name=hostname)
             
             agent = db.query(models.AgentInfo).filter(

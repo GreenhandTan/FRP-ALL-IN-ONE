@@ -275,16 +275,7 @@ function App() {
     }
   };
 
-  const handleRenameClient = async (clientId, name) => {
-    const trimmed = (name || '').trim();
-    if (!trimmed) return;
-    try {
-      await api.patch(`/clients/${clientId}`, { name: trimmed });
-      await loadData();
-    } catch (err) {
-      setError(err.response?.data?.detail || err.message);
-    }
-  };
+
 
   const handleToggleTunnelEnabled = async (clientId, tunnelId, enabled) => {
     try {
@@ -495,7 +486,6 @@ function App() {
                 t={t}
                 nowSec={nowSec}
                 onAddTunnel={() => openAddTunnel(client.id)}
-                onRename={(name) => handleRenameClient(client.id, name)}
                 onToggleTunnelEnabled={(tunnelId, enabled) => handleToggleTunnelEnabled(client.id, tunnelId, enabled)}
                 onDeleteTunnel={(tunnelId) => handleDeleteTunnel(client.id, tunnelId)}
                 onShowLogs={(clientId) => setShowLogsClient(clientId)}
@@ -661,13 +651,7 @@ function StatCard({ title, value, icon, gradient, subtext }) {
   )
 }
 
-function RegisteredClientCard({ client, frpProxies, formatBytes, t, nowSec, onAddTunnel, onRename, onToggleTunnelEnabled, onDeleteTunnel, onShowLogs }) {
-  const [editingName, setEditingName] = useState(false);
-  const [nameDraft, setNameDraft] = useState(client.name);
-
-  useEffect(() => {
-    setNameDraft(client.name);
-  }, [client.name]);
+function RegisteredClientCard({ client, frpProxies, formatBytes, t, nowSec, onAddTunnel, onToggleTunnelEnabled, onDeleteTunnel, onShowLogs }) {
 
   const proxiesByName = (frpProxies || []).reduce((acc, p) => {
     if (p?.name) acc[p.name] = p;
@@ -733,42 +717,7 @@ function RegisteredClientCard({ client, frpProxies, formatBytes, t, nowSec, onAd
           <div>
             <div className="flex items-center gap-2">
               <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
-                {editingName ? (
-                  <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                    <input
-                      type="text"
-                      className="border border-emerald-200 rounded px-2 py-0.5 text-sm focus:outline-none focus:border-emerald-500"
-                      value={nameDraft}
-                      onChange={(e) => setNameDraft(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          onRename(client.id, nameDraft);
-                          setEditingName(false);
-                        }
-                      }}
-                      autoFocus
-                    />
-                    <button
-                      onClick={() => {
-                        onRename(client.id, nameDraft);
-                        setEditingName(false);
-                      }}
-                      className="text-emerald-600 hover:text-emerald-700"
-                    >
-                      <CheckCircle size={14} />
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    {client.name}
-                    <button
-                      onClick={() => setEditingName(true)}
-                      className="text-slate-300 hover:text-emerald-600 transition-colors"
-                    >
-                      <span className="text-xs border border-slate-200 rounded px-1">编辑</span>
-                    </button>
-                  </>
-                )}
+                {client.name}
               </h3>
             </div>
             <div className="flex flex-col gap-1 mt-1">
@@ -784,12 +733,6 @@ function RegisteredClientCard({ client, frpProxies, formatBytes, t, nowSec, onAd
 
                 <span className="text-slate-300">|</span>
                 <span>ID: {shortId}</span>
-                {client.hostname && client.hostname !== client.name && (
-                  <>
-                    <span className="text-slate-300">|</span>
-                    <span title="Hostname">{client.hostname}</span>
-                  </>
-                )}
 
               </div>
 
