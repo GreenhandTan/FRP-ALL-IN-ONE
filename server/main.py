@@ -427,7 +427,7 @@ def _render_frpc_toml(db: Session, client: models.Client) -> str | None:
 
     lines = [
         f'serverAddr = "{server_ip}"',
-        f"serverPort = {int(frps_port)}",
+        f"serverPort = {int(frps_port or 7000)}",
         f'auth.token = "{auth_token}"',
         "",
         '# Admin API',
@@ -449,7 +449,8 @@ def _render_frpc_toml(db: Session, client: models.Client) -> str | None:
         lines.append(f'name = "{proxy_name}"')
         lines.append(f'type = "{proxy_type}"')
         lines.append(f'localIP = "{t.local_ip}"')
-        lines.append(f"localPort = {int(t.local_port)}")
+        lines.append(f'localIP = "{t.local_ip}"')
+        lines.append(f"localPort = {int(t.local_port or 0)}")
 
         if t.remote_port:
             lines.append(f"remotePort = {int(t.remote_port)}")
