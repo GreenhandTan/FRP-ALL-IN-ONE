@@ -442,8 +442,8 @@ def _render_frpc_toml(db: Session, client: models.Client) -> str | None:
 
         proxy_type = t.type.value if hasattr(t.type, "value") else str(t.type)
         # 清洗名称，防止 TOML 语法错误 (例如包含双引号)
-        safe_client_name = client.name.replace('"', '').strip()
-        safe_tunnel_name = t.name.replace('"', '').strip()
+        safe_client_name = (client.name or "unknown").replace('"', '').strip()
+        safe_tunnel_name = (t.name or f"tun_{t.id}").replace('"', '').strip()
         proxy_name = f"{safe_client_name}.{safe_tunnel_name}"
         lines.append("[[proxies]]")
         lines.append(f'name = "{proxy_name}"')
