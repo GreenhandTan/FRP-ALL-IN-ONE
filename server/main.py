@@ -449,7 +449,6 @@ def _render_frpc_toml(db: Session, client: models.Client) -> str | None:
         lines.append(f'name = "{proxy_name}"')
         lines.append(f'type = "{proxy_type}"')
         lines.append(f'localIP = "{t.local_ip}"')
-        lines.append(f'localIP = "{t.local_ip}"')
         lines.append(f"localPort = {int(t.local_port or 0)}")
 
         if t.remote_port:
@@ -963,6 +962,7 @@ async def get_frps_status(
         normalized_server_info["totalTrafficOut"] = _to_bytes(_get_any(normalized_server_info, ["totalTrafficOut", "total_traffic_out"], 0), 0)
 
         return {
+            "success": True,  # 前端依赖此字段判断成功
             "server_info": normalized_server_info,
             "total_clients": len(clients),
             "total_proxies": len(all_proxies),
