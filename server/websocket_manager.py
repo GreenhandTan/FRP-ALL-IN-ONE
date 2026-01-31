@@ -176,6 +176,21 @@ class ConnectionManager:
             "online_agents": list(self.agent_connections.keys()),
             "log_subscribers": {k: len(v) for k, v in self.log_subscribers.items()}
         }
+    
+    async def broadcast_ping(self):
+        """向所有连接的 Agent 发送 Ping"""
+        if not self.agent_connections:
+            return
+            
+        disconnected = []
+        for client_id, ws in self.agent_connections.items():
+            try:
+                await ws.send_json({"type": "ping"})
+            except Exception:
+                disconnected.append(client_id)
+        
+        for client_id in disconnected:
+            self.disconnect_agent(client_id)
 
 
 # 全局连接管理器实例

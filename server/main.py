@@ -48,6 +48,18 @@ def init_database():
     
     print("[OK] 数据库初始化完成")
 
+    # 启动后台 Ping 任务
+    asyncio.create_task(background_ping_task())
+
+async def background_ping_task():
+    """定期发送 Ping 保持 WebSocket 连接活跃"""
+    while True:
+        await asyncio.sleep(30) # 每 30 秒 Ping 一次
+        try:
+            await ws_manager.broadcast_ping()
+        except Exception as e:
+            print(f"[Error] Ping 广播失败: {e}")
+
 # 依赖项
 def get_db():
     db = SessionLocal()
@@ -1439,6 +1451,11 @@ log_info "[5/5] 创建系统服务..."
 if [ "$OS" = "linux" ]; then
     # 创建 Agent 服务（Agent 会管理 FRPC 进程）
     if [ -f "$INSTALL_DIR/frp-agent" ]; then
+        # 清理可能存在的独立 FRPC 服务，防止冲突
+        systemctl stop frpc 2>/dev/null || true
+        systemctl disable frpc 2>/dev/null || true
+        rm -f /etc/systemd/system/frpc.service 2>/dev/null || true
+        
         cat > /etc/systemd/system/frp-agent.service << AGENT_SERVICE
 [Unit]
 Description=FRP Manager Agent
@@ -1465,6 +1482,10 @@ AGENT_SERVICE
 else
     # macOS: 创建 Agent launchd 服务（Agent 会管理 FRPC 进程）
     if [ -f "$INSTALL_DIR/frp-agent" ]; then
+        # 清理可能存在的独立 FRPC 服务，防止冲突
+        launchctl unload ~/Library/LaunchAgents/frpc.plist 2>/dev/null || true
+        rm -f ~/Library/LaunchAgents/frpc.plist 2>/dev/null || true
+
         AGENT_PLIST="$HOME/Library/LaunchAgents/com.frp-manager.agent.plist"
         mkdir -p "$HOME/Library/LaunchAgents"
         cat > "$AGENT_PLIST" << AGENT_PLIST_CONTENT
