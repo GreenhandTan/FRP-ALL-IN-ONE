@@ -513,7 +513,7 @@ function App() {
       {showChangePassword && (
         <ChangePassword
           onClose={() => setShowChangePassword(false)}
-          onSuccess={() => setShowChangePassword(false)}
+          onSuccess={handleLogout}
         />
       )}
 
