@@ -168,7 +168,14 @@ function App() {
         });
 
         const now = Math.floor(Date.now() / 1000);
-        const onlineClients = registered.filter((c) => c.last_seen && (now - c.last_seen) < 30).length;
+        // 修正：在线客户端统计逻辑
+        // 只要 Agent 在线，或者 FRPC 最近有心跳 (last_seen < 90s)，都算在线
+        const onlineClients = registered.filter((c) => {
+          const agentOnline = agentMap[c.id]?.is_online;
+          const frpcOnline = c.last_seen && (now - c.last_seen) < 90;
+          return agentOnline || frpcOnline;
+        }).length;
+
         const onlineAgents = agents.filter(a => a.is_online).length;
         const si = statusRes.data.server_info || {};
 

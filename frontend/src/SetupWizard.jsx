@@ -524,12 +524,20 @@ export default function SetupWizard({ onSetupComplete }) {
                             </>
                         )}
 
-                        <button
+                        {/* <button
                             onClick={onSetupComplete}
                             className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-medium py-3 rounded-xl hover:opacity-90 transition-opacity shadow-lg shadow-emerald-500/20"
                         >
                             {t('setup.finish')}
-                        </button>
+                        </button> */}
+                        <div className="flex justify-center mt-6">
+                            <button
+                                onClick={onSetupComplete}
+                                className="text-emerald-400 hover:text-emerald-300 text-sm font-medium transition-colors"
+                            >
+                                {t('setup.finish')} &rarr;
+                            </button>
+                        </div>
                     </>
                 )}
             </div>
