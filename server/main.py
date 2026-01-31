@@ -1394,12 +1394,10 @@ log_info "[2/5] 下载 FRPC v$FRP_VERSION..."
 FRP_URL="https://github.com/fatedier/frp/releases/download/v${{FRP_VERSION}}/frp_${{FRP_VERSION}}_${{OS}}_${{ARCH}}.tar.gz"
 log_info "下载地址: $FRP_URL"
 
-if command -v curl &> /dev/null; then
-    curl -fsSL "$FRP_URL" -o /tmp/frp.tar.gz
-elif command -v wget &> /dev/null; then
-    wget -q "$FRP_URL" -O /tmp/frp.tar.gz
+if command -v wget &> /dev/null; then
+    wget -q --show-progress "$FRP_URL" -O /tmp/frp.tar.gz
 else
-    log_error "需要 curl 或 wget"
+    log_error "需要 wget"
     exit 1
 fi
 
@@ -1417,11 +1415,10 @@ AGENT_FILENAME="frp-agent-${{OS}}-${{ARCH}}"
 GITHUB_URL="$DOWNLOAD_BASE/$AGENT_FILENAME"
 log_info "下载地址: $GITHUB_URL"
 
-if command -v curl &> /dev/null; then
-    curl -fsSL --connect-timeout 60 "$GITHUB_URL" -o "$AGENT_PATH"
-elif command -v wget &> /dev/null; then
-    wget -q "$GITHUB_URL" -O "$AGENT_PATH"
+if command -v wget &> /dev/null; then
+    wget -q --show-progress "$GITHUB_URL" -O "$AGENT_PATH"
 else
+    log_error "需要 wget"
     false
 fi
 
@@ -1450,11 +1447,6 @@ log_info "[5/5] 创建系统服务..."
 if [ "$OS" = "linux" ]; then
     # 创建 Agent 服务（Agent 会管理 FRPC 进程）
     if [ -f "$INSTALL_DIR/frp-agent" ]; then
-        # 清理可能存在的独立 FRPC 服务，防止冲突
-        systemctl stop frpc 2>/dev/null || true
-        systemctl disable frpc 2>/dev/null || true
-        rm -f /etc/systemd/system/frpc.service 2>/dev/null || true
-        
         cat > /etc/systemd/system/frp-agent.service << AGENT_SERVICE
 [Unit]
 Description=FRP Manager Agent
@@ -1481,10 +1473,6 @@ AGENT_SERVICE
 else
     # macOS: 创建 Agent launchd 服务（Agent 会管理 FRPC 进程）
     if [ -f "$INSTALL_DIR/frp-agent" ]; then
-        # 清理可能存在的独立 FRPC 服务，防止冲突
-        launchctl unload ~/Library/LaunchAgents/frpc.plist 2>/dev/null || true
-        rm -f ~/Library/LaunchAgents/frpc.plist 2>/dev/null || true
-
         AGENT_PLIST="$HOME/Library/LaunchAgents/com.frp-manager.agent.plist"
         mkdir -p "$HOME/Library/LaunchAgents"
         cat > "$AGENT_PLIST" << AGENT_PLIST_CONTENT
@@ -1549,9 +1537,9 @@ echo ""
 
 if [ "$OS" = "linux" ]; then
     echo "常用命令:"
-    echo "  查看 FRPC 状态: sudo systemctl status frpc"
+    # echo "  查看 FRPC 状态: sudo systemctl status frpc" # 已移除独立服务
     echo "  查看 Agent 状态: sudo systemctl status frp-agent"
-    echo "  查看日志: sudo journalctl -u frpc -f"
+    echo "  查看日志: sudo journalctl -u frp-agent -f"
 fi
 echo ""
 '''
