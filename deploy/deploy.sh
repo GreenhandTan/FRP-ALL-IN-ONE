@@ -166,7 +166,7 @@ show_info() {
     echo ""
     echo "[下一步]"
     echo "   1. 访问 Web 界面使用默认账户登录"
-    echo "   2. 点击钥匙图标修改默认密码"
+    echo "   2. 注意部署完成后点击钥匙图标修改默认密码"
     echo "   3. 配置 FRPS 参数"
     echo "   4. 下载生成的 FRPC 脚本到内网机器"
     echo ""
@@ -184,7 +184,6 @@ main() {
     check_memory
     clean_old_services
     check_ports
-
     deploy_services
     show_info
 }
