@@ -128,6 +128,8 @@ flowchart TB
 - Docker & Docker Compose
 - Port forwarding (minimum): 80/TCP, FRPS port (default 7000/TCP)
 
+> 💡 **For users outside China**: The Dockerfiles use mirror sources optimized for China. If you're deploying from other regions, you may need to modify the mirror sources in `frontend/Dockerfile` and `server/Dockerfile` for better performance.
+
 ### One-click Deployment
 
 ```bash
