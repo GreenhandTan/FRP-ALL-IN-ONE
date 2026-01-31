@@ -493,8 +493,8 @@ async def _handle_agent_message(client_id: str, msg: dict):
             hostname = data.get("hostname") if isinstance(data, dict) else None
             if hostname:
                 client = crud.get_client(db, client_id=client_id)
-                # 如果客户端名称是默认生成的（device-XXXXX 格式），则使用 hostname 更新
-                if client and client.name and client.name.startswith("device-"):
+                # 如果客户端名称是默认生成的（device-XXXXX 格式）或等于 ID，则使用 hostname 更新
+                if client and client.name and (client.name.startswith("device-") or client.name == client_id):
                     crud.update_client_name(db, client_id=client_id, new_name=hostname)
             
             agent = db.query(models.AgentInfo).filter(
