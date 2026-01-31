@@ -807,10 +807,15 @@ async def get_frps_status(
     auth = ("admin", dashboard_pwd)
     server_info = {}
 
-    # 1. 探测可用地址并获取服务器信息
+    # 1. 探测可用地址并获取服务器信息（异步非阻塞，避免卡死 WebSocket）
+    loop = asyncio.get_running_loop()
+    
+    async def _fetch(url, timeout=5):
+        return await loop.run_in_executor(None, lambda: requests.get(f"{url}/serverinfo", auth=auth, timeout=timeout))
+
     for url in possible_urls:
         try:
-            resp = requests.get(f"{url}/serverinfo", auth=auth, timeout=5)
+            resp = await _fetch(url)
             if resp.status_code == 200:
                 base_url = url
                 server_info = resp.json()
@@ -895,9 +900,10 @@ async def get_frps_status(
             }
 
         # 获取代理列表（TCP）
+        # 获取代理列表（TCP）
         tcp_proxies = []
         try:
-            resp = requests.get(f"{base_url}/proxy/tcp", auth=auth, timeout=5)
+            resp = await loop.run_in_executor(None, lambda: requests.get(f"{base_url}/proxy/tcp", auth=auth, timeout=5))
             if resp.status_code == 200:
                 data = resp.json()
                 tcp_proxies = data.get("proxies", []) or []
@@ -905,9 +911,10 @@ async def get_frps_status(
             pass
         
         # 获取代理列表（UDP）
+        # 获取代理列表（UDP）
         udp_proxies = []
         try:
-            resp = requests.get(f"{base_url}/proxy/udp", auth=auth, timeout=5)
+            resp = await loop.run_in_executor(None, lambda: requests.get(f"{base_url}/proxy/udp", auth=auth, timeout=5))
             if resp.status_code == 200:
                 data = resp.json()
                 udp_proxies = data.get("proxies", []) or []
@@ -915,9 +922,10 @@ async def get_frps_status(
             pass
         
         # 获取代理列表（HTTP）
+        # 获取代理列表（HTTP）
         http_proxies = []
         try:
-            resp = requests.get(f"{base_url}/proxy/http", auth=auth, timeout=5)
+            resp = await loop.run_in_executor(None, lambda: requests.get(f"{base_url}/proxy/http", auth=auth, timeout=5))
             if resp.status_code == 200:
                 data = resp.json()
                 http_proxies = data.get("proxies", []) or []
