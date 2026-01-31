@@ -298,6 +298,8 @@ async def websocket_dashboard(websocket: WebSocket):
                             "disk_percent": ws_info.get("disk_percent"),
                             "disk_used": ws_info.get("disk_used"),
                             "disk_total": ws_info.get("disk_total"),
+                            "net_bytes_in": ws_info.get("net_bytes_in"),
+                            "net_bytes_out": ws_info.get("net_bytes_out"),
                         })
                     else:
                         client_data["is_online"] = False
@@ -937,12 +939,14 @@ async def get_frps_status(
         normalized_server_info["totalTrafficOut"] = _to_bytes(_get_any(normalized_server_info, ["totalTrafficOut", "total_traffic_out"], 0), 0)
 
         return {
-            "success": True,
             "server_info": normalized_server_info,
             "total_clients": len(clients),
             "total_proxies": len(all_proxies),
             "clients": clients,
-            "proxies": all_proxies
+            "proxies": all_proxies,
+            # 手动计算所有代理的当日流量总和 (以此作为实时总流量参考)
+            "aggregated_traffic_in": sum(p.get("today_traffic_in", 0) for p in all_proxies),
+            "aggregated_traffic_out": sum(p.get("today_traffic_out", 0) for p in all_proxies)
         }
         
     except requests.exceptions.ConnectionError:

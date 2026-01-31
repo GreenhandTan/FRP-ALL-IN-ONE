@@ -61,8 +61,8 @@ function App() {
         ...prev,
         totalClients: status.total_clients || 0,
         totalProxies: status.total_proxies || 0,
-        totalTrafficIn: status.server_info?.totalTrafficIn || 0,
-        totalTrafficOut: status.server_info?.totalTrafficOut || 0,
+        totalTrafficIn: status.aggregated_traffic_in ?? status.server_info?.totalTrafficIn ?? 0,
+        totalTrafficOut: status.aggregated_traffic_out ?? status.server_info?.totalTrafficOut ?? 0,
       }));
     }
     setDisabledPorts(wsStatus.disabled_ports || []);
@@ -661,9 +661,13 @@ function RegisteredClientCard({ client, frpProxies, formatBytes, t, nowSec, onAd
     return sum + (proxy?.cur_conns || proxy?.curConns || 0);
   }, 0);
 
+  // 优先使用 Agent 上报的机器总流量，如果不可用则回退到隧道流量之和
+  const machineIn = client.net_bytes_in !== undefined ? client.net_bytes_in : totalIn;
+  const machineOut = client.net_bytes_out !== undefined ? client.net_bytes_out : totalOut;
+
   const online = client.is_online !== undefined ? client.is_online : (client.last_seen && (nowSec - client.last_seen) < 30);
   const shortId = (client.id || '').slice(0, 8);
-  const osIcon = client.os ? (client.os.toLowerCase().includes('windows') ? '🪟' : client.os.toLowerCase().includes('darwin') ? '🍎' : '🐧') : '🖥️';
+  //const osIcon = client.os ? (client.os.toLowerCase().includes('windows') ? '🪟' : client.os.toLowerCase().includes('darwin') ? '🍎' : '🐧') : '🖥️';
 
   // 渲染系统资源条
   const renderSystemBar = (percent, label, colorClass) => {
@@ -687,9 +691,11 @@ function RegisteredClientCard({ client, frpProxies, formatBytes, t, nowSec, onAd
       <div className="px-6 py-5 border-b border-emerald-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-emerald-50/30">
         <div className="flex items-center gap-4">
           <div className="relative">
-            <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${online ? 'bg-emerald-100' : 'bg-slate-100'}`}>
-              {osIcon}
+            {/* 修改 1: 默认 Server 图标 + 状态绿点 */}
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-emerald-600 ${online ? 'bg-emerald-100' : 'bg-slate-100 text-slate-400'}`}>
+              <Server size={24} />
             </div>
+            {/* 状态点：在线显示绿点，离线显示灰点 */}
             <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${online ? 'bg-emerald-500' : 'bg-slate-400'}`} />
           </div>
           <div>
@@ -735,8 +741,15 @@ function RegisteredClientCard({ client, frpProxies, formatBytes, t, nowSec, onAd
             </div>
             <div className="flex flex-col gap-1 mt-1">
               <div className="flex items-center gap-2 text-sm text-slate-500 font-mono">
-                <span className={`w-2 h-2 rounded-full ${online ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
-                <span>{online ? t('dashboard.clients.online') : t('dashboard.clients.offline')}</span>
+                {/* 修改 2: 移除 "在线" 文字，显示系统信息 */}
+                {online && client.os && client.arch ? (
+                  <span className="flex items-center gap-1 text-xs bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">
+                    {client.os}/{client.arch}
+                  </span>
+                ) : (
+                  <span>{online ? 'Unknown' : t('dashboard.clients.offline')}</span>
+                )}
+
                 <span className="text-slate-300">|</span>
                 <span>ID: {shortId}</span>
                 {client.hostname && client.hostname !== client.name && (
@@ -763,16 +776,17 @@ function RegisteredClientCard({ client, frpProxies, formatBytes, t, nowSec, onAd
         <div className="flex items-center gap-4 text-sm text-slate-500">
           <div className="flex gap-4">
             <div className="text-right">
-              <div className="flex items-center gap-1 justify-end text-slate-400 text-xs mb-0.5">
+              {/* 修改 3: 此处显示机器总流量 (传入/传出) */}
+              <div className="flex items-center gap-1 justify-end text-slate-400 text-xs mb-0.5" title="机器总传入流量">
                 <ArrowDown size={12} /> {t('dashboard.clients.trafficIn')}
               </div>
-              <div className="font-mono text-emerald-600 font-medium">{formatBytes(totalIn)}</div>
+              <div className="font-mono text-emerald-600 font-medium">{formatBytes(machineIn)}</div>
             </div>
             <div className="text-right">
-              <div className="flex items-center gap-1 justify-end text-slate-400 text-xs mb-0.5">
+              <div className="flex items-center gap-1 justify-end text-slate-400 text-xs mb-0.5" title="机器总传出流量">
                 <ArrowUp size={12} /> {t('dashboard.clients.trafficOut')}
               </div>
-              <div className="font-mono text-blue-600 font-medium">{formatBytes(totalOut)}</div>
+              <div className="font-mono text-blue-600 font-medium">{formatBytes(machineOut)}</div>
             </div>
           </div>
 
