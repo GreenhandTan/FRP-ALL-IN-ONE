@@ -522,7 +522,7 @@ async def _handle_agent_message(client_id: str, msg: dict):
             db.close()
     
     elif msg_type == "system_info":
-        # 系统信息上报
+        # 系统信息上报 (同时视作心跳)
         if not isinstance(data, dict):
             return
         
@@ -531,6 +531,20 @@ async def _handle_agent_message(client_id: str, msg: dict):
         
         db = SessionLocal()
         try:
+            # 更新在线状态和心跳时间
+            crud.touch_client(db, client_id=client_id, status="online")
+            agent = db.query(models.AgentInfo).filter(
+                models.AgentInfo.client_id == client_id
+            ).first()
+            
+            if agent:
+                agent.last_heartbeat = datetime.utcnow()
+                agent.is_online = True
+                # 更新其他 Agent 信息
+                if "hostname" in data: agent.hostname = data["hostname"]
+                if "os" in data: agent.os = data["os"]
+                if "arch" in data: agent.arch = data["arch"]
+            
             # 存储系统指标
             metrics = models.SystemMetrics(
                 client_id=client_id,
