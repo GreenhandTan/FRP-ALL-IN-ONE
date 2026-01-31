@@ -506,7 +506,6 @@ async def _handle_agent_message(client_id: str, msg: dict):
                     # is_online=True, # 已移除
                     # last_heartbeat=datetime.utcnow() # 已移除
                 )
-                )
                 db.add(agent)
             
             db.commit()
