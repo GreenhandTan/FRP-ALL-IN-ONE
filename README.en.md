@@ -253,10 +253,6 @@ docker-compose up -d --build
 ### Client
 
 ```bash
-# frpc status
-systemctl status frpc --no-pager
-journalctl -u frpc -n 200 --no-pager
-
 # frp-agent status
 systemctl status frp-agent --no-pager
 journalctl -u frp-agent -n 200 --no-pager
