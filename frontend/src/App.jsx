@@ -449,9 +449,6 @@ function App() {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-slate-800">{t('dashboard.clients.title')}</h2>
-            <div className="text-xs text-slate-500">
-              {t('dashboard.clients.autoRefresh')}
-            </div>
           </div>
 
           {registeredClients.length > 0 ? (

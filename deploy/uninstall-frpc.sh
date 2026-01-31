@@ -32,9 +32,9 @@ if [ "$OS" = "darwin" ]; then
     # 删除安装目录
     rm -rf /opt/frp
     
-    # 清理进程
-    pkill -9 -f "frpc" 2>/dev/null || true
-    pkill -9 -f "frp-agent" 2>/dev/null || true
+    # 清理残留进程 (排除自身脚本)
+    pgrep -f "frpc" | grep -v $$ | xargs kill -9 2>/dev/null || true
+    pgrep -f "frp-agent" | grep -v $$ | xargs kill -9 2>/dev/null || true
     
     echo -e "${GREEN}[OK]${NC} macOS 上的 FRP 已移除"
     
@@ -58,9 +58,9 @@ elif [ "$OS" = "linux" ]; then
     # 删除安装目录
     rm -rf /opt/frp
     
-    # 清理残留进程
-    pkill -9 -f "/opt/frp/frpc" 2>/dev/null || true
-    pkill -9 -f "/opt/frp/frp-agent" 2>/dev/null || true
+    # 清理残留进程 (排除自身脚本)
+    pgrep -f "/opt/frp/frpc" | grep -v $$ | xargs kill -9 2>/dev/null || true
+    pgrep -f "/opt/frp/frp-agent" | grep -v $$ | xargs kill -9 2>/dev/null || true
     
     echo -e "${GREEN}[OK]${NC} Linux 上的 FRP 已移除"
     
