@@ -493,8 +493,7 @@ async def _handle_agent_message(client_id: str, msg: dict):
                 agent.arch = data.get("arch", agent.arch) if isinstance(data, dict) else agent.arch
                 agent.agent_version = data.get("version", agent.agent_version) if isinstance(data, dict) else agent.agent_version
                 agent.platform = data.get("platform", agent.platform) if isinstance(data, dict) else agent.platform
-                agent.is_online = True
-                agent.last_heartbeat = datetime.utcnow()
+                # is_online 和 last_heartbeat 已移除
             else:
                 # 创建新记录
                 agent = models.AgentInfo(
@@ -504,8 +503,9 @@ async def _handle_agent_message(client_id: str, msg: dict):
                     arch=data.get("arch") if isinstance(data, dict) else None,
                     agent_version=data.get("version") if isinstance(data, dict) else None,
                     platform=data.get("platform") if isinstance(data, dict) else None,
-                    is_online=True,
-                    last_heartbeat=datetime.utcnow()
+                    # is_online=True, # 已移除
+                    # last_heartbeat=datetime.utcnow() # 已移除
+                )
                 )
                 db.add(agent)
             
