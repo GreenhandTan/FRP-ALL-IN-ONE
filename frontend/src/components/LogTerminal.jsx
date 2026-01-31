@@ -47,16 +47,35 @@ const LogTerminal = ({ clientId, onClose, clientName }) => {
         ws.onmessage = (event) => {
             if (document.hidden && logs.length > 2000) return; // 简单的性能保护
             try {
-                const content = event.data;
+                // Server sends JSON string: {"type": "log", "data": "...", ...}
+                const message = JSON.parse(event.data);
+
+                // Only handle log messages
+                if (message.type !== 'log' && message.type !== 'info') return;
+
+                let content = message.data || "";
+
+                // ANSI Color Code Stripper Regex
+                // Removes \x1b[...] sequences
+                content = content.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+
                 if (!isPaused) {
                     setLogs(prev => {
-                        const newLogs = [...prev, { type: 'log', content, ts: Date.now() }];
+                        const newLogs = [...prev, { type: message.type || 'log', content, ts: Date.now() }];
                         if (newLogs.length > 1000) return newLogs.slice(newLogs.length - 1000);
                         return newLogs;
                     });
                 }
             } catch (e) {
-                console.error("Log error", e);
+                // Fallback for non-JSON raw text (just in case)
+                console.warn("Log parsing warning:", e);
+                const content = event.data;
+                if (!isPaused) {
+                    setLogs(prev => {
+                        const newLogs = [...prev, { type: 'log', content, ts: Date.now() }];
+                        return newLogs.slice(-1000);
+                    });
+                }
             }
         };
 
@@ -148,8 +167,8 @@ const LogTerminal = ({ clientId, onClose, clientName }) => {
                     )}
                     {logs.map((log, i) => (
                         <div key={i} className={`font-mono text-[13px] leading-5 break-words whitespace-pre-wrap ${log.type === 'error' ? 'text-red-400 bg-red-900/10' :
-                                log.type === 'info' ? 'text-blue-400 bg-blue-900/10' :
-                                    'text-slate-300 hover:bg-white/5'
+                            log.type === 'info' ? 'text-blue-400 bg-blue-900/10' :
+                                'text-slate-300 hover:bg-white/5'
                             }`}>
                             <span className="inline-block w-[85px] text-slate-600 select-none text-[11px] mr-2">{new Date(log.ts).toLocaleTimeString()}</span>
                             {log.content}
