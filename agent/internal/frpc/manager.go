@@ -235,8 +235,7 @@ func (m *Manager) hotReload() error {
 		resp.Body.Close()
 	}
 
-	// 如果失败（例如 404），尝试旧版 API /api/reload
-	log.Println("[FRPC] v1 API 失败，尝试旧版 API /api/reload")
+	// 尝试旧版 API /api/reload (兼容旧版 FRPC)
 	resp, err = client.Get("http://127.0.0.1:7400/api/reload")
 	if err != nil {
 		return fmt.Errorf("请求失败: %v", err)
