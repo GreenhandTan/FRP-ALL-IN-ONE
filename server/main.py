@@ -505,21 +505,7 @@ async def _handle_agent_message(client_id: str, msg: dict):
         if toml:
             await ws_manager.push_config_to_agent(client_id, toml)
     
-    elif msg_type == "heartbeat":
-        # Agent 心跳
-        db = SessionLocal()
-        try:
-            crud.touch_client(db, client_id=client_id, status="online")
-            agent = db.query(models.AgentInfo).filter(
-                models.AgentInfo.client_id == client_id
-            ).first()
-            
-            if agent:
-                agent.last_heartbeat = datetime.utcnow()
-                agent.is_online = True
-                db.commit()
-        finally:
-            db.close()
+
     
     elif msg_type == "system_info":
         # 系统信息上报 (同时视作心跳)
