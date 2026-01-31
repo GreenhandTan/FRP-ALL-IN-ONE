@@ -30,9 +30,6 @@ import (
 	"github.com/frp-manager/agent/internal/ws"
 )
 
-	"io"
-)
-
 var (
 	version   = "1.0.0"
 	buildTime = "unknown"
