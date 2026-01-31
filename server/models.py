@@ -78,8 +78,9 @@ class AgentInfo(Base):
     arch = Column(String, nullable=True)                  # 架构
     agent_version = Column(String, nullable=True)         # Agent 版本
     platform = Column(String, nullable=True)              # 平台详情
-    last_heartbeat = Column(DateTime, default=datetime.utcnow)  # 最后心跳时间
-    is_online = Column(Boolean, default=False)            # 是否在线
+    agent_version = Column(String, nullable=True)         # Agent 版本
+    platform = Column(String, nullable=True)              # 平台详情
+    # last_heartbeat 和 is_online 已移除，改用 Client 表的 last_seen 和 ws_manager 动态状态
     created_at = Column(DateTime, default=datetime.utcnow)
 
 

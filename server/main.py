@@ -524,8 +524,8 @@ async def _handle_agent_message(client_id: str, msg: dict):
             ).first()
             
             if agent:
-                agent.last_heartbeat = datetime.utcnow()
-                agent.is_online = True
+                # agent.last_heartbeat = datetime.utcnow() # 已移除
+                # agent.is_online = True # 已移除
                 # 更新其他 Agent 信息
                 if "hostname" in data: agent.hostname = data["hostname"]
                 if "os" in data: agent.os = data["os"]
@@ -619,7 +619,7 @@ async def get_agents(
             "agent_version": agent.agent_version,
             "platform": agent.platform,
             "is_online": is_ws_connected,
-            "last_heartbeat": agent.last_heartbeat.isoformat() if agent.last_heartbeat else None,
+            # "last_heartbeat": agent.last_heartbeat, # 已移除
             "created_at": agent.created_at.isoformat() if agent.created_at else None,
             # 实时系统信息
             "cpu_percent": system_info.get("cpu_percent"),
