@@ -75,8 +75,10 @@ function App() {
         // 如果 FRPS 返回的 clientCounts 为 0，回退使用注册数
         totalClients: Math.max(status.server_info?.clientCounts || 0, (registered_clients || []).length),
         onlineClients: onlineClientsCount,
-        // 代理总数 = 数据库配置的隧道总数 (实时响应用户操作)
+        // 代理总数 = 数据库配置的隧道总数 (Configured)
         totalProxies: configuredTunnelsCount,
+        // 在线代理数 = FRPS 返回的活跃列表长度 (Active)
+        activeProxies: status.proxies?.length || status.total_proxies || 0,
         totalTrafficIn: status.aggregated_traffic_in ?? status.server_info?.totalTrafficIn ?? 0,
         totalTrafficOut: status.aggregated_traffic_out ?? status.server_info?.totalTrafficOut ?? 0,
         onlineAgents: (agents || []).filter(a => a.is_online).length,
@@ -88,6 +90,7 @@ function App() {
         totalClients: (registered_clients || []).length,
         onlineClients: onlineClientsCount,
         totalProxies: configuredTunnelsCount,
+        activeProxies: 0, // Fallback unknown
         onlineAgents: (agents || []).filter(a => a.is_online).length,
       }));
     }
@@ -454,7 +457,7 @@ function App() {
             value={stats.totalClients}
             icon={<Server className="text-white" />}
             gradient="from-emerald-500 to-teal-600"
-            subtext={`${stats.totalProxies} ${t('dashboard.clients.proxies')}`}
+            subtext={`${t('dashboard.clients.proxies')}: ${stats.activeProxies || 0} / ${stats.totalProxies}`}
           />
           <StatCard
             title={t('dashboard.stats.onlineClients')}
