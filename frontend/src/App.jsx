@@ -214,7 +214,7 @@ function App() {
         setError(null); // Clear error on success
       } else {
         // Show warning but don't block UI
-        console.warn("Failed to fetch FRPS server status", statusRes.data.message);
+        console.warn("Failed to fetch FRPS server status", statusRes.data?.message || statusRes.data?.detail || "Unknown error");
         // Fallback stats update
         const registered = registeredRes.data || [];
         setRegisteredClients(registered.map(c => ({ ...c, agent: (agentsRes.data?.agents || []).find(a => a.client_id === c.id) })));
