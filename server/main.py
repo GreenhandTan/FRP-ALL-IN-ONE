@@ -278,7 +278,6 @@ async def websocket_dashboard(websocket: WebSocket):
                                 "local_port": t.local_port,
                                 "remote_port": t.remote_port,
                                 "custom_domains": t.custom_domains,
-                                "status": t.status,
                             }
                             for t in c.tunnels
                         ],
