@@ -166,7 +166,6 @@ const LogTerminal = ({ clientId, onClose, clientName }) => {
                         <div key={i} className={`font-mono text-[13px] leading-5 break-words whitespace-pre-wrap ${log.type === 'error' ? 'text-red-400 bg-red-900/10' :
                             log.type === 'info' ? 'text-blue-400 bg-blue-900/10' : 'hover:bg-white/5' // Default text color handled by Ansi or inherit
                             }`}>
-                            <span className="inline-block w-[85px] text-slate-600 select-none text-[11px] mr-2 align-top">{new Date(log.ts).toLocaleTimeString()}</span>
                             <span className="text-slate-300">
                                 <Ansi>{log.content}</Ansi>
                             </span>
