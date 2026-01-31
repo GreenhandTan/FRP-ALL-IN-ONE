@@ -811,7 +811,7 @@ async def get_frps_status(
     # 1. 探测可用地址并获取服务器信息
     for url in possible_urls:
         try:
-            resp = requests.get(f"{url}/serverinfo", auth=auth, timeout=3)
+            resp = requests.get(f"{url}/serverinfo", auth=auth, timeout=5)
             if resp.status_code == 200:
                 base_url = url
                 server_info = resp.json()
