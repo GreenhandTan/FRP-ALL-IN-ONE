@@ -1200,7 +1200,8 @@ async def get_agent_install_script(
     download_base = "https://github.com/GreenhandTan/FRP-ALL-IN-ONE/releases/latest/download"
     
     if platform == "windows":
-# ============================================================
+        # Windows PowerShell 脚本
+        script = f'''# ============================================================
 # FRP Manager Agent + FRPC 一键安装脚本 (Windows)
 # ============================================================
 
