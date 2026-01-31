@@ -269,6 +269,19 @@ async def websocket_dashboard(websocket: WebSocket):
                         "auth_token": c.auth_token,
                         "status": c.status,
                         "last_seen": c.last_seen,  # Integer 时间戳
+                        "tunnels": [
+                            {
+                                "id": t.id,
+                                "name": t.name,
+                                "type": t.type,
+                                "local_ip": t.local_ip,
+                                "local_port": t.local_port,
+                                "remote_port": t.remote_port,
+                                "custom_domains": t.custom_domains,
+                                "status": t.status,
+                            }
+                            for t in c.tunnels
+                        ],
                     }
 
                     # 2. 注入 Agent 硬件信息 (优先从 DB 获取持久化数据)

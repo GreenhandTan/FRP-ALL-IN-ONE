@@ -55,6 +55,9 @@ function App() {
     if (!wsStatus) return;
     const { status, registered_clients, agents } = wsStatus;
 
+    // 计算配置的隧道总数 (Configured Tunnels)
+    const configuredTunnelsCount = (registered_clients || []).reduce((acc, c) => acc + (c.tunnels?.length || 0), 0);
+
     // 计算在线客户端数 (Agent在线 或 FRPC最近活跃)
     const now = Math.floor(Date.now() / 1000);
     const onlineClientsCount = (registered_clients || []).filter(c => {
@@ -69,10 +72,11 @@ function App() {
       setFrpProxies(status.proxies || []);
       setStats((prev) => ({
         ...prev,
-        // 如果 FRPS 返回的 clientCounts 为 0 (可能因为没有活跃隧道)，则回退使用注册客户端总数
+        // 如果 FRPS 返回的 clientCounts 为 0，回退使用注册数
         totalClients: Math.max(status.server_info?.clientCounts || 0, (registered_clients || []).length),
         onlineClients: onlineClientsCount,
-        totalProxies: status.total_proxies || 0,
+        // 代理总数 = 数据库配置的隧道总数 (实时响应用户操作)
+        totalProxies: configuredTunnelsCount,
         totalTrafficIn: status.aggregated_traffic_in ?? status.server_info?.totalTrafficIn ?? 0,
         totalTrafficOut: status.aggregated_traffic_out ?? status.server_info?.totalTrafficOut ?? 0,
         onlineAgents: (agents || []).filter(a => a.is_online).length,
@@ -83,6 +87,7 @@ function App() {
         ...prev,
         totalClients: (registered_clients || []).length,
         onlineClients: onlineClientsCount,
+        totalProxies: configuredTunnelsCount,
         onlineAgents: (agents || []).filter(a => a.is_online).length,
       }));
     }
