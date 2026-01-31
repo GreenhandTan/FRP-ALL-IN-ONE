@@ -46,18 +46,18 @@ export function useWebSocket(path, options = {}) {
     // 连接 WebSocket
     const connect = useCallback(() => {
         if (!enabled) return;
-        
+
         const url = getWebSocketUrl();
         console.log(`[WebSocket] 正在连接: ${path}`);
-        
+
         try {
             ws.current = new WebSocket(url);
-            
+
             ws.current.onopen = () => {
                 console.log('[WebSocket] 连接成功');
                 setIsConnected(true);
             };
-            
+
             ws.current.onmessage = (event) => {
                 try {
                     const parsed = JSON.parse(event.data);
@@ -69,18 +69,29 @@ export function useWebSocket(path, options = {}) {
                     console.warn('[WebSocket] 消息解析失败:', e);
                 }
             };
-            
+
             ws.current.onclose = (event) => {
                 console.log(`[WebSocket] 连接关闭: ${event.code}`);
                 setIsConnected(false);
-                
+
+                // 鉴权失败 (1008)，不重连，直接跳转登录
+                if (event.code === 1008) {
+                    console.error('[WebSocket] 鉴权失败，Token 可能已过期');
+                    shouldReconnect.current = false;
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('user');
+                    // 强制刷新跳转到 Login，触发 App.jsx 的鉴权检查
+                    window.location.reload();
+                    return;
+                }
+
                 // 自动重连
                 if (shouldReconnect.current && enabled) {
                     console.log(`[WebSocket] ${reconnectInterval}ms 后重连...`);
                     reconnectTimer.current = setTimeout(connect, reconnectInterval);
                 }
             };
-            
+
             ws.current.onerror = (error) => {
                 console.error('[WebSocket] 连接错误:', error);
             };
@@ -123,7 +134,7 @@ export function useWebSocket(path, options = {}) {
             shouldReconnect.current = true;
             connect();
         }
-        
+
         return () => {
             disconnect();
         };
@@ -144,10 +155,10 @@ export function useWebSocket(path, options = {}) {
  */
 export function useDashboardStatus() {
     const { data, isConnected, reconnect } = useWebSocket('/ws/dashboard');
-    
+
     // 提取状态数据
     const status = data?.type === 'dashboard' ? data.data : null;
-    
+
     return {
         status,
         isConnected,
@@ -162,7 +173,7 @@ export function useDashboardStatus() {
 export function useLogStream(clientId, enabled = true) {
     const [logs, setLogs] = useState([]);
     const maxLogs = 1000; // 最多保留 1000 条日志
-    
+
     const handleMessage = useCallback((msg) => {
         if (msg?.type === 'log') {
             setLogs(prev => {
@@ -176,7 +187,7 @@ export function useLogStream(clientId, enabled = true) {
             });
         }
     }, []);
-    
+
     const { isConnected, reconnect } = useWebSocket(
         `/ws/logs/${clientId}`,
         {
@@ -184,12 +195,12 @@ export function useLogStream(clientId, enabled = true) {
             onMessage: handleMessage
         }
     );
-    
+
     // 清空日志
     const clearLogs = useCallback(() => {
         setLogs([]);
     }, []);
-    
+
     return {
         logs,
         isConnected,
