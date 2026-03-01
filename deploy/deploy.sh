@@ -154,7 +154,7 @@ check_memory() {
     echo "   当前内存: ${total_mem}MB"
 
     if [ "$total_mem" -lt 1024 ] && [ "$swap_total" -eq 0 ]; then
-        echo -e "${YELLOW}[WARN] 检测到低内存且无 Swap，自动配置 1G Swap${NC}"
+        echo -e "${YELLOW}[WARN] 检测到低内存且无 Swap，自动配置 256MB Swap${NC}"
         chmod +x "$SCRIPT_DIR/setup-swap.sh"
         sh "$SCRIPT_DIR/setup-swap.sh"
     else

@@ -19,11 +19,11 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-SWAP_SIZE="1G"
+SWAP_SIZE="256M"
 
 echo "[INFO] 创建 ${SWAP_SIZE} Swap 文件..."
 rm -f /swapfile
-dd if=/dev/zero of=/swapfile bs=1M count=1024
+dd if=/dev/zero of=/swapfile bs=1M count=256
 
 echo "[INFO] 设置权限..."
 chmod 600 /swapfile
@@ -32,7 +32,17 @@ echo "[INFO] 格式化 Swap..."
 mkswap /swapfile
 
 echo "[INFO] 启用 Swap..."
-swapon /swapfile
+if swapon /swapfile; then
+    echo "[OK] Swap 已启用"
+else
+    echo "[WARN] 首次启用 Swap 失败，尝试重建非稀疏 swapfile..."
+    rm -f /swapfile
+    dd if=/dev/zero of=/swapfile bs=4K count=65536 conv=fsync
+    chmod 600 /swapfile
+    mkswap /swapfile
+    swapon /swapfile
+    echo "[OK] Swap 已启用（重建后）"
+fi
 
 echo "[INFO] 添加到 fstab（重启后自动启用）..."
 if ! grep -q '/swapfile' /etc/fstab; then
