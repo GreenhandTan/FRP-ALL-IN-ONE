@@ -13,6 +13,7 @@ NC='\033[0m'
 
 COMPOSE_FILE="$SCRIPT_DIR/compose.yml"
 COMPOSE_MODE=""
+LOW_MEM_NO_SWAP="0"
 
 echo "=========================================="
 echo "  FRP-All in one - Podman 一键部署脚本"
@@ -174,6 +175,7 @@ check_memory() {
                 ;;
             *)
                 echo -e "${YELLOW}[WARN] 已跳过 Swap 创建，继续部署${NC}"
+                LOW_MEM_NO_SWAP="1"
                 ;;
         esac
     else
@@ -205,7 +207,26 @@ deploy_services() {
         exit 1
     fi
 
-    run_compose down --remove-orphans || true
+    if [ "$LOW_MEM_NO_SWAP" = "1" ]; then
+        echo -e "${YELLOW}[WARN] 检测到低内存且未创建 Swap，继续构建很可能 OOM 失败${NC}"
+        if [ -t 0 ]; then
+            printf "是否仍继续构建与部署？(y/N): "
+            read -r continue_without_swap
+            case "$continue_without_swap" in
+                y|Y|yes|YES)
+                    ;;
+                *)
+                    echo -e "${RED}[ERROR] 已取消部署。建议先创建 Swap 后重试。${NC}"
+                    exit 1
+                    ;;
+            esac
+        else
+            echo -e "${RED}[ERROR] 非交互环境下已终止部署。请先创建 Swap，或设置 AUTO_CREATE_SWAP=y。${NC}"
+            exit 1
+        fi
+    fi
+
+    run_compose down --remove-orphans >/dev/null 2>&1 || true
     run_compose up -d --build
 
     echo -e "${GREEN}[OK] 服务启动成功${NC}"

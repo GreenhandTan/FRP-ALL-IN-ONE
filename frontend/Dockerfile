@@ -4,15 +4,18 @@ FROM docker.1ms.run/library/node:22-slim AS builder
 # 使用淘宝 npm 镜像源（国内加速）
 RUN npm config set registry https://registry.npmmirror.com
 
-# 限制 Node.js 内存为 512MB（避免 OOM）
-ENV NODE_OPTIONS="--max-old-space-size=1024"
+# 限制 Node.js 内存，降低低配服务器构建 OOM 风险
+ENV NODE_OPTIONS="--max-old-space-size=384"
 
 WORKDIR /app
 COPY package*.json ./
 
-# 清理缓存并重新安装（解决 Rollup 原生模块问题）
-RUN rm -rf package-lock.json node_modules && \
-    npm install --prefer-offline --no-audit
+# 依赖安装（优先使用 lockfile，减少解析开销）
+RUN if [ -f package-lock.json ]; then \
+            npm ci --prefer-offline --no-audit --no-fund; \
+        else \
+            npm install --prefer-offline --no-audit --no-fund; \
+        fi
 
 COPY . .
 RUN npm run build

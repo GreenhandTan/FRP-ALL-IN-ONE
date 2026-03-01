@@ -14,10 +14,13 @@ RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debia
     && rm -rf /var/lib/apt/lists/*
 
 # 安装 acme.sh（用于自动申请 Let's Encrypt 证书）
-RUN curl -sSL https://github.com/acmesh-official/acme.sh/raw/master/acme.sh -o /tmp/acme.sh \
-    && chmod +x /tmp/acme.sh \
-    && /tmp/acme.sh --install --home /opt/acme.sh --accountemail "admin@localhost" \
-    && rm /tmp/acme.sh
+RUN mkdir -p /tmp/acme-install \
+    && curl -sSL https://github.com/acmesh-official/acme.sh/raw/master/acme.sh -o /tmp/acme-install/acme.sh \
+    && chmod +x /tmp/acme-install/acme.sh \
+    && cd /tmp/acme-install \
+    && ./acme.sh --install --home /opt/acme.sh --accountemail "admin@localhost" \
+    && cd / \
+    && rm -rf /tmp/acme-install
 
 ENV PATH="/opt/acme.sh:$PATH"
 ENV LE_WORKING_DIR="/opt/acme.sh"
