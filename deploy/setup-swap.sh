@@ -6,10 +6,10 @@ set -e
 
 echo "[INFO] 开始配置 Swap 空间..."
 
-# 检查是否已存在 swap
-if swapon --show | grep -q '/swapfile'; then
+# 检查是否已存在 swap（兼容 BusyBox）
+if [ -r /proc/swaps ] && awk 'NR>1 {print $1}' /proc/swaps | grep -q '^/swapfile$'; then
     echo "[OK] Swap 已存在，跳过创建"
-    swapon --show
+    cat /proc/swaps
     exit 0
 fi
 
@@ -22,7 +22,8 @@ fi
 SWAP_SIZE="1G"
 
 echo "[INFO] 创建 ${SWAP_SIZE} Swap 文件..."
-fallocate -l "$SWAP_SIZE" /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=1024
+rm -f /swapfile
+dd if=/dev/zero of=/swapfile bs=1M count=1024
 
 echo "[INFO] 设置权限..."
 chmod 600 /swapfile
