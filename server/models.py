@@ -27,6 +27,7 @@ class Admin(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True)
     hashed_password = Column(String)
+    is_password_changed = Column(Boolean, default=False)  # 首次登录强制修改密码标记
 
 class SystemConfig(Base):
     __tablename__ = "system_config"
@@ -42,8 +43,12 @@ class ConfigKeys:
     FRPS_PORT = "frps_port"            # FRPS 端口
     FRPS_AUTH_TOKEN = "frps_auth_token"  # FRPS 认证 Token
     SERVER_PUBLIC_IP = "server_public_ip"  # 服务器公网 IP
+    SERVER_DOMAIN = "server_domain"    # 服务器域名（用于 HTTPS）
     FRPS_DASHBOARD_PWD = "frps_dashboard_pwd"  # FRPS Dashboard API 密码
     DISABLED_PORTS = "disabled_ports"  # 禁用的端口列表，逗号分隔，如 "6001,6005"
+    JWT_SECRET_KEY = "jwt_secret_key"  # JWT 密钥（自动生成并持久化）
+    TLS_ENABLED = "tls_enabled"        # HTTPS 是否启用
+    TLS_MODE = "tls_mode"              # HTTPS 模式：auto(Let's Encrypt) / custom(自定义证书)
 
 class Tunnel(Base):
     __tablename__ = "tunnels"

@@ -4,7 +4,7 @@
   <p>
     <a href="https://github.com/GreenhandTan/FRP-ALL-IN-ONE/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/GreenhandTan/FRP-ALL-IN-ONE?style=flat&logo=github"></a>
     <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/GreenhandTan/FRP-ALL-IN-ONE?style=flat"></a>
-    <img alt="Docker" src="https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white">
+    <img alt="Podman" src="https://img.shields.io/badge/Podman-892CA0?style=flat&logo=podman&logoColor=white">
     <img alt="Go" src="https://img.shields.io/badge/Go-00ADD8?style=flat&logo=go&logoColor=white">
     <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-009688?style=flat&logo=fastapi&logoColor=white">
     <img alt="React" src="https://img.shields.io/badge/React-61DAFB?style=flat&logo=react&logoColor=000">
@@ -55,6 +55,7 @@
 - [Architecture](#architecture)
 - [Quick Start (Server)](#quick-start-server)
 - [First-time Workflow](#first-time-workflow)
+- [HTTPS Configuration (Optional)](#https-setup)
 - [Ports & Security Groups](#ports)
 - [Monitoring & Statistics](#monitoring)
 - [Common Operations](#ops)
@@ -70,9 +71,17 @@
 
 ### 🚀 Deployment & Management
 
-- **One-click Deployment**: Start management backend, web, and FRPS with Docker Compose
+- **One-click Deployment**: Start management backend, web, and FRPS with Podman Compose
 - **Configuration Wizard**: Web interface for FRPS port, token, and public IP settings
 - **One-click Scripts**: Auto-generate client deployment scripts (multi-arch, systemd, auto-start)
+- **HTTPS Automation**: Support for auto-issuing Let's Encrypt certificates or uploading custom certificates
+
+### 🔐 Security Enhancements
+
+- **Mandatory Password Change**: First login requires password change with strength validation (8+ chars, upper/lower case, numbers)
+- **JWT Security**: Auto-generate strong keys with persistence, environment variable override support
+- **API Rate Limiting**: 5 requests/minute for login, 3 requests/hour for certificate issuance, preventing brute force attacks
+- **Auto Certificate Renewal**: Let's Encrypt certificates automatically renew 30 days before expiration
 
 ### 📊 Real-time Monitoring
 
@@ -87,12 +96,13 @@
 - **Heartbeat Reporting**: Periodic system metrics reporting (CPU, memory, disk, network speed)
 - **Hot Reload**: Hot reload configuration via FRPC Admin API without service restart
 - **Real-time Logs**: WebSocket push FRPC logs to console
+- **Protocol Adaptation**: Agent automatically detects server protocol (ws/wss) and switches
 
 ### 🌐 Other Features
 
 - **WebSocket Real-time Push**: Status updates every second, no manual refresh needed
-- **Internationalization**: Chinese/English language switching
-- **Unified Dialogs**: Site-wide lightweight dialog components
+- **Internationalization**: Chinese/English/Traditional Chinese language switching
+- **Data Persistence**: SQLite database and certificates automatically persisted to Podman volumes
 
 <a id="architecture"></a>
 
@@ -100,8 +110,8 @@
 
 ```mermaid
 flowchart TB
-    subgraph Server["Server Docker Compose"]
-        Web["Web<br/>Nginx + React<br/>:80/TCP"]
+    subgraph Server["Server Podman Compose"]
+        Web["Web<br/>Nginx + React<br/>:80/TCP or :443/TCP"]
         Backend["Backend<br/>FastAPI + SQLite<br/>WebSocket Real-time"]
         FRPS["FRPS<br/>FRP Server<br/>:7000 + :7500"]
         Web <--> Backend
@@ -114,7 +124,7 @@ flowchart TB
         Agent --> FRPC
     end
 
-    Backend <-.->|"WebSocket<br/>heartbeat/metrics/logs"| Agent
+    Backend <-.->|"WebSocket<br/>heartbeat/metrics/logs<br/>ws:// or wss://"| Agent
     FRPS <-->|"Control connection<br/>Data forwarding"| FRPC
 ```
 
@@ -124,11 +134,11 @@ flowchart TB
 
 ### Prerequisites
 
-- A server with public IP
-- Docker & Docker Compose
+- A server with public IP (**Linux system recommended, fully adapted for this project's deployment**)
+- Podman & Podman Compose (auto-installed by deploy script)
 - Port forwarding (minimum): 80/TCP, FRPS port (default 7000/TCP)
 
-> 💡 **For users outside China**: The Dockerfiles use mirror sources optimized for China. If you're deploying from other regions, you may need to modify the mirror sources in `frontend/Dockerfile` and `server/Dockerfile` for better performance.
+> 💡 **System Recommendation**: This project is deployed via Podman. The deployment script auto-detects Linux distributions (including Alpine, Debian/Ubuntu, and RHEL-family) and installs dependencies automatically.
 
 ### One-click Deployment
 
@@ -146,7 +156,7 @@ sudo ./deploy.sh
 | -------- | -------- |
 | admin    | 123456   |
 
-> ⚠️ Please change the default password immediately after login!
+> ⚠️ **The system enforces password change on first login**. Password must be at least 8 characters with uppercase, lowercase letters and numbers.
 
 ### Low Memory Servers (512MB-1GB)
 
@@ -157,9 +167,13 @@ sudo ./setup-swap.sh
 sudo ./deploy.sh
 ```
 
-### Data Persistence Note
+### Data Persistence
 
-The current `docker-compose.yml` does not persist the backend SQLite database. To enable persistence, add a volume mount for the backend in `deploy/docker-compose.yml`.
+The current `compose.yml` has data persistence enabled by default:
+
+- `frp-data`: FRP configuration file persistence
+- `frp-certs`: SSL certificate persistence
+- `./data`: SQLite database persistence
 
 <a id="first-time-workflow"></a>
 
@@ -168,6 +182,8 @@ The current `docker-compose.yml` does not persist the backend SQLite database. T
 ### 1) Login to Dashboard
 
 Visit: `http://<SERVER_PUBLIC_IP>`
+
+After logging in with default credentials, the system will **enforce password change**.
 
 ### 2) Configure FRPS (Wizard)
 
@@ -193,15 +209,50 @@ In the "Device List" on the dashboard:
 2. Wait for Agent to sync and hot reload
 3. Access internal service via `PUBLIC_IP:remote_port`
 
+<a id="https-setup"></a>
+
+## HTTPS Configuration (Optional)
+
+The system supports two HTTPS activation methods:
+
+### Method 1: Auto-issue Let's Encrypt Certificate (Recommended)
+
+1. Go to "System Settings → Domain & HTTPS"
+2. Enter your domain (e.g., `frp.example.com`)
+3. Follow the prompt to point domain A record to server's public IP
+4. Click "Check DNS" to verify resolution
+5. Click "Enable HTTPS", the system will automatically:
+   - Apply for Let's Encrypt certificate
+   - Configure Nginx
+   - Reload services
+6. Auto-redirect to `https://your-domain`
+
+> 🔒 **Auto Renewal**: Certificates will be automatically renewed 30 days before expiration, no manual intervention needed.
+
+### Method 2: Upload Custom Certificate
+
+1. Go to "System Settings → Domain & HTTPS"
+2. Select "Custom Certificate" tab
+3. Upload certificate file (.crt/.pem) and private key file (.key)
+4. Enter domain and enable HTTPS
+
+### Check Certificate Status
+
+```bash
+# View certificate info and expiration
+curl http://localhost:8000/api/settings/tls-status
+```
+
 <a id="ports"></a>
 
 ## Ports & Security Groups
 
-| Port                      | Protocol | Purpose                        |
-| ------------------------- | -------- | ------------------------------ |
-| 80                        | TCP      | Web management interface       |
-| 7000 (or custom bindPort) | TCP      | frpc control connection        |
-| 49152-65535               | TCP/UDP  | Recommended private port range |
+| Port                      | Protocol | Purpose                          |
+| ------------------------- | -------- | -------------------------------- |
+| 80                        | TCP      | Web management (HTTP)            |
+| 443                       | TCP      | Web management (HTTPS, optional) |
+| 7000 (or custom bindPort) | TCP      | frpc control connection          |
+| 49152-65535               | TCP/UDP  | Recommended private port range   |
 
 > 💡 Each `remote_port` needs to be allowed in security groups for external access.
 
@@ -216,6 +267,7 @@ In the "Device List" on the dashboard:
 | Agent system metrics collection | Every 3 seconds          |
 | WebSocket push to frontend      | Every 1 second           |
 | Frontend UI update              | Real-time (event-driven) |
+| Certificate renewal check       | Every 24 hours           |
 
 ### Traffic Statistics Scope
 
@@ -234,22 +286,26 @@ In the "Device List" on the dashboard:
 
 ## Common Operations
 
-### Server (Docker)
+### Server (Podman)
 
 ```bash
 cd FRP-ALL-IN-ONE/deploy
 
 # Check status
-docker-compose ps
-docker-compose logs -f
+podman compose -f compose.yml ps
+podman compose -f compose.yml logs -f
 
 # Restart services
-docker-compose restart
-docker restart frps
+podman compose -f compose.yml restart
+podman restart frps
 
-# Rebuild
-docker-compose down
-docker-compose up -d --build
+# Rebuild (update to latest version)
+podman compose -f compose.yml down
+podman compose -f compose.yml pull
+podman compose -f compose.yml up -d --build
+
+# View certificate renewal logs
+podman exec frp-manager-backend cat /var/log/acme.cron.log
 ```
 
 ### Client
@@ -278,7 +334,7 @@ journalctl -u frp-agent -n 200 --no-pager
 
    ```bash
    ss -lntp | grep :<remote_port>
-   docker logs frps --tail 200
+   podman logs frps --tail 200
    ```
 
 4. **Check client config sync**
@@ -295,6 +351,13 @@ cat /opt/frp/agent.json
 ```
 
 Ensure Agent service is running properly and can connect to the management server.
+
+### HTTPS Certificate Application Failed
+
+1. **Check DNS resolution**: Ensure domain A record points to server's public IP
+2. **Check port 80**: Let's Encrypt validation requires temporary use of port 80
+3. **View logs**: `podman logs frp-manager-backend | grep -i "cert\|acme"`
+4. **Manual trigger renewal**: Click "Renew Certificate" button in Web UI
 
 <a id="uninstall"></a>
 
@@ -321,8 +384,22 @@ FRP-ALL-IN-ONE/
 │       ├── monitor/       # System monitoring (CPU/memory/disk/network)
 │       └── ws/            # WebSocket client
 ├── server/                # Backend API (FastAPI + SQLite)
+│   ├── core/              # Core infrastructure
+│   │   ├── dependencies.py    # Dependency injection (auth, database)
+│   │   ├── exceptions.py      # Unified exception handling
+│   │   └── rate_limit.py      # API rate limiting
+│   ├── routers/           # API routes
+│   │   ├── auth.py            # Authentication (login, password change)
+│   │   ├── clients.py         # Client, tunnel management
+│   │   ├── agents.py          # Agent management, metrics
+│   │   ├── frp_server.py      # FRPS management, install scripts
+│   │   ├── system.py          # System status
+│   │   └── settings.py        # Domain & HTTPS settings
+│   └── services/          # Business logic layer
+│       ├── tls_manager.py     # Certificate management, Nginx config
+│       └── dns_checker.py     # DNS resolution verification
 ├── frontend/              # Web interface (React + Vite + TailwindCSS)
-├── deploy/                # Deployment scripts & docker-compose
+├── deploy/                # Deployment scripts & compose
 ├── demo.png               # Demo screenshot
 └── demo-logs.png          # Logs feature screenshot
 ```
@@ -348,7 +425,13 @@ go build -o frp-agent ./cmd/frp-agent
 
 ### Backend
 
-Backend runs most stably via Docker; for local development, refer to the `server/` directory.
+Backend runs most stably via Podman; for local development:
+
+```bash
+cd server
+pip install -r requirements.txt
+python -m uvicorn main:app --reload
+```
 
 <a id="license"></a>
 
@@ -369,16 +452,18 @@ You must:
 
 ## 🛡️ Security Recommendations
 
-- ✅ Change default password immediately after first login
-- ✅ Use strong passwords (at least 12 characters)
-- ✅ Regularly update Docker images
+- ✅ Change default password immediately after first login (enforced by system)
+- ✅ Use strong passwords (at least 8 characters with upper/lower case + numbers)
+- ✅ Regularly update Podman images
 - ✅ Only open necessary ports in security groups
 - ✅ FRPS Dashboard (7500) should only allow localhost access
+- ✅ Enable HTTPS to encrypt communications (recommended for production)
 
 ## 🙏 Acknowledgements
 
 - [FRP](https://github.com/fatedier/frp) - Excellent reverse proxy tool
 - [gopsutil](https://github.com/shirou/gopsutil) - Go system monitoring library
+- [acme.sh](https://github.com/acmesh-official/acme.sh) - Full-featured Let's Encrypt client
 
 ---
 

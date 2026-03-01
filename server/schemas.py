@@ -46,6 +46,7 @@ class Client(ClientBase):
 class Token(BaseModel):
     access_token: str
     token_type: str
+    require_password_change: bool = False  # 首次登录需要修改密码
 
 class TokenData(BaseModel):
     username: Optional[str] = None

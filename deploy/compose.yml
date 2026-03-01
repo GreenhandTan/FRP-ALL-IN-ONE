@@ -1,0 +1,41 @@
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
+    container_name: frp-manager-backend
+    restart: always
+    user: root
+    network_mode: host
+    environment:
+      - PODMAN_BIN=podman
+      - PODMAN_TIMEOUT=30
+      - PODMAN_URL=unix:///run/podman/podman.sock
+    volumes:
+      - frp-data:/opt/frp
+      - frp-certs:/app/certs
+      - ./data:/app/data
+      - ./frps.toml:/app/frps.toml
+      - /run/podman/podman.sock:/run/podman/podman.sock
+
+  frontend:
+    build: ../frontend
+    container_name: frp-manager-web
+    restart: always
+    network_mode: host
+    depends_on:
+      - backend
+    volumes:
+      - frp-certs:/etc/nginx/certs:ro
+
+  frps:
+    image: docker.1ms.run/snowdreamtech/frps:latest
+    container_name: frps
+    restart: always
+    network_mode: host
+    volumes:
+      - ./frps.toml:/etc/frp/frps.toml
+
+volumes:
+  frp-data:
+  frp-certs:

@@ -5,14 +5,12 @@ from typing import Dict
 import ipaddress
 import os
 import re
+from core.container_engine import run_podman
 
 # FRP 配置文件路径（映射到宿主机项目根目录）
 # Backend 容器中 /app/frps.toml 映射到宿主机 ./frps.toml
 # FRPS 容器会读取同一个文件
 FRPS_CONFIG_PATH = "/app/frps.toml"
-
-# Docker Compose 项目根目录
-DOCKER_COMPOSE_DIR = "/app"
 
 # 默认 FRP 版本（备用，当无法获取最新版本时使用）
 DEFAULT_FRP_VERSION = "0.61.1"
@@ -191,26 +189,20 @@ webServer.password = "{dashboard_pwd}"
 {allow_ports_config}
 
 # 由 FRP Manager 自动生成
-# 修改后需要重启 FRPS 容器: docker-compose restart frps
+# 修改后需要重启 FRPS 容器: podman restart frps
 """
         
-        # 写入配置文件（写到项目根目录，Docker 会自动映射）
+        # 写入配置文件（写到项目根目录，容器会自动映射）
         with open(FRPS_CONFIG_PATH, 'w') as f:
             f.write(config_content)
         
-        # 尝试重启 FRPS 容器（如果在 Docker Compose 环境中）
+        # 尝试重启 FRPS 容器
         frps_restarted = False
         restart_message = ""
         
         try:
-            # 使用 docker CLI 重启容器
-            result = subprocess.run(
-                ["docker", "restart", "frps"],
-                check=False,
-                capture_output=True,
-                timeout=30,  # 增加超时时间
-                text=True
-            )
+            # 使用 podman CLI 重启容器
+            result = run_podman(["restart", "frps"], timeout=30)
             if result.returncode == 0:
                 print("✅ FRPS 容器已成功重启")
                 frps_restarted = True
@@ -223,7 +215,7 @@ webServer.password = "{dashboard_pwd}"
                 restart_message = f"FRPS 重启失败: {result.stderr.strip()}"
                 print(f"⚠️ {restart_message}")
         except FileNotFoundError:
-            restart_message = "未找到 docker 命令，请手动重启 FRPS"
+            restart_message = "未找到 podman 命令，请手动重启 FRPS"
             print(f"⚠️ {restart_message}")
         except subprocess.TimeoutExpired:
             restart_message = "FRPS 重启超时，请手动检查"
@@ -231,7 +223,7 @@ webServer.password = "{dashboard_pwd}"
         except Exception as e:
             restart_message = f"无法重启 FRPS 容器: {str(e)}"
             print(f"⚠️ {restart_message}")
-            print("提示: 配置已生成，请手动执行 'docker restart frps'")
+            print("提示: 配置已生成，请手动执行 'podman restart frps'")
         
         # 获取公网 IP（优先使用用户提供的）
         if server_ip and server_ip.strip():

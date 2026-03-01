@@ -4,7 +4,7 @@
   <p>
     <a href="https://github.com/GreenhandTan/FRP-ALL-IN-ONE/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/GreenhandTan/FRP-ALL-IN-ONE?style=flat&logo=github"></a>
     <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/GreenhandTan/FRP-ALL-IN-ONE?style=flat"></a>
-    <img alt="Docker" src="https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white">
+    <img alt="Podman" src="https://img.shields.io/badge/Podman-892CA0?style=flat&logo=podman&logoColor=white">
     <img alt="Go" src="https://img.shields.io/badge/Go-00ADD8?style=flat&logo=go&logoColor=white">
     <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-009688?style=flat&logo=fastapi&logoColor=white">
     <img alt="React" src="https://img.shields.io/badge/React-61DAFB?style=flat&logo=react&logoColor=000">
@@ -55,6 +55,7 @@
 - [架構說明](#architecture)
 - [快速開始（伺服器端）](#quick-start-server)
 - [首次使用流程](#first-time-workflow)
+- [HTTPS 配置（可選）](#https-setup)
 - [端口與安全組](#ports)
 - [監控與統計說明](#monitoring)
 - [常用運維命令](#ops)
@@ -70,9 +71,17 @@
 
 ### 🚀 部署與管理
 
-- **一鍵部署**：Docker Compose 啟動管理後台、Web、FRPS
+- **一鍵部署**：Podman Compose 啟動管理後台、Web、FRPS
 - **配置嚮導**：Web 介面完成 FRPS 端口、Token、公網 IP 設置
 - **一鍵腳本**：自動生成客戶端部署腳本（支持多架構、systemd、開機自啟）
+- **HTTPS 全自動**：支持自動申請 Let's Encrypt 證書或上傳自定義證書
+
+### 🔐 安全增強
+
+- **強制修改密碼**：首次登入強制修改預設密碼，密碼強度校驗（8位+大小寫+數字）
+- **JWT 安全**：自動生成強密鑰並持久化，支持環境變量覆蓋
+- **API 限流**：登入接口 5次/分鐘，證書申請 3次/小時，防止暴力破解
+- **證書自動續期**：Let's Encrypt 證書自動續期，到期前 30 天自動處理
 
 ### 📊 實時監控
 
@@ -87,12 +96,13 @@
 - **心跳上報**：定時上報系統指標（CPU、記憶體、磁碟、網路速率）
 - **配置熱重載**：通過 FRPC Admin API 熱重載配置，無需重啟服務
 - **實時日誌**：WebSocket 推送 FRPC 運行日誌到控制台
+- **協議自適應**：Agent 自動檸測服務器協議（ws/wss）並切換
 
 ### 🌐 其他特性
 
 - **WebSocket 實時推送**：每秒推送狀態更新，無需手動刷新
-- **國際化**：支持中文/英文切換
-- **統一彈窗**：全站使用輕量級彈窗組件
+- **國際化**：支持中文/英文/繁體中文切換
+- **數據持久化**：SQLite 資料庫和證書自動持久化到 Podman 卷
 
 <a id="architecture"></a>
 
@@ -100,8 +110,8 @@
 
 ```mermaid
 flowchart TB
-    subgraph Server["伺服器端 Docker Compose"]
-        Web["Web<br/>Nginx + React<br/>:80/TCP"]
+    subgraph Server["伺服器端 Podman Compose"]
+        Web["Web<br/>Nginx + React<br/>:80/TCP 或 :443/TCP"]
         Backend["Backend<br/>FastAPI + SQLite<br/>WebSocket 實時推送"]
         FRPS["FRPS<br/>FRP Server<br/>:7000 + :7500"]
         Web <--> Backend
@@ -114,7 +124,7 @@ flowchart TB
         Agent --> FRPC
     end
 
-    Backend <-.->|"WebSocket<br/>心跳/指標/日誌"| Agent
+    Backend <-.->|"WebSocket<br/>心跳/指標/日誌<br/>ws:// 或 wss://"| Agent
     FRPS <-->|"控制連接<br/>數據轉發"| FRPC
 ```
 
@@ -124,9 +134,11 @@ flowchart TB
 
 ### 前置要求
 
-- 一台具備公網 IP 的伺服器
-- Docker & Docker Compose
+- 一台具備公網 IP 的伺服器（**建議採用 Linux 系統，已完整適配本項目的部署**）
+- Podman & Podman Compose（可由部署腳本自動安裝）
 - 端口放行（至少）：80/TCP、FRPS 端口（預設 7000/TCP）
+
+> 💡 **系統建議**：本項目基於 Podman 部署，部署腳本會自動識別 Linux 發行版（含 Alpine、Debian/Ubuntu、RHEL 系）並安裝依賴。
 
 ### 一鍵部署
 
@@ -144,7 +156,7 @@ sudo ./deploy.sh
 | ------ | ------ |
 | admin  | 123456 |
 
-> ⚠️ 請登入後立即修改預設密碼！
+> ⚠️ **系統已強制要求首次登入後修改預設密碼**，密碼需滿足：至少 8 位，包含大寫字母、小寫字母和數字。
 
 ### 低記憶體伺服器（512MB-1GB）
 
@@ -155,9 +167,13 @@ sudo ./setup-swap.sh
 sudo ./deploy.sh
 ```
 
-### 數據持久化說明
+### 數據持久化
 
-當前 `docker-compose.yml` 未對後端 SQLite 資料庫做持久化掛載。如需持久化，請在 `deploy/docker-compose.yml` 中為 backend 增加卷掛載。
+當前 `compose.yml` 已預設啟用數據持久化：
+
+- `frp-data`：FRP 配置文件持久化
+- `frp-certs`：SSL 證書持久化
+- `./data`：SQLite 資料庫持久化
 
 <a id="first-time-workflow"></a>
 
@@ -166,6 +182,8 @@ sudo ./deploy.sh
 ### 1) 登入管理台
 
 訪問：`http://<伺服器公網IP>`
+
+使用預設帳戶登入後，系統將**強制要求修改密碼**。
 
 ### 2) 配置 FRPS（嚮導）
 
@@ -191,15 +209,50 @@ sudo ./deploy-frpc.sh
 2. 等待 Agent 同步並熱重載
 3. 通過 `公網IP:remote_port` 訪問內網服務
 
+<a id="https-setup"></a>
+
+## HTTPS 配置（可選）
+
+系統支持兩種 HTTPS 啟用方式：
+
+### 方式一：自動申請 Let's Encrypt 證書（推薦）
+
+1. 進入「系統設置 → 域名與 HTTPS」
+2. 輸入你的域名（如 `frp.example.com`）
+3. 按提示將域名 A 記錄解析到伺服器公網 IP
+4. 點擊「檢測 DNS」驗證解析是否正確
+5. 點擊「啟用 HTTPS」，系統將自動：
+   - 申請 Let's Encrypt 證書
+   - 配置 Nginx
+   - 重載服務
+6. 完成後自動跳轉到 `https://你的域名`
+
+> 🔒 **自動續期**：證書將在過期前 30 天自動續期，無需手動干預。
+
+### 方式二：上傳自定義證書
+
+1. 進入「系統設置 → 域名與 HTTPS」
+2. 選擇「自定義證書」標籤
+3. 上傳證書文件（.crt/.pem）和私鑰文件（.key）
+4. 輸入域名並啟用 HTTPS
+
+### 查看證書狀態
+
+```bash
+# 查看證書信息和過期時間
+curl http://localhost:8000/api/settings/tls-status
+```
+
 <a id="ports"></a>
 
 ## 端口與安全組
 
-| 端口                      | 協議    | 用途               |
-| ------------------------- | ------- | ------------------ |
-| 80                        | TCP     | Web 管理介面       |
-| 7000（或自定義 bindPort） | TCP     | frpc 控制連接      |
-| 49152-65535               | TCP/UDP | 推薦的私有端口範圍 |
+| 端口                      | 協議    | 用途                        |
+| ------------------------- | ------- | --------------------------- |
+| 80                        | TCP     | Web 管理介面（HTTP）        |
+| 443                       | TCP     | Web 管理介面（HTTPS，可選） |
+| 7000（或自定義 bindPort） | TCP     | frpc 控制連接               |
+| 49152-65535               | TCP/UDP | 推薦的私有端口範圍          |
 
 > 💡 每個 `remote_port` 都需要在安全組中放行才能從外部訪問。
 
@@ -214,6 +267,7 @@ sudo ./deploy-frpc.sh
 | Agent 系統指標採集   | 每 3 秒          |
 | WebSocket 推送到前端 | 每 1 秒          |
 | 前端 UI 更新         | 實時（事件驅動） |
+| 證書續期檢查         | 每 24 小時       |
 
 ### 流量統計口徑
 
@@ -232,22 +286,26 @@ sudo ./deploy-frpc.sh
 
 ## 常用運維命令
 
-### 伺服器端（Docker）
+### 伺服器端（Podman）
 
 ```bash
 cd FRP-ALL-IN-ONE/deploy
 
 # 查看狀態
-docker-compose ps
-docker-compose logs -f
+podman compose -f compose.yml ps
+podman compose -f compose.yml logs -f
 
 # 重啟服務
-docker-compose restart
-docker restart frps
+podman compose -f compose.yml restart
+podman restart frps
 
-# 重新構建
-docker-compose down
-docker-compose up -d --build
+# 重新構建（更新到最新版本）
+podman compose -f compose.yml down
+podman compose -f compose.yml pull
+podman compose -f compose.yml up -d --build
+
+# 查看證書續期日誌
+podman exec frp-manager-backend cat /var/log/acme.cron.log
 ```
 
 ### 客戶端
@@ -276,7 +334,7 @@ journalctl -u frp-agent -n 200 --no-pager
 
    ```bash
    ss -lntp | grep :<remote_port>
-   docker logs frps --tail 200
+   podman logs frps --tail 200
    ```
 
 4. **檢查客戶端配置同步**
@@ -293,6 +351,13 @@ cat /opt/frp/agent.json
 ```
 
 確認 Agent 服務正常運行且能連接到管理端。
+
+### HTTPS 證書申請失敗
+
+1. **檢查 DNS 解析**：確保域名 A 記錄已正確指向伺服器公網 IP
+2. **檢查端口 80**：Let's Encrypt 驗證需要臨時使用 80 端口
+3. **查看日誌**：`podman logs frp-manager-backend | grep -i "cert\|acme"`
+4. **手動觸發續期**：在 Web 介面點擊「續期證書」按鈕
 
 <a id="uninstall"></a>
 
@@ -319,8 +384,22 @@ FRP-ALL-IN-ONE/
 │       ├── monitor/       # 系統監控（CPU/記憶體/磁碟/網路）
 │       └── ws/            # WebSocket 客戶端
 ├── server/                # 後端 API（FastAPI + SQLite）
+│   ├── core/              # 核心基礎設施
+│   │   ├── dependencies.py    # 依賴注入（認證、資料庫）
+│   │   ├── exceptions.py      # 統一異常處理
+│   │   └── rate_limit.py      # API 限流
+│   ├── routers/           # API 路由
+│   │   ├── auth.py            # 認證（登入、修改密碼）
+│   │   ├── clients.py         # 客戶端、隧道管理
+│   │   ├── agents.py          # Agent 管理、指標查詢
+│   │   ├── frp_server.py      # FRPS 管理、安裝腳本
+│   │   ├── system.py          # 系統狀態
+│   │   └── settings.py        # 域名與 HTTPS 設置
+│   └── services/          # 業務邏輯層
+│       ├── tls_manager.py     # 證書申請、Nginx 配置
+│       └── dns_checker.py     # DNS 解析驗證
 ├── frontend/              # Web 介面（React + Vite + TailwindCSS）
-├── deploy/                # 部署腳本 & docker-compose
+├── deploy/                # 部署腳本 & compose
 ├── demo.png               # 演示截圖
 └── demo-logs.png          # 日誌功能截圖
 ```
@@ -346,7 +425,13 @@ go build -o frp-agent ./cmd/frp-agent
 
 ### 後端
 
-後端以 Docker 方式運行最穩定；如需本地運行可參考 `server/` 目錄。
+後端以 Podman 方式運行最穩定；如需本地運行：
+
+```bash
+cd server
+pip install -r requirements.txt
+python -m uvicorn main:app --reload
+```
 
 <a id="license"></a>
 
@@ -367,16 +452,18 @@ go build -o frp-agent ./cmd/frp-agent
 
 ## 🛡️ 安全建議
 
-- ✅ 首次登入後立即修改預設密碼
-- ✅ 使用強密碼（至少 12 位）
-- ✅ 定期更新 Docker 映像
+- ✅ 首次登入後立即修改預設密碼（系統已強制要求）
+- ✅ 使用強密碼（至少 8 位，包含大小寫+數字）
+- ✅ 定期更新 Podman 映像
 - ✅ 安全組僅開放必要端口
 - ✅ FRPS Dashboard（7500）建議僅允許本機訪問
+- ✅ 啟用 HTTPS 以加密通信（推薦生產環境使用）
 
 ## 🙏 致謝
 
 - [FRP](https://github.com/fatedier/frp) - 優秀的內網穿透工具
 - [gopsutil](https://github.com/shirou/gopsutil) - Go 系統監控庫
+- [acme.sh](https://github.com/acmesh-official/acme.sh) - 全功能 Let's Encrypt 客戶端
 
 ---
 

@@ -8,3 +8,5 @@ python-multipart
 jinja2
 python-jose[cryptography]
 passlib[bcrypt]
+slowapi
+redis
