@@ -4,12 +4,14 @@
 
 set -eu
 
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-COMPOSE_FILE="./compose.yml"
+COMPOSE_FILE="$SCRIPT_DIR/compose.yml"
 COMPOSE_MODE=""
 
 echo "=========================================="
@@ -152,9 +154,9 @@ check_memory() {
     echo "   当前内存: ${total_mem}MB"
 
     if [ "$total_mem" -lt 1024 ] && [ "$swap_total" -eq 0 ]; then
-        echo -e "${YELLOW}[WARN] 检测到低内存且无 Swap，自动配置 2G Swap${NC}"
-        chmod +x ./setup-swap.sh
-        ./setup-swap.sh
+        echo -e "${YELLOW}[WARN] 检测到低内存且无 Swap，自动配置 1G Swap${NC}"
+        chmod +x "$SCRIPT_DIR/setup-swap.sh"
+        sh "$SCRIPT_DIR/setup-swap.sh"
     else
         echo -e "${GREEN}[OK] 内存/Swap 状态可用${NC}"
     fi

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # FRP Manager - Swap 设置脚本
 # 用途: 为低内存服务器添加 Swap 空间，避免构建时 OOM
 
@@ -14,15 +14,15 @@ if swapon --show | grep -q '/swapfile'; then
 fi
 
 # 检查 root 权限
-if [ "$EUID" -ne 0 ]; then 
+if [ "$(id -u)" -ne 0 ]; then
     echo "❌ 请使用 root 权限运行此脚本: sudo $0"
     exit 1
 fi
 
-SWAP_SIZE="2G"
+SWAP_SIZE="1G"
 
 echo "📝 创建 ${SWAP_SIZE} Swap 文件..."
-fallocate -l $SWAP_SIZE /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
+fallocate -l "$SWAP_SIZE" /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=1024
 
 echo "🔒 设置权限..."
 chmod 600 /swapfile
