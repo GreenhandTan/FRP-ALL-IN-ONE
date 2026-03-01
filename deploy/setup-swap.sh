@@ -20,6 +20,8 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 SWAP_SIZE="512M"
+ZRAM_SIZE="${ZRAM_SIZE:-256M}"
+ZRAM_SIZE_BYTES="${ZRAM_SIZE_BYTES:-268435456}"
 
 create_swapfile_standard() {
     rm -f /swapfile
@@ -45,6 +47,110 @@ create_swapfile_btrfs() {
     rm -f /swapfile
     btrfs filesystem mkswapfile --size "$SWAP_SIZE" /swapfile
     chmod 600 /swapfile
+}
+
+persist_zram_alpine() {
+    mkdir -p /etc/local.d
+    cat > /etc/local.d/zram.start <<EOF
+#!/bin/sh
+modprobe zram num_devices=1
+echo lz4 > /sys/block/zram0/comp_algorithm 2>/dev/null || true
+echo $ZRAM_SIZE_BYTES > /sys/block/zram0/disksize
+mkswap /dev/zram0
+swapon -p 100 /dev/zram0
+EOF
+    chmod +x /etc/local.d/zram.start
+    if command -v rc-update >/dev/null 2>&1; then
+        rc-update add local default >/dev/null 2>&1 || true
+    fi
+}
+
+persist_zram_systemd() {
+    cat > /etc/systemd/system/zram-setup.service <<EOF
+[Unit]
+Description=Setup zram swap
+After=multi-user.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c 'modprobe zram num_devices=1; echo lz4 > /sys/block/zram0/comp_algorithm 2>/dev/null || true; echo $ZRAM_SIZE_BYTES > /sys/block/zram0/disksize; mkswap /dev/zram0; swapon -p 100 /dev/zram0'
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl daemon-reload >/dev/null 2>&1 || true
+        systemctl enable zram-setup.service >/dev/null 2>&1 || true
+    fi
+}
+
+enable_zram() {
+    echo "[INFO] 尝试启用 zram（${ZRAM_SIZE}）..."
+
+    if ! command -v modprobe >/dev/null 2>&1; then
+        echo "[ERROR] 未找到 modprobe，无法启用 zram"
+        return 1
+    fi
+
+    modprobe zram num_devices=1 || true
+
+    if [ ! -e /sys/block/zram0/disksize ]; then
+        echo "[ERROR] zram0 不可用，内核可能不支持 zram"
+        return 1
+    fi
+
+    echo lz4 > /sys/block/zram0/comp_algorithm 2>/dev/null || true
+    echo "$ZRAM_SIZE_BYTES" > /sys/block/zram0/disksize
+
+    mkswap /dev/zram0
+    swapon -p 100 /dev/zram0
+
+    if [ -f /etc/alpine-release ]; then
+        persist_zram_alpine
+        echo "[OK] zram 已启用，并已写入 Alpine 开机启动"
+    elif command -v systemctl >/dev/null 2>&1; then
+        persist_zram_systemd
+        echo "[OK] zram 已启用，并已写入 systemd 开机启动"
+    else
+        echo "[OK] zram 已启用（当前会话有效）"
+    fi
+
+    return 0
+}
+
+offer_zram_fallback() {
+    choice="${AUTO_ENABLE_ZRAM:-}"
+
+    if [ -z "$choice" ]; then
+        if [ -t 0 ]; then
+            printf "swap 无法启用，是否改为启用 zram（%s）？(y/N): " "$ZRAM_SIZE"
+            read -r choice
+        else
+            choice="n"
+            echo "[WARN] 非交互环境默认不启用 zram（可设置 AUTO_ENABLE_ZRAM=y）"
+        fi
+    fi
+
+    case "$choice" in
+        y|Y|yes|YES)
+            if enable_zram; then
+                echo "[INFO] 当前 swap 状态:"
+                cat /proc/swaps
+                echo ""
+                echo "[OK] 已通过 zram 提供交换空间"
+                exit 0
+            else
+                echo "[ERROR] zram 启用失败"
+                exit 1
+            fi
+            ;;
+        *)
+            echo "[ERROR] 已拒绝启用 zram，当前没有可用交换空间"
+            exit 1
+            ;;
+    esac
 }
 
 echo "[INFO] 创建 ${SWAP_SIZE} Swap 文件..."
@@ -84,16 +190,15 @@ else
             else
                 echo "$swapon_retry_output"
                 echo "[ERROR] 仍无法启用 swapfile。当前文件系统可能不支持文件交换。"
-                echo "[ERROR] 建议改用 zram 或独立 swap 分区。"
-                exit 1
+                offer_zram_fallback
             fi
         else
             echo "[ERROR] 无法找到可用的重建方式启用 swapfile。"
-            exit 1
+            offer_zram_fallback
         fi
     else
         echo "[ERROR] 启用 Swap 失败。"
-        exit 1
+        offer_zram_fallback
     fi
 fi
 
