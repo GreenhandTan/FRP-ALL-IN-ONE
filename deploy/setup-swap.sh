@@ -19,11 +19,12 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-SWAP_SIZE="256M"
+SWAP_SIZE="512M"
 
 echo "[INFO] 创建 ${SWAP_SIZE} Swap 文件..."
 rm -f /swapfile
-dd if=/dev/zero of=/swapfile bs=1M count=256
+dd if=/dev/zero of=/swapfile bs=1M count=512
+sync
 
 echo "[INFO] 设置权限..."
 chmod 600 /swapfile
@@ -37,7 +38,8 @@ if swapon /swapfile; then
 else
     echo "[WARN] 首次启用 Swap 失败，尝试重建非稀疏 swapfile..."
     rm -f /swapfile
-    dd if=/dev/zero of=/swapfile bs=4K count=65536 conv=fsync
+    dd if=/dev/zero of=/swapfile bs=1M count=512
+    sync
     chmod 600 /swapfile
     mkswap /swapfile
     swapon /swapfile

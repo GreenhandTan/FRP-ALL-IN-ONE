@@ -154,9 +154,28 @@ check_memory() {
     echo "   当前内存: ${total_mem}MB"
 
     if [ "$total_mem" -lt 1024 ] && [ "$swap_total" -eq 0 ]; then
-        echo -e "${YELLOW}[WARN] 检测到低内存且无 Swap，自动配置 256MB Swap${NC}"
-        chmod +x "$SCRIPT_DIR/setup-swap.sh"
-        sh "$SCRIPT_DIR/setup-swap.sh"
+        echo -e "${YELLOW}[WARN] 检测到低内存且无 Swap${NC}"
+
+        choice="${AUTO_CREATE_SWAP:-}"
+        if [ -z "$choice" ]; then
+            if [ -t 0 ]; then
+                printf "是否创建 512MB Swap？(y/N): "
+                read -r choice
+            else
+                choice="n"
+                echo -e "${YELLOW}[WARN] 当前为非交互环境，默认跳过 Swap 创建（可设置 AUTO_CREATE_SWAP=y 自动创建）${NC}"
+            fi
+        fi
+
+        case "$choice" in
+            y|Y|yes|YES)
+                chmod +x "$SCRIPT_DIR/setup-swap.sh"
+                sh "$SCRIPT_DIR/setup-swap.sh"
+                ;;
+            *)
+                echo -e "${YELLOW}[WARN] 已跳过 Swap 创建，继续部署${NC}"
+                ;;
+        esac
     else
         echo -e "${GREEN}[OK] 内存/Swap 状态可用${NC}"
     fi
