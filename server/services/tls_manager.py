@@ -249,7 +249,7 @@ class TLSManager:
             config = f'''server {{
     listen 80;
     server_name {domain};
-    
+
     # HTTP 自动跳转 HTTPS
     location / {{
         return 301 https://$host$request_uri;
@@ -259,30 +259,56 @@ class TLSManager:
 server {{
     listen 443 ssl http2;
     server_name {domain};
-    
+
     # SSL 证书配置
     ssl_certificate {cert_path};
     ssl_certificate_key {key_path};
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256;
     ssl_prefer_server_ciphers off;
-    
+
+    location /assets/ {{
+        root /usr/share/nginx/html;
+        try_files $uri =404;
+        expires 7d;
+        add_header Cache-Control "public, max-age=604800, immutable";
+    }}
+
+    location = /index.html {{
+        root /usr/share/nginx/html;
+        add_header Cache-Control "no-store";
+    }}
+
     # 前端静态文件
     location / {{
         root /usr/share/nginx/html;
         try_files $uri $uri/ /index.html;
     }}
-    
+
     # API 代理
     location /api/ {{
-        proxy_pass http://127.0.0.1:8000/;
+        proxy_pass http://127.0.0.1:8000;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }}
-    
+
+    location /token {{
+        proxy_pass http://127.0.0.1:8000/token;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }}
+
+    location /clients {{
+        proxy_pass http://127.0.0.1:8000/clients;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }}
+
     # WebSocket 代理
     location /ws/ {{
         proxy_pass http://127.0.0.1:8000/ws/;
@@ -299,23 +325,49 @@ server {{
             config = f'''server {{
     listen 80;
     server_name _;
-    
+
+    location /assets/ {{
+        root /usr/share/nginx/html;
+        try_files $uri =404;
+        expires 7d;
+        add_header Cache-Control "public, max-age=604800, immutable";
+    }}
+
+    location = /index.html {{
+        root /usr/share/nginx/html;
+        add_header Cache-Control "no-store";
+    }}
+
     # 前端静态文件
     location / {{
         root /usr/share/nginx/html;
         try_files $uri $uri/ /index.html;
     }}
-    
+
     # API 代理
     location /api/ {{
-        proxy_pass http://127.0.0.1:8000/;
+        proxy_pass http://127.0.0.1:8000;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }}
-    
+
+    location /token {{
+        proxy_pass http://127.0.0.1:8000/token;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }}
+
+    location /clients {{
+        proxy_pass http://127.0.0.1:8000/clients;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }}
+
     # WebSocket 代理
     location /ws/ {{
         proxy_pass http://127.0.0.1:8000/ws/;
