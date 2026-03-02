@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 import crud
 import models
+import frp_deploy
 from core import get_db
 
 router = APIRouter(prefix="/system", tags=["系统状态"])
@@ -18,3 +19,13 @@ def get_system_status(db: Session = Depends(get_db)):
     return {
         "frps_deployed": frps_deployed
     }
+
+
+@router.get("/public-ip")
+def get_public_ip():
+    """自动检测服务器公网 IP"""
+    details = frp_deploy.get_public_ip_details()
+    ip = details.get("ip")
+    if ip:
+        return {"success": True, "ip": ip}
+    return {"success": False, "ip": None}

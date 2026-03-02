@@ -1197,7 +1197,7 @@ $$(".platform-btn", $("setup-step-3")).forEach((btn) => {
     show("script-area");
     try {
       const script = await api.get(
-        `/api/agent/install-script/${selectedPlatform}`,
+        `/api/frp/agent/install-script/${selectedPlatform}`,
       );
       $("script-content").textContent =
         typeof script === "string" ? script : JSON.stringify(script);
@@ -1257,7 +1257,7 @@ async function openAgentDeploy() {
 
   // 获取服务器信息
   try {
-    const info = await api.get("/api/agent/install-script-info");
+    const info = await api.get("/api/frp/agent/install-script-info");
     const infoEl = $("agent-server-info");
     if (info && infoEl) {
       infoEl.innerHTML = `
@@ -1278,7 +1278,7 @@ $$(".platform-btn", $("modal-agent-deploy")).forEach((btn) => {
     $("agent-script-content").textContent = "加载中…";
     try {
       const script = await api.get(
-        `/api/agent/install-script/${agentScriptPlatform}`,
+        `/api/frp/agent/install-script/${agentScriptPlatform}`,
       );
       $("agent-script-content").textContent =
         typeof script === "string" ? script : JSON.stringify(script);

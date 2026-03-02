@@ -130,13 +130,15 @@ pre {
 .view.active {
   display: block;
 }
+.view.active.auth-view {
+  display: flex;
+}
 
 /* ===========================
    Auth 视图 (登录 / 设置向导)
    =========================== */
 .auth-view {
   min-height: 100vh;
-  display: flex !important;
   align-items: center;
   justify-content: center;
   background: linear-gradient(135deg, #064e3b 0%, #0f766e 60%, #064e3b 100%);
