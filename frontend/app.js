@@ -991,7 +991,9 @@ function onDashboardMessage(msg) {
     (acc, c) => acc + (c.tunnels?.length || 0),
     0,
   );
-  const onlineClients = STATE.registeredClients.filter((c) => c.is_online).length;
+  const onlineClients = STATE.registeredClients.filter(
+    (c) => c.is_online,
+  ).length;
   const machineTrafficIn = STATE.registeredClients.reduce(
     (s, c) => s + (c.net_bytes_in || 0),
     0,
