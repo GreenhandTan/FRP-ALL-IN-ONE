@@ -250,7 +250,7 @@ async function request(method, url, body, opts = {}) {
     } catch {}
     // 403: 未修改默认密码，强制弹出改密弹窗
     if (res.status === 403) {
-      localStorage.setItem('require_pwd_change', '1');
+      localStorage.setItem("require_pwd_change", "1");
       openForcedPasswordChange();
     }
     const err = new Error(detail || `HTTP ${res.status}`);
@@ -345,7 +345,7 @@ document.addEventListener("click", (e) => {
   if (btn) {
     const modalId = btn.dataset.modal;
     // 强制改密模式下禁止关闭
-    if (modalId && !($( modalId) && $(modalId).dataset.forced === "1")) {
+    if (modalId && !($(modalId) && $(modalId).dataset.forced === "1")) {
       closeModal(modalId);
     }
   }
@@ -1433,15 +1433,15 @@ function applyTranslations() {
    22. 路由
    ============================================================= */
 function openForcedPasswordChange() {
-  $('inp-old-pwd').value = '';
-  $('inp-new-pwd').value = '';
-  $('inp-confirm-pwd').value = '';
-  hideAlert('change-pwd-error');
-  $('change-pwd-form').classList.remove('hidden');
-  $('change-pwd-success').classList.add('hidden');
-  $('change-pwd-forced-notice').classList.remove('hidden');
-  $('modal-change-pwd').dataset.forced = '1';
-  openModal('modal-change-pwd');
+  $("inp-old-pwd").value = "";
+  $("inp-new-pwd").value = "";
+  $("inp-confirm-pwd").value = "";
+  hideAlert("change-pwd-error");
+  $("change-pwd-form").classList.remove("hidden");
+  $("change-pwd-success").classList.add("hidden");
+  $("change-pwd-forced-notice").classList.remove("hidden");
+  $("modal-change-pwd").dataset.forced = "1";
+  openModal("modal-change-pwd");
 }
 
 async function checkAuthAndRoute() {
@@ -1452,8 +1452,8 @@ async function checkAuthAndRoute() {
   }
 
   // 首次登录强制修改默认密码
-  if (localStorage.getItem('require_pwd_change') === '1') {
-    showView('view-login'); // 显示背景
+  if (localStorage.getItem("require_pwd_change") === "1") {
+    showView("view-login"); // 显示背景
     openForcedPasswordChange();
     return;
   }
