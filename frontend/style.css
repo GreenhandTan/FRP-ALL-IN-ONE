@@ -158,6 +158,18 @@ pre {
   color: #fff;
 }
 
+/* 深色卡片内的提示文字改为半透明白色，确保可读 */
+.auth-card .text-muted {
+  color: rgba(255, 255, 255, 0.65);
+}
+.auth-card small {
+  color: rgba(255, 255, 255, 0.6);
+}
+/* platform-btn 有自己的浅色背景，恢复深色文字 */
+.auth-card .platform-btn small {
+  color: var(--slate-500);
+}
+
 .setup-card {
   max-width: 560px;
 }
