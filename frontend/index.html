@@ -1,13 +1,446 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FRP-ALL-IN-ONE</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FRP Manager</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+  <!-- ===================== 加载屏幕 ===================== -->
+  <div id="loading-screen">
+    <div class="spinner"></div>
+    <p id="loading-text">Loading…</p>
+  </div>
+
+  <!-- ===================== APP 主容器 ===================== -->
+  <div id="app">
+
+    <!-- ============== 登录页 ============== -->
+    <div id="view-login" class="view auth-view">
+      <div class="auth-card">
+        <div class="auth-logo">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="3" width="20" height="14" rx="2" />
+            <path d="M8 21h8M12 17v4" />
+          </svg>
+          <h1>FRP Manager</h1>
+        </div>
+        <div id="login-error" class="alert alert-danger hidden"></div>
+        <form id="login-form" autocomplete="on">
+          <div class="form-group">
+            <label id="lbl-username" for="inp-username">用户名</label>
+            <input id="inp-username" type="text" name="username" autocomplete="username" required placeholder="admin">
+          </div>
+          <div class="form-group">
+            <label id="lbl-password" for="inp-password">密码</label>
+            <input id="inp-password" type="password" name="password" autocomplete="current-password" required
+              placeholder="••••••••">
+          </div>
+          <button type="submit" id="btn-login" class="btn btn-primary btn-block">登 录</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- ============== 设置向导页 ============== -->
+    <div id="view-setup" class="view auth-view">
+      <div class="auth-card setup-card">
+
+        <!-- 步骤指示器 -->
+        <div class="steps-indicator">
+          <div class="step active" id="step-dot-1"><span>1</span><small id="step-lbl-1">配置</small></div>
+          <div class="step-line"></div>
+          <div class="step" id="step-dot-2"><span>2</span><small id="step-lbl-2">部署</small></div>
+          <div class="step-line"></div>
+          <div class="step" id="step-dot-3"><span>3</span><small id="step-lbl-3">脚本</small></div>
+        </div>
+
+        <!-- Step 1: 配置服务器 -->
+        <div id="setup-step-1">
+          <h2 id="setup-title">FRPS 服务端配置</h2>
+          <p id="setup-subtitle" class="text-muted">系统将自动生成配置并启动 FRPS 容器</p>
+          <div id="setup-error" class="alert alert-danger hidden"></div>
+          <div class="form-group">
+            <label id="lbl-port" for="inp-port">监听端口</label>
+            <input id="inp-port" type="number" value="7000" min="1" max="65535">
+          </div>
+          <div class="form-group">
+            <label id="lbl-serverip" for="inp-serverip">公网 IP <span id="ip-detect-status"
+                class="badge badge-info">检测中…</span></label>
+            <input id="inp-serverip" type="text" placeholder="x.x.x.x">
+            <small id="ip-hint" class="text-muted">留空将自动检测，检测失败请手动输入</small>
+          </div>
+          <button id="btn-deploy" class="btn btn-primary btn-block">开始部署</button>
+        </div>
+
+        <!-- Step 2: 部署成功 -->
+        <div id="setup-step-2" class="hidden">
+          <div class="success-icon-big">✓</div>
+          <h2 id="setup-success-title">部署成功！</h2>
+          <div class="info-table">
+            <div class="info-row"><span id="lbl-version">版本</span><code id="info-version">—</code></div>
+            <div class="info-row"><span id="lbl-port2">端口</span><code id="info-port">—</code></div>
+            <div class="info-row"><span id="lbl-ip2">公网 IP</span><code id="info-ip">—</code></div>
+            <div class="info-row">
+              <span id="lbl-token">认证 Token</span>
+              <div class="token-wrap">
+                <code id="info-token" class="token-blur">—</code>
+                <button id="btn-copy-token" type="button" class="btn btn-xs btn-outline">复制</button>
+              </div>
+            </div>
+          </div>
+          <div id="frps-restart-notice" class="alert alert-success hidden"></div>
+          <button id="btn-step3" type="button" class="btn btn-primary btn-block">下一步：获取客户端脚本 →</button>
+        </div>
+
+        <!-- Step 3: 客户端脚本 -->
+        <div id="setup-step-3" class="hidden">
+          <h2 id="setup-script-title">客户端部署脚本</h2>
+          <p id="setup-script-hint" class="text-muted">在内网机器上以 root 权限执行</p>
+          <div id="setup-platform-grid" class="platform-grid">
+            <button type="button" class="platform-btn" data-platform="linux">
+              <span class="platform-icon">🐧</span>
+              <strong>Linux</strong>
+              <small>Ubuntu / CentOS / Debian</small>
+            </button>
+            <button type="button" class="platform-btn" data-platform="darwin">
+              <span class="platform-icon">🍎</span>
+              <strong>macOS</strong>
+              <small>Intel / Apple Silicon</small>
+            </button>
+            <button type="button" class="platform-btn" data-platform="windows">
+              <span class="platform-icon">🪟</span>
+              <strong>Windows</strong>
+              <small>Windows 10/11 x64</small>
+            </button>
+          </div>
+          <!-- 脚本显示区 -->
+          <div id="script-area" class="hidden">
+            <div class="code-toolbar">
+              <span id="script-platform-label" class="badge badge-info"></span>
+              <div>
+                <button id="btn-copy-script" type="button" class="btn btn-xs btn-outline">复制</button>
+                <button id="btn-download-script" type="button" class="btn btn-xs btn-outline">下载</button>
+              </div>
+            </div>
+            <pre id="script-content" class="code-block"></pre>
+          </div>
+          <button id="btn-finish-setup" type="button" class="btn btn-primary btn-block"
+            style="margin-top:16px">完成配置，进入控制面板 →</button>
+        </div>
+
+      </div><!-- /.auth-card -->
+    </div><!-- /#view-setup -->
+
+    <!-- ============== 仪表盘页 ============== -->
+    <div id="view-dashboard" class="view dashboard-view">
+
+      <!-- 导航栏 -->
+      <nav id="navbar">
+        <div class="nav-inner">
+          <div class="nav-brand">
+            <div class="nav-logo">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="3" width="20" height="14" rx="2" />
+                <path d="M8 21h8M12 17v4" />
+              </svg>
+            </div>
+            <span id="nav-title" class="nav-title">FRP 管理控制台</span>
+            <span id="ws-badge" class="badge badge-warning">Offline</span>
+            <span id="agents-badge" class="badge badge-info hidden"></span>
+          </div>
+          <div class="nav-actions">
+            <button id="btn-lang" class="btn btn-sm btn-ghost">EN</button>
+            <button id="btn-change-pwd" class="btn btn-sm btn-ghost" title="修改密码">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+            </button>
+            <button id="btn-logout" class="btn btn-sm btn-danger-ghost" title="退出">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      <!-- 主内容 -->
+      <main id="dashboard-main" class="container">
+
+        <!-- 错误横幅 -->
+        <div id="error-banner" class="alert alert-danger hidden">
+          <span id="error-text"></span>
+          <button id="btn-dismiss-error" class="alert-close">×</button>
+        </div>
+
+        <!-- 统计卡片 -->
+        <div class="stats-grid">
+          <div class="stat-card stat-green">
+            <div class="stat-icon-wrap stat-icon-green">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="3" width="20" height="14" rx="2" />
+                <path d="M8 21h8M12 17v4" />
+              </svg>
+            </div>
+            <div class="stat-body">
+              <div id="stat-label-clients" class="stat-label">已连接客户端</div>
+              <div id="stat-val-clients" class="stat-value">0</div>
+              <div id="stat-sub-clients" class="stat-sub"></div>
+            </div>
+          </div>
+          <div class="stat-card stat-blue">
+            <div class="stat-icon-wrap stat-icon-blue">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 12.55a11 11 0 0 1 14.08 0" />
+                <path d="M1.42 9a16 16 0 0 1 21.16 0" />
+                <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+                <line x1="12" y1="20" x2="12.01" y2="20" />
+              </svg>
+            </div>
+            <div class="stat-body">
+              <div id="stat-label-online" class="stat-label">在线客户端</div>
+              <div id="stat-val-online" class="stat-value">0</div>
+            </div>
+          </div>
+          <div class="stat-card stat-orange">
+            <div class="stat-icon-wrap stat-icon-orange">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="19" x2="12" y2="5" />
+                <polyline points="5 12 12 5 19 12" />
+              </svg>
+            </div>
+            <div class="stat-body">
+              <div id="stat-label-traffic-in" class="stat-label">总流量 (↓ 入)</div>
+              <div id="stat-val-traffic-in" class="stat-value">0 B</div>
+              <div class="stat-sub">所有客户端累计</div>
+            </div>
+          </div>
+          <div class="stat-card stat-pink">
+            <div class="stat-icon-wrap stat-icon-pink">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <polyline points="19 12 12 19 5 12" />
+              </svg>
+            </div>
+            <div class="stat-body">
+              <div id="stat-label-traffic-out" class="stat-label">总流量 (↑ 出)</div>
+              <div id="stat-val-traffic-out" class="stat-value">0 B</div>
+              <div class="stat-sub">所有客户端累计</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 客户端列表 -->
+        <div class="section-header">
+          <h2 id="clients-section-title">客户端列表</h2>
+        </div>
+        <div id="clients-list"></div>
+        <div id="clients-empty" class="empty-state hidden">
+          <div class="empty-icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="2" y="3" width="20" height="14" rx="2" />
+              <path d="M8 21h8M12 17v4" />
+            </svg>
+          </div>
+          <p id="clients-empty-text">暂无客户端，请等待 Agent 自动注册</p>
+        </div>
+
+      </main>
+    </div><!-- /#view-dashboard -->
+
+  </div><!-- /#app -->
+
+  <!-- ===================== 弹窗区域 ===================== -->
+
+  <!-- 修改密码弹窗 -->
+  <div id="modal-change-pwd" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="modal-change-pwd-title">修改密码</h3>
+        <button type="button" class="modal-close btn-close-modal" data-modal="modal-change-pwd">×</button>
+      </div>
+      <div class="modal-body">
+        <div id="change-pwd-success" class="success-block hidden">
+          <div class="success-icon-big" style="color:var(--green)">✓</div>
+          <p id="lbl-pwd-success">密码修改成功！</p>
+        </div>
+        <form id="change-pwd-form">
+          <div id="change-pwd-error" class="alert alert-danger hidden"></div>
+          <div class="form-group">
+            <label id="lbl-old-pwd" for="inp-old-pwd">当前密码</label>
+            <input id="inp-old-pwd" type="password" required autocomplete="current-password">
+          </div>
+          <div class="form-group">
+            <label id="lbl-new-pwd" for="inp-new-pwd">新密码</label>
+            <input id="inp-new-pwd" type="password" required autocomplete="new-password">
+          </div>
+          <div class="form-group">
+            <label id="lbl-confirm-pwd" for="inp-confirm-pwd">确认新密码</label>
+            <input id="inp-confirm-pwd" type="password" required autocomplete="new-password">
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary btn-close-modal" data-modal="modal-change-pwd">取消</button>
+            <button type="submit" id="btn-pwd-submit" class="btn btn-primary">确认修改</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 添加隧道弹窗 -->
+  <div id="modal-add-tunnel" class="modal-overlay hidden">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h3 id="modal-tunnel-title">新增隧道</h3>
+        <button type="button" class="modal-close btn-close-modal" data-modal="modal-add-tunnel">×</button>
+      </div>
+      <div class="modal-body">
+        <div id="add-tunnel-error" class="alert alert-danger hidden"></div>
+        <form id="add-tunnel-form">
+          <div class="form-grid">
+            <div class="form-group col-span-2">
+              <label id="lbl-tunnel-name" for="inp-tunnel-name">隧道名称</label>
+              <input id="inp-tunnel-name" type="text" placeholder="ssh" required>
+            </div>
+            <div class="form-group">
+              <label id="lbl-tunnel-type" for="inp-tunnel-type">类型</label>
+              <select id="inp-tunnel-type">
+                <option value="tcp">tcp</option>
+                <option value="udp">udp</option>
+                <option value="http">http</option>
+                <option value="https">https</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="inp-local-ip">Local IP</label>
+              <input id="inp-local-ip" type="text" value="127.0.0.1">
+            </div>
+            <div class="form-group">
+              <label>Local Port</label>
+              <input id="inp-local-port" type="number" placeholder="22" required>
+            </div>
+            <div class="form-group">
+              <label id="lbl-remote-port" for="inp-remote-port">远程端口</label>
+              <input id="inp-remote-port" type="number" placeholder="60022">
+              <small id="remote-port-hint" class="text-muted">建议 49152-65535</small>
+            </div>
+            <div class="form-group col-span-2">
+              <label for="inp-custom-domains">Custom Domains</label>
+              <input id="inp-custom-domains" type="text" placeholder="example.com" disabled>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary btn-close-modal" data-modal="modal-add-tunnel">取消</button>
+            <button type="submit" id="btn-add-tunnel-submit" class="btn btn-primary">确认添加</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 日志终端弹窗 -->
+  <div id="modal-log-terminal" class="modal-overlay hidden">
+    <div class="modal modal-xl">
+      <div class="modal-header terminal-header">
+        <div class="terminal-title">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="4 17 10 11 4 5" />
+            <line x1="12" y1="19" x2="20" y2="19" />
+          </svg>
+          <span id="log-client-name">Client</span>
+          <span id="log-status-badge" class="badge badge-danger">OFFLINE</span>
+        </div>
+        <div class="terminal-actions">
+          <button id="btn-log-pause" type="button" class="btn btn-xs btn-ghost-dark" title="暂停/恢复">⏸</button>
+          <button id="btn-log-download" type="button" class="btn btn-xs btn-ghost-dark" title="下载日志">⬇</button>
+          <button id="btn-log-clear" type="button" class="btn btn-xs btn-ghost-dark" title="清空">🗑</button>
+          <button type="button" class="btn btn-xs btn-ghost-dark btn-close-modal"
+            data-modal="modal-log-terminal">×</button>
+        </div>
+      </div>
+      <div id="log-body" class="terminal-body">
+        <div id="log-empty" class="log-empty">Waiting for logs…</div>
+        <div id="log-lines"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Agent 部署弹窗 -->
+  <div id="modal-agent-deploy" class="modal-overlay hidden">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h3>部署客户端 Agent</h3>
+        <button type="button" class="modal-close btn-close-modal" data-modal="modal-agent-deploy">×</button>
+      </div>
+      <div class="modal-body">
+        <div id="agent-platform-select">
+          <p class="text-muted" style="text-align:center;margin-bottom:16px">选择客户端操作系统</p>
+          <div class="platform-grid">
+            <button type="button" class="platform-btn" data-platform="linux">
+              <span class="platform-icon">🐧</span>
+              <strong>Linux</strong>
+              <small>Ubuntu / CentOS / Debian</small>
+            </button>
+            <button type="button" class="platform-btn" data-platform="darwin">
+              <span class="platform-icon">🍎</span>
+              <strong>macOS</strong>
+              <small>Intel / Apple Silicon</small>
+            </button>
+            <button type="button" class="platform-btn" data-platform="windows">
+              <span class="platform-icon">🪟</span>
+              <strong>Windows</strong>
+              <small>Windows 10/11 x64</small>
+            </button>
+          </div>
+          <div id="agent-server-info" class="info-table" style="margin-top:16px"></div>
+        </div>
+        <div id="agent-script-area" class="hidden">
+          <button id="btn-agent-back" type="button" class="btn btn-sm btn-ghost" style="margin-bottom:12px">←
+            返回</button>
+          <div class="code-toolbar">
+            <span id="agent-platform-label" class="badge badge-info"></span>
+            <div>
+              <button id="btn-copy-agent-script" type="button" class="btn btn-xs btn-outline">复制</button>
+              <button id="btn-download-agent-script" type="button" class="btn btn-xs btn-outline">下载</button>
+            </div>
+          </div>
+          <pre id="agent-script-content" class="code-block"></pre>
+          <div class="alert alert-warning" style="margin-top:12px">
+            <strong>安装说明：</strong>在目标机器上以管理员/root权限执行上述命令，脚本将自动下载并配置 FRPC 服务。
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-close-modal" data-modal="modal-agent-deploy">关闭</button>
+        <button id="btn-agent-done" type="button" class="btn btn-primary hidden">完成，进入控制面板</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 通用确认弹窗 -->
+  <div id="modal-confirm" class="modal-overlay hidden">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <h3 id="confirm-title">确认</h3>
+      </div>
+      <div class="modal-body">
+        <p id="confirm-message"></p>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-confirm-cancel" type="button" class="btn btn-secondary">取消</button>
+        <button id="btn-confirm-ok" type="button" class="btn btn-danger">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+
 </html>

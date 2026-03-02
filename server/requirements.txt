@@ -1,12 +1,9 @@
 fastapi
 uvicorn[standard]
-websockets
 pydantic
 sqlalchemy
 requests
 python-multipart
-jinja2
 python-jose[cryptography]
 passlib[bcrypt]
 slowapi
-redis
