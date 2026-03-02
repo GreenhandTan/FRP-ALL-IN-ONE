@@ -974,56 +974,42 @@ document
    ============================================================= */
 function onDashboardMessage(msg) {
   if (msg.type !== "dashboard") return;
-  const { status, registered_clients, agents } = msg.data || {};
-  const nowSec = Math.floor(Date.now() / 1000);
+  const { registered_clients, disabled_ports, frps_status } = msg.data || {};
 
-  const agentMap = {};
-  (agents || []).forEach((a) => {
-    agentMap[a.client_id] = a;
-  });
+  // 后端已将 is_online / cpu_percent / net_speed_* 等字段直接内嵌在每个 client 对象中
+  // 不再需要额外的 agents 数组映射，直接使用
+  STATE.registeredClients = registered_clients || [];
+  STATE.disabledPorts = disabled_ports || [];
 
-  // 丰富客户端数据
-  const enriched = (registered_clients || []).map((c) => ({
-    ...c,
-    is_online:
-      agentMap[c.id]?.is_online || (c.last_seen && nowSec - c.last_seen < 90),
-    cpu_percent: agentMap[c.id]?.cpu_percent,
-    memory_percent: agentMap[c.id]?.memory_percent,
-    disk_percent: agentMap[c.id]?.disk_percent,
-    net_speed_in: agentMap[c.id]?.net_speed_in,
-    net_speed_out: agentMap[c.id]?.net_speed_out,
-  }));
-
-  STATE.registeredClients = enriched;
-  STATE.disabledPorts = msg.data.disabled_ports || [];
-
-  if (status?.success) {
-    STATE.serverInfo = status.server_info || {};
-    STATE.frpProxies = status.proxies || [];
+  if (frps_status?.success) {
+    STATE.serverInfo = frps_status.server_info || {};
+    STATE.frpProxies = frps_status.proxies || [];
   }
 
-  // 计算统计
-  const configuredTunnels = enriched.reduce(
+  // 计算统计数据（基于内嵌字段）
+  const configuredTunnels = STATE.registeredClients.reduce(
     (acc, c) => acc + (c.tunnels?.length || 0),
     0,
   );
-  const onlineClients = enriched.filter((c) => c.is_online).length;
-  const onlineAgents = (agents || []).filter((a) => a.is_online).length;
-  const machineTrafficIn = enriched.reduce(
+  const onlineClients = STATE.registeredClients.filter((c) => c.is_online).length;
+  const machineTrafficIn = STATE.registeredClients.reduce(
     (s, c) => s + (c.net_bytes_in || 0),
     0,
   );
-  const machineTrafficOut = enriched.reduce(
+  const machineTrafficOut = STATE.registeredClients.reduce(
     (s, c) => s + (c.net_bytes_out || 0),
     0,
   );
 
   STATE.stats = {
-    totalClients: Math.max(STATE.serverInfo.clientCounts || 0, enriched.length),
+    totalClients: Math.max(
+      STATE.serverInfo?.clientCounts || 0,
+      STATE.registeredClients.length,
+    ),
     onlineClients,
     totalProxies: configuredTunnels,
-    activeProxies: status?.proxies?.length || 0,
-    onlineAgents,
+    activeProxies: STATE.frpProxies?.length || 0,
+    onlineAgents: onlineClients,
     machineTrafficIn,
     machineTrafficOut,
   };
@@ -1107,7 +1093,7 @@ $("btn-dismiss-error").addEventListener("click", () => hide("error-banner"));
    17. 设置向导
    ============================================================= */
 let setupStep = 0;
-let setupMode = 'ip'; // 'ip' | 'domain'
+let setupMode = "ip"; // 'ip' | 'domain'
 let deployResult = null;
 let selectedPlatform = null;
 
@@ -1126,13 +1112,13 @@ function goSetupStep(n) {
 
 // 模式卡片点击
 $("mode-btn-ip").addEventListener("click", () => {
-  setupMode = 'ip';
+  setupMode = "ip";
   $("domain-group").classList.add("hidden");
   detectPublicIp();
   goSetupStep(1);
 });
 $("mode-btn-domain").addEventListener("click", () => {
-  setupMode = 'domain';
+  setupMode = "domain";
   $("domain-group").classList.remove("hidden");
   detectPublicIp();
   goSetupStep(1);
@@ -1207,7 +1193,8 @@ $("btn-deploy").addEventListener("click", async () => {
 });
 
 $("btn-copy-token").addEventListener("click", async () => {
-  const token = (deployResult && deployResult.auth_token) || $("info-token").textContent;
+  const token =
+    (deployResult && deployResult.auth_token) || $("info-token").textContent;
   if (await copyText(token)) {
     $("btn-copy-token").textContent = t("setup.copied");
     setTimeout(() => setText("btn-copy-token", t("copy")), 2000);
@@ -1478,9 +1465,9 @@ async function checkAuthAndRoute() {
   }
 
   try {
-    const st = await api.get('/api/system/status');
+    const st = await api.get("/api/system/status");
     if (!st.frps_deployed) {
-      showView('view-setup');
+      showView("view-setup");
       goSetupStep(0); // 从模式选择开始
       return;
     }

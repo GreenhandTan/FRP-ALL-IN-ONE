@@ -18,6 +18,10 @@ import auth
 from database import SessionLocal, engine
 from websocket_manager import manager as ws_manager
 from core.rate_limit import limiter, setup_rate_limit
+import time as _time
+
+# FRPS Dashboard 状态缓存（每 5 秒刷新一次，避免 WS 循环每秒调用）
+_frps_cache: dict = {"data": None, "ts": 0.0}
 
 # 创建数据库表
 models.Base.metadata.create_all(bind=engine)
@@ -281,10 +285,27 @@ async def websocket_dashboard(websocket: WebSocket):
                     
                     registered_clients.append(client_data)
 
+                # 获取禁用端口列表
+                disabled_ports_str = crud.get_config(db, models.ConfigKeys.DISABLED_PORTS) or ""
+                disabled_ports = [int(p) for p in disabled_ports_str.split(",") if p.strip()]
+
+                # FRPS Dashboard 状态（每 5 秒刷新，避免高频请求）
+                now_ts = _time.time()
+                if now_ts - _frps_cache["ts"] > 5:
+                    try:
+                        from routers.frp_server import get_frps_status
+                        frps_data = await get_frps_status(db=db, current_user=None)
+                        _frps_cache["data"] = frps_data
+                        _frps_cache["ts"] = now_ts
+                    except Exception as _e:
+                        print(f"[WS] FRPS 状态刷新失败: {_e}")
+
                 await websocket.send_json({
                     "type": "dashboard",
                     "data": {
                         "registered_clients": registered_clients,
+                        "disabled_ports": disabled_ports,
+                        "frps_status": _frps_cache["data"],
                     }
                 })
             finally:
