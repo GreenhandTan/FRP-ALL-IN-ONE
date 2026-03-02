@@ -1106,13 +1106,14 @@ $("btn-dismiss-error").addEventListener("click", () => hide("error-banner"));
 /* =============================================================
    17. 设置向导
    ============================================================= */
-let setupStep = 1;
+let setupStep = 0;
+let setupMode = 'ip'; // 'ip' | 'domain'
 let deployResult = null;
 let selectedPlatform = null;
 
 function goSetupStep(n) {
   setupStep = n;
-  [1, 2, 3].forEach((i) => {
+  [0, 1, 2, 3].forEach((i) => {
     const el = $(`setup-step-${i}`);
     if (el) el.classList.toggle("hidden", i !== n);
     const dot = $(`step-dot-${i}`);
@@ -1122,6 +1123,20 @@ function goSetupStep(n) {
     }
   });
 }
+
+// 模式卡片点击
+$("mode-btn-ip").addEventListener("click", () => {
+  setupMode = 'ip';
+  $("domain-group").classList.add("hidden");
+  detectPublicIp();
+  goSetupStep(1);
+});
+$("mode-btn-domain").addEventListener("click", () => {
+  setupMode = 'domain';
+  $("domain-group").classList.remove("hidden");
+  detectPublicIp();
+  goSetupStep(1);
+});
 
 // 检测公网 IP
 async function detectPublicIp() {
@@ -1192,7 +1207,7 @@ $("btn-deploy").addEventListener("click", async () => {
 });
 
 $("btn-copy-token").addEventListener("click", async () => {
-  const token = $("info-token").textContent;
+  const token = (deployResult && deployResult.auth_token) || $("info-token").textContent;
   if (await copyText(token)) {
     $("btn-copy-token").textContent = t("setup.copied");
     setTimeout(() => setText("btn-copy-token", t("copy")), 2000);
@@ -1201,6 +1216,7 @@ $("btn-copy-token").addEventListener("click", async () => {
 
 $("btn-step3").addEventListener("click", () => {
   selectedPlatform = null;
+  $("btn-finish-setup").disabled = true;
   hide("script-area");
   goSetupStep(3);
 });
@@ -1212,14 +1228,17 @@ $$(".platform-btn", $("setup-step-3")).forEach((btn) => {
     $("script-platform-label").textContent = selectedPlatform;
     $("script-content").textContent = "加载中…";
     show("script-area");
+    $("btn-finish-setup").disabled = true;
     try {
       const script = await api.get(
         `/api/frp/agent/install-script/${selectedPlatform}`,
       );
       $("script-content").textContent =
         typeof script === "string" ? script : JSON.stringify(script);
+      $("btn-finish-setup").disabled = false;
     } catch (err) {
       $("script-content").textContent = `# 获取失败: ${err.message}`;
+      $("btn-finish-setup").disabled = false;
     }
   });
 });
@@ -1459,11 +1478,10 @@ async function checkAuthAndRoute() {
   }
 
   try {
-    const st = await api.get("/api/system/status");
+    const st = await api.get('/api/system/status');
     if (!st.frps_deployed) {
-      showView("view-setup");
-      detectPublicIp();
-      goSetupStep(1);
+      showView('view-setup');
+      goSetupStep(0); // 从模式选择开始
       return;
     }
     startDashboard();

@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FRP Manager</title>
-  <link rel="stylesheet" href="style.css?v=20260302b">
+  <link rel="stylesheet" href="style.css?v=20260302c">
 </head>
 
 <body>
@@ -51,15 +51,51 @@
 
         <!-- 步骤指示器 -->
         <div class="steps-indicator">
-          <div class="step active" id="step-dot-1"><span>1</span><small id="step-lbl-1">配置</small></div>
+          <div class="step active" id="step-dot-0"><span>1</span><small id="step-lbl-0">模式</small></div>
           <div class="step-line"></div>
-          <div class="step" id="step-dot-2"><span>2</span><small id="step-lbl-2">部署</small></div>
+          <div class="step" id="step-dot-1"><span>2</span><small id="step-lbl-1">配置</small></div>
           <div class="step-line"></div>
-          <div class="step" id="step-dot-3"><span>3</span><small id="step-lbl-3">脚本</small></div>
+          <div class="step" id="step-dot-2"><span>3</span><small id="step-lbl-2">部署</small></div>
+          <div class="step-line"></div>
+          <div class="step" id="step-dot-3"><span>4</span><small id="step-lbl-3">脚本</small></div>
         </div>
 
-        <!-- Step 1: 配置服务器 -->
-        <div id="setup-step-1">
+        <!-- Step 0: 选择部署模式 -->
+        <div id="setup-step-0">
+          <h2>选择部署方式</h2>
+          <p class="text-muted">请先确认您的网络环境，选择合适的部署模式</p>
+          <div class="mode-grid">
+            <button type="button" class="mode-card" id="mode-btn-ip">
+              <span class="mode-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="2" y="5" width="20" height="14" rx="2"/>
+                  <line x1="2" y1="9" x2="22" y2="9"/>
+                  <circle cx="7" cy="7" r="0.8" fill="currentColor" stroke="none"/>
+                  <circle cx="11" cy="7" r="0.8" fill="currentColor" stroke="none"/>
+                  <line x1="15" y1="7" x2="20" y2="7"/>
+                  <polyline points="7,13 9,15 7,17"/>
+                  <line x1="11" y1="17" x2="15" y2="17"/>
+                </svg>
+              </span>
+              <strong>IP 直连</strong>
+              <p>通过公网 IP 访问，配置简单，适合无域名场景</p>
+            </button>
+            <button type="button" class="mode-card" id="mode-btn-domain">
+              <span class="mode-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="9"/>
+                  <path d="M12 3 C8 6 8 18 12 21"/>
+                  <path d="M12 3 C16 6 16 18 12 21"/>
+                  <line x1="3.5" y1="9" x2="20.5" y2="9"/>
+                  <line x1="3.5" y1="15" x2="20.5" y2="15"/>
+                </svg>
+              </span>
+              <strong>域名模式</strong>
+              <p>绑定域名，支持 HTTP/HTTPS 隧道及泛域名代理</p>
+            </button>
+          </div>
+        </div>
+        <div id="setup-step-1" class="hidden">
           <h2 id="setup-title">FRPS 服务端配置</h2>
           <p id="setup-subtitle" class="text-muted">系统将自动生成配置并启动 FRPS 容器</p>
           <div id="setup-error" class="alert alert-danger hidden"></div>
@@ -72,6 +108,11 @@
                 class="badge badge-info">检测中…</span></label>
             <input id="inp-serverip" type="text" placeholder="x.x.x.x">
             <small id="ip-hint" class="text-muted">留空将自动检测，检测失败请手动输入</small>
+          </div>
+          <div class="form-group hidden" id="domain-group">
+            <label for="inp-domain">域名</label>
+            <input id="inp-domain" type="text" placeholder="example.com">
+            <small class="text-muted">frpc 将使用此域名连接服务端，需提前将域名解析至本机 IP</small>
           </div>
           <button id="btn-deploy" class="btn btn-primary btn-block">开始部署</button>
         </div>
@@ -102,17 +143,37 @@
           <p id="setup-script-hint" class="text-muted">在内网机器上以 root 权限执行</p>
           <div id="setup-platform-grid" class="platform-grid">
             <button type="button" class="platform-btn" data-platform="linux">
-              <span class="platform-icon">🐧</span>
+              <span class="platform-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="2" y="3" width="20" height="14" rx="2"/>
+                  <polyline points="7,9 10,12 7,15"/>
+                  <line x1="12" y1="15" x2="17" y2="15"/>
+                  <line x1="2" y1="20" x2="22" y2="20"/>
+                </svg>
+              </span>
               <strong>Linux</strong>
               <small>Ubuntu / CentOS / Debian</small>
             </button>
             <button type="button" class="platform-btn" data-platform="darwin">
-              <span class="platform-icon">🍎</span>
+              <span class="platform-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="2" y="3" width="20" height="14" rx="2"/>
+                  <line x1="8" y1="21" x2="16" y2="21"/>
+                  <line x1="12" y1="17" x2="12" y2="21"/>
+                </svg>
+              </span>
               <strong>macOS</strong>
               <small>Intel / Apple Silicon</small>
             </button>
             <button type="button" class="platform-btn" data-platform="windows">
-              <span class="platform-icon">🪟</span>
+              <span class="platform-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="3" width="7.5" height="7.5" rx="1"/>
+                  <rect x="13.5" y="3" width="7.5" height="7.5" rx="1"/>
+                  <rect x="3" y="13.5" width="7.5" height="7.5" rx="1"/>
+                  <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1"/>
+                </svg>
+              </span>
               <strong>Windows</strong>
               <small>Windows 10/11 x64</small>
             </button>
@@ -128,7 +189,7 @@
             </div>
             <pre id="script-content" class="code-block"></pre>
           </div>
-          <button id="btn-finish-setup" type="button" class="btn btn-primary btn-block"
+          <button id="btn-finish-setup" type="button" class="btn btn-primary btn-block" disabled
             style="margin-top:16px">完成配置，进入控制面板 →</button>
         </div>
 
@@ -388,17 +449,37 @@
           <p class="text-muted" style="text-align:center;margin-bottom:16px">选择客户端操作系统</p>
           <div class="platform-grid">
             <button type="button" class="platform-btn" data-platform="linux">
-              <span class="platform-icon">🐧</span>
+              <span class="platform-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="2" y="3" width="20" height="14" rx="2"/>
+                  <polyline points="7,9 10,12 7,15"/>
+                  <line x1="12" y1="15" x2="17" y2="15"/>
+                  <line x1="2" y1="20" x2="22" y2="20"/>
+                </svg>
+              </span>
               <strong>Linux</strong>
               <small>Ubuntu / CentOS / Debian</small>
             </button>
             <button type="button" class="platform-btn" data-platform="darwin">
-              <span class="platform-icon">🍎</span>
+              <span class="platform-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="2" y="3" width="20" height="14" rx="2"/>
+                  <line x1="8" y1="21" x2="16" y2="21"/>
+                  <line x1="12" y1="17" x2="12" y2="21"/>
+                </svg>
+              </span>
               <strong>macOS</strong>
               <small>Intel / Apple Silicon</small>
             </button>
             <button type="button" class="platform-btn" data-platform="windows">
-              <span class="platform-icon">🪟</span>
+              <span class="platform-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="3" width="7.5" height="7.5" rx="1"/>
+                  <rect x="13.5" y="3" width="7.5" height="7.5" rx="1"/>
+                  <rect x="3" y="13.5" width="7.5" height="7.5" rx="1"/>
+                  <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1"/>
+                </svg>
+              </span>
               <strong>Windows</strong>
               <small>Windows 10/11 x64</small>
             </button>
@@ -444,7 +525,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260302b"></script>
+  <script src="app.js?v=20260302c"></script>
 </body>
 
 </html>
