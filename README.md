@@ -1,7 +1,7 @@
 <div align="center">
   <h1>FRP-ALL-IN-ONE</h1>
   <p>一个基于 Web 的 FRP 内网穿透管理系统：用浏览器完成 <b>FRPS 配置</b>、<b>客户端一键部署</b>、<b>设备注册/心跳</b>、<b>端口映射管理</b>，并提供<b>实时流量监控</b>与<b>系统资源监控</b>。</p>
-  <p><b>🪶 极致轻量 · ⚡ 开箱即用 · 🔥 功能强大</b></p>
+  <p><b>极致轻量 · 开箱即用 · 功能强大</b></p>
   <p>
     <a href="https://github.com/GreenhandTan/FRP-ALL-IN-ONE/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/GreenhandTan/FRP-ALL-IN-ONE?style=flat&logo=github"></a>
     <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/GreenhandTan/FRP-ALL-IN-ONE?style=flat"></a>
@@ -72,20 +72,20 @@
 
 ## 核心优势
 
-### 🪶 极致轻量
+### 极致轻量
 
 - **1核1G 服务器即可流畅运行**：经过实际测试，最低配置（1 vCPU + 1 GB RAM）的云服务器完全满足系统部署与运行需求
 - **前端零依赖构建**：Web 界面使用原生 H5 + CSS + JS 编写，无需 Node.js、无需 npm install，无构建工具链，浏览器直接加载
 - **轻量后端技术栈**：FastAPI + SQLite，无需 MySQL/PostgreSQL，数据文件仅数 MB，极低磁盘与内存占用
 - **容器极度精简**：Nginx Alpine 镜像 + 纯静态文件，Web 容器内存占用 < 10 MB
 
-### ⚡ 开箱即用
+### 开箱即用
 
 - **一条命令完成全部部署**：`git clone` + 执行 `deploy.sh`，自动处理依赖安装、容器构建、服务启动
 - **可视化配置向导**：首次登录后通过 Web 界面的引导向导完成 FRPS 配置（IP/域名模式可选），无需手动编辑任何配置文件
 - **客户端脚本自动生成**：在控制台一键生成针对不同平台（Linux/macOS/Windows）、不同架构（x86/ARM/MIPS）的部署脚本，复制后直接在内网机器执行
 
-### 🔥 功能强大
+### 功能强大
 
 - **WebSocket 实时推送**：每秒推送全局状态，每个客户端的 CPU/内存/磁盘/网络指标实时可见，无需手动刷新
 - **配置热重载**：通过 FRPC Admin API 动态增删端口映射，通道变更立即生效，无需重启 frpc 进程
@@ -99,28 +99,28 @@
 
 ## 核心特性
 
-### 🚀 部署与管理
+### 部署与管理
 
 - **一键部署**：Podman Compose 启动管理后台、Web、FRPS
 - **配置向导**：Web 界面完成 FRPS 端口、Token、公网 IP 设置
 - **一键脚本**：自动生成客户端部署脚本（支持多架构、systemd、开机自启）
 - **HTTPS 全自动**：支持自动申请 Let's Encrypt 证书或上传自定义证书
 
-### 🔐 安全增强
+### 安全增强
 
 - **强制修改密码**：首次登录强制修改默认密码，密码强度校验（8位+大小写+数字）
 - **JWT 安全**：自动生成强密钥并持久化，支持环境变量覆盖
 - **API 限流**：登录接口 5次/分钟，证书申请 3次/小时，防止暴力破解
 - **证书自动续期**：Let's Encrypt 证书自动续期，到期前 30 天自动处理
 
-### 📊 实时监控
+### 实时监控
 
 - **实时流量监控**：Agent 每 3 秒采集网络流量速率，WebSocket 实时推送
 - **系统资源监控**：CPU、内存、磁盘使用率实时显示
 - **累计流量统计**：顶部卡片展示所有客户端的累计总流量
 - **隧道流量统计**：每个隧道独立显示累计流量
 
-### 🔧 Agent 机制
+### Agent 机制
 
 - **自动注册**：客户端自动上报 hostname、OS、架构，自动命名设备
 - **心跳上报**：定时上报系统指标（CPU、内存、磁盘、网络速率）
@@ -128,7 +128,7 @@
 - **实时日志**：WebSocket 推送 FRPC 运行日志到控制台
 - **协议自适应**：Agent 自动检测服务器协议（ws/wss）并切换
 
-### 🌐 其他特性
+### 其他特性
 
 - **WebSocket 实时推送**：每秒推送状态更新，无需手动刷新
 - **国际化**：支持简体中文/英文/繁体中文三语切换
@@ -169,9 +169,9 @@ flowchart TB
 - Podman & Podman Compose（脚本可自动安装）
 - 端口放行（至少）：80/TCP、FRPS 端口（默认 7000/TCP）
 
-> 💡 **系统建议**：本项目基于 Podman 部署，脚本支持自动识别 Linux 发行版并安装依赖（含 Alpine / Debian / Ubuntu / RHEL 系）。Windows 和 macOS 可作为客户端运行，服务端建议使用 Linux。
+> **系统建议**：本项目基于 Podman 部署，脚本支持自动识别 Linux 发行版并安装依赖（含 Alpine / Debian / Ubuntu / RHEL 系）。Windows 和 macOS 可作为客户端运行，服务端建议使用 Linux。
 
-> 🪶 **轻量提示**：前端为原生 H5 纯静态文件，Nginx 容器内存占用 < 10 MB；后端 FastAPI + SQLite，整套系统在 1核1G 机器上运行绰绰有余。
+> **轻量提示**：前端为原生 H5 纯静态文件，Nginx 容器内存占用 < 10 MB；后端 FastAPI + SQLite，整套系统在 1核1G 机器上运行绰绰有余。
 
 ### 一键部署
 
@@ -189,7 +189,7 @@ sudo ./deploy.sh
 | ------ | ------ |
 | admin  | 123456 |
 
-> ⚠️ **系统已强制要求首次登录后修改默认密码**，密码需满足：至少 8 位，包含大写字母、小写字母和数字。
+> **注意**：系统已强制要求首次登录后修改默认密码，密码需满足：至少 8 位，包含大写字母、小写字母和数字。
 
 ### 低内存服务器（512MB 或更低）
 
@@ -202,7 +202,7 @@ sudo ./setup-swap.sh   # 创建 2GB Swap
 sudo ./deploy.sh
 ```
 
-> 💡 1核1G 的服务器通常无需开启 Swap 即可直接部署。
+> 1核1G 的服务器通常无需开启 Swap 即可直接部署。
 
 ### 数据持久化
 
@@ -264,7 +264,7 @@ sudo ./deploy-frpc.sh
    - 重载服务
 6. 完成后自动跳转到 `https://你的域名`
 
-> 🔒 **自动续期**：证书将在过期前 30 天自动续期，无需手动干预。
+> **自动续期**：证书将在过期前 30 天自动续期，无需手动干预。
 
 ### 方式二：上传自定义证书
 
@@ -291,7 +291,7 @@ curl http://localhost:8000/api/settings/tls-status
 | 7000（或自定义 bindPort） | TCP     | frpc 控制连接               |
 | 49152-65535               | TCP/UDP | 推荐的私有端口范围          |
 
-> 💡 每个 `remote_port` 都需要在安全组中放行才能从外部访问。
+> 每个 `remote_port` 都需要在安全组中放行才能从外部访问。
 
 <a id="monitoring"></a>
 
@@ -510,16 +510,16 @@ python -m uvicorn main:app --reload
 - 保留许可证与版权声明
 - 注明原作者为 **GreenhandTan**
 
-## 🛡️ 安全建议
+## 安全建议
 
-- ✅ 首次登录后立即修改默认密码（系统已强制要求）
-- ✅ 使用强密码（至少 8 位，包含大小写+数字）
-- ✅ 定期更新 Podman 镜像
-- ✅ 安全组仅开放必要端口
-- ✅ FRPS Dashboard（7500）建议仅允许本机访问
-- ✅ 启用 HTTPS 以加密通信（推荐生产环境使用）
+- 首次登录后立即修改默认密码（系统已强制要求）
+- 使用强密码（至少 8 位，包含大小写+数字）
+- 定期更新 Podman 镜像
+- 安全组仅开放必要端口
+- FRPS Dashboard（7500）建议仅允许本机访问
+- 启用 HTTPS 以加密通信（推荐生产环境使用）
 
-## 🙏 致谢
+## 致谢
 
 - [FRP](https://github.com/fatedier/frp) - 优秀的内网穿透工具
 - [gopsutil](https://github.com/shirou/gopsutil) - Go 系统监控库
@@ -527,4 +527,4 @@ python -m uvicorn main:app --reload
 
 ---
 
-**⭐ 如果这个项目对您有帮助，请给我们一个 Star！**
+如果这个项目对您有帮助，欢迎给我们一个 Star。

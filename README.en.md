@@ -1,7 +1,7 @@
 <div align="center">
   <h1>FRP-ALL-IN-ONE</h1>
   <p>A web-based FRP management system: <b>FRPS configuration</b>, <b>one-click client deployment</b>, <b>device registration/heartbeat</b>, <b>port mapping management</b>, with <b>real-time traffic monitoring</b> and <b>system resource monitoring</b>.</p>
-  <p><b>🪶 Ultra Lightweight &middot; ⚡ Ready to Use &middot; 🔥 Feature-Rich</b></p>
+  <p><b>Ultra Lightweight &middot; Ready to Use &middot; Feature-Rich</b></p>
   <p>
     <a href="https://github.com/GreenhandTan/FRP-ALL-IN-ONE/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/GreenhandTan/FRP-ALL-IN-ONE?style=flat&logo=github"></a>
     <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/GreenhandTan/FRP-ALL-IN-ONE?style=flat"></a>
@@ -72,20 +72,20 @@
 
 ## Core Highlights
 
-### 🪶 Ultra Lightweight
+### Ultra Lightweight
 
 - **Runs smoothly on 1 vCPU + 1 GB RAM**: Tested and verified — the minimum spec cloud server is fully sufficient for deployment and daily operation
 - **Zero build-tool frontend**: The web UI is written in pure native H5 + CSS + JS. No Node.js, no `npm install`, no build pipeline — browsers load it directly
 - **Minimal backend stack**: FastAPI + SQLite — no MySQL/PostgreSQL needed, database files stay just a few MBs, ultra-low disk and memory footprint
 - **Tiny containers**: Nginx Alpine image serving pure static files — the web container uses < 10 MB of memory
 
-### ⚡ Ready to Use
+### Ready to Use
 
 - **Full deployment in one command**: `git clone` + run `deploy.sh` — handles dependency installation, container build, and service startup automatically
 - **Visual setup wizard**: Complete FRPS configuration (IP direct or domain mode) through the web wizard on first login — no manual config file editing required
 - **Auto-generated client scripts**: One click generates deployment scripts for any platform (Linux/macOS/Windows) and architecture (x86/ARM/MIPS), ready to paste and run on LAN machines
 
-### 🔥 Feature-Rich
+### Feature-Rich
 
 - **WebSocket real-time push**: Pushes global status every second — CPU/memory/disk/network metrics for every client visible in real time, no manual refresh needed
 - **Hot reload**: Dynamically add/remove port mappings via FRPC Admin API; changes take effect immediately without restarting frpc
@@ -99,28 +99,28 @@
 
 ## Core Features
 
-### 🚀 Deployment & Management
+### Deployment & Management
 
 - **One-click Deployment**: Start management backend, web, and FRPS with Podman Compose
 - **Configuration Wizard**: Web interface for FRPS port, token, and public IP settings
 - **One-click Scripts**: Auto-generate client deployment scripts (multi-arch, systemd, auto-start)
 - **HTTPS Automation**: Support for auto-issuing Let's Encrypt certificates or uploading custom certificates
 
-### 🔐 Security Enhancements
+### Security Enhancements
 
 - **Mandatory Password Change**: First login requires password change with strength validation (8+ chars, upper/lower case, numbers)
 - **JWT Security**: Auto-generate strong keys with persistence, environment variable override support
 - **API Rate Limiting**: 5 requests/minute for login, 3 requests/hour for certificate issuance, preventing brute force attacks
 - **Auto Certificate Renewal**: Let's Encrypt certificates automatically renew 30 days before expiration
 
-### 📊 Real-time Monitoring
+### Real-time Monitoring
 
 - **Real-time Traffic Monitoring**: Agent collects network speed every 3 seconds, pushed via WebSocket
 - **System Resource Monitoring**: Real-time display of CPU, memory, and disk usage
 - **Cumulative Traffic Statistics**: Top cards show total cumulative traffic from all clients
 - **Tunnel Traffic Statistics**: Each tunnel displays its own cumulative traffic
 
-### 🔧 Agent Mechanism
+### Agent Mechanism
 
 - **Auto Registration**: Clients auto-report hostname, OS, architecture for device naming
 - **Heartbeat Reporting**: Periodic system metrics reporting (CPU, memory, disk, network speed)
@@ -128,7 +128,7 @@
 - **Real-time Logs**: WebSocket push FRPC logs to console
 - **Protocol Adaptation**: Agent automatically detects server protocol (ws/wss) and switches
 
-### 🌐 Other Features
+### Other Features
 
 - **WebSocket Real-time Push**: Status updates every second, no manual refresh needed
 - **Internationalization**: Chinese/English/Traditional Chinese language switching
@@ -169,9 +169,9 @@ flowchart TB
 - Podman & Podman Compose (auto-installed by deploy script)
 - Port forwarding (minimum): 80/TCP, FRPS port (default 7000/TCP)
 
-> 💡 **System Recommendation**: This project is deployed via Podman. The deployment script auto-detects Linux distributions (including Alpine, Debian/Ubuntu, and RHEL-family) and installs dependencies automatically. Windows and macOS can run as client machines; Linux is recommended for the server.
+> **System Recommendation**: This project is deployed via Podman. The deployment script auto-detects Linux distributions (including Alpine, Debian/Ubuntu, and RHEL-family) and installs dependencies automatically. Windows and macOS can run as client machines; Linux is recommended for the server.
 
-> 🪶 **Lightweight Note**: The frontend is pure native H5 static files — the Nginx container uses < 10 MB of memory. The FastAPI + SQLite backend means the entire system runs comfortably on a 1 vCPU + 1 GB server.
+> **Lightweight Note**: The frontend is pure native H5 static files — the Nginx container uses < 10 MB of memory. The FastAPI + SQLite backend means the entire system runs comfortably on a 1 vCPU + 1 GB server.
 
 ### One-click Deployment
 
@@ -189,7 +189,7 @@ sudo ./deploy.sh
 | -------- | -------- |
 | admin    | 123456   |
 
-> ⚠️ **The system enforces password change on first login**. Password must be at least 8 characters with uppercase, lowercase letters and numbers.
+> **Note**: The system enforces password change on first login. Password must be at least 8 characters with uppercase, lowercase letters and numbers.
 
 ### Low Memory Servers (512 MB or less)
 
@@ -202,7 +202,7 @@ sudo ./setup-swap.sh   # creates 2 GB Swap
 sudo ./deploy.sh
 ```
 
-> 💡 A 1 vCPU + 1 GB server can typically deploy directly without Swap.
+> A 1 vCPU + 1 GB server can typically deploy directly without Swap.
 
 ### Data Persistence
 
@@ -264,7 +264,7 @@ The system supports two HTTPS activation methods:
    - Reload services
 6. Auto-redirect to `https://your-domain`
 
-> 🔒 **Auto Renewal**: Certificates will be automatically renewed 30 days before expiration, no manual intervention needed.
+> **Auto Renewal**: Certificates will be automatically renewed 30 days before expiration, no manual intervention needed.
 
 ### Method 2: Upload Custom Certificate
 
@@ -291,7 +291,7 @@ curl http://localhost:8000/api/settings/tls-status
 | 7000 (or custom bindPort) | TCP      | frpc control connection          |
 | 49152-65535               | TCP/UDP  | Recommended private port range   |
 
-> 💡 Each `remote_port` needs to be allowed in security groups for external access.
+> Each `remote_port` needs to be allowed in security groups for external access.
 
 <a id="monitoring"></a>
 
@@ -510,16 +510,16 @@ You must:
 - Retain license and copyright notice
 - Attribute original author as **GreenhandTan**
 
-## 🛡️ Security Recommendations
+## Security Recommendations
 
-- ✅ Change default password immediately after first login (enforced by system)
-- ✅ Use strong passwords (at least 8 characters with upper/lower case + numbers)
-- ✅ Regularly update Podman images
-- ✅ Only open necessary ports in security groups
-- ✅ FRPS Dashboard (7500) should only allow localhost access
-- ✅ Enable HTTPS to encrypt communications (recommended for production)
+- Change default password immediately after first login (enforced by system)
+- Use strong passwords (at least 8 characters with upper/lower case + numbers)
+- Regularly update Podman images
+- Only open necessary ports in security groups
+- FRPS Dashboard (7500) should only allow localhost access
+- Enable HTTPS to encrypt communications (recommended for production)
 
-## 🙏 Acknowledgements
+## Acknowledgements
 
 - [FRP](https://github.com/fatedier/frp) - Excellent reverse proxy tool
 - [gopsutil](https://github.com/shirou/gopsutil) - Go system monitoring library
@@ -527,4 +527,4 @@ You must:
 
 ---
 
-**⭐ If this project helps you, please give us a Star!**
+If this project helps you, a Star is welcome.
