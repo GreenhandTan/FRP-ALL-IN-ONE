@@ -1,15 +1,17 @@
 <div align="center">
   <h1>FRP-ALL-IN-ONE</h1>
   <p>A web-based FRP management system: <b>FRPS configuration</b>, <b>one-click client deployment</b>, <b>device registration/heartbeat</b>, <b>port mapping management</b>, with <b>real-time traffic monitoring</b> and <b>system resource monitoring</b>.</p>
+  <p><b>🪶 Ultra Lightweight &middot; ⚡ Ready to Use &middot; 🔥 Feature-Rich</b></p>
   <p>
     <a href="https://github.com/GreenhandTan/FRP-ALL-IN-ONE/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/GreenhandTan/FRP-ALL-IN-ONE?style=flat&logo=github"></a>
     <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/GreenhandTan/FRP-ALL-IN-ONE?style=flat"></a>
     <img alt="Podman" src="https://img.shields.io/badge/Podman-892CA0?style=flat&logo=podman&logoColor=white">
     <img alt="Go" src="https://img.shields.io/badge/Go-00ADD8?style=flat&logo=go&logoColor=white">
     <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-009688?style=flat&logo=fastapi&logoColor=white">
-    <img alt="React" src="https://img.shields.io/badge/React-61DAFB?style=flat&logo=react&logoColor=000">
+    <img alt="H5" src="https://img.shields.io/badge/Native H5-E34F26?style=flat&logo=html5&logoColor=white">
   </p>
   <p>
+    <a href="#highlights">Highlights</a> ·
     <a href="#features">Features</a> ·
     <a href="#quick-start-server">Deployment</a> ·
     <a href="#ports">Ports</a> ·
@@ -51,6 +53,7 @@
 
 ## Table of Contents
 
+- [Core Highlights](#highlights)
 - [Core Features](#features)
 - [Architecture](#architecture)
 - [Quick Start (Server)](#quick-start-server)
@@ -64,6 +67,33 @@
 - [Project Structure](#layout)
 - [Development & Build](#development)
 - [License & Requirements](#license)
+
+<a id="highlights"></a>
+
+## Core Highlights
+
+### 🪶 Ultra Lightweight
+
+- **Runs smoothly on 1 vCPU + 1 GB RAM**: Tested and verified — the minimum spec cloud server is fully sufficient for deployment and daily operation
+- **Zero build-tool frontend**: The web UI is written in pure native H5 + CSS + JS. No Node.js, no `npm install`, no build pipeline — browsers load it directly
+- **Minimal backend stack**: FastAPI + SQLite — no MySQL/PostgreSQL needed, database files stay just a few MBs, ultra-low disk and memory footprint
+- **Tiny containers**: Nginx Alpine image serving pure static files — the web container uses < 10 MB of memory
+
+### ⚡ Ready to Use
+
+- **Full deployment in one command**: `git clone` + run `deploy.sh` — handles dependency installation, container build, and service startup automatically
+- **Visual setup wizard**: Complete FRPS configuration (IP direct or domain mode) through the web wizard on first login — no manual config file editing required
+- **Auto-generated client scripts**: One click generates deployment scripts for any platform (Linux/macOS/Windows) and architecture (x86/ARM/MIPS), ready to paste and run on LAN machines
+
+### 🔥 Feature-Rich
+
+- **WebSocket real-time push**: Pushes global status every second — CPU/memory/disk/network metrics for every client visible in real time, no manual refresh needed
+- **Hot reload**: Dynamically add/remove port mappings via FRPC Admin API; changes take effect immediately without restarting frpc
+- **Fully automated HTTPS**: One-click Let's Encrypt certificate issuance in domain mode with automatic renewal (30 days before expiry); custom certificate upload also supported
+- **Multi-arch Agent**: frp-agent written in Go supports x86_64 / ARM64 / ARMv7 / MIPS — covers Raspberry Pi, routers, and more
+- **Production-grade security**: JWT authentication, API rate limiting, forced first-login password change, password strength validation
+
+---
 
 <a id="features"></a>
 
@@ -102,6 +132,7 @@
 
 - **WebSocket Real-time Push**: Status updates every second, no manual refresh needed
 - **Internationalization**: Chinese/English/Traditional Chinese language switching
+- **Native H5 Frontend**: No build-tool dependencies, deploy static files directly, minimal maintenance
 - **Data Persistence**: SQLite database and certificates automatically persisted to Podman volumes
 
 <a id="architecture"></a>
@@ -111,7 +142,7 @@
 ```mermaid
 flowchart TB
     subgraph Server["Server Podman Compose"]
-        Web["Web<br/>Nginx + React<br/>:80/TCP or :443/TCP"]
+        Web["Web<br/>Nginx Alpine + Native H5<br/>:80/TCP or :443/TCP"]
         Backend["Backend<br/>FastAPI + SQLite<br/>WebSocket Real-time"]
         FRPS["FRPS<br/>FRP Server<br/>:7000 + :7500"]
         Web <--> Backend
@@ -134,11 +165,13 @@ flowchart TB
 
 ### Prerequisites
 
-- A server with public IP (**Linux system recommended, fully adapted for this project's deployment**)
+- A server with public IP (**Linux recommended, minimum 1 vCPU + 1 GB RAM verified by real-world testing**)
 - Podman & Podman Compose (auto-installed by deploy script)
 - Port forwarding (minimum): 80/TCP, FRPS port (default 7000/TCP)
 
-> 💡 **System Recommendation**: This project is deployed via Podman. The deployment script auto-detects Linux distributions (including Alpine, Debian/Ubuntu, and RHEL-family) and installs dependencies automatically.
+> 💡 **System Recommendation**: This project is deployed via Podman. The deployment script auto-detects Linux distributions (including Alpine, Debian/Ubuntu, and RHEL-family) and installs dependencies automatically. Windows and macOS can run as client machines; Linux is recommended for the server.
+
+> 🪶 **Lightweight Note**: The frontend is pure native H5 static files — the Nginx container uses < 10 MB of memory. The FastAPI + SQLite backend means the entire system runs comfortably on a 1 vCPU + 1 GB server.
 
 ### One-click Deployment
 
@@ -158,14 +191,18 @@ sudo ./deploy.sh
 
 > ⚠️ **The system enforces password change on first login**. Password must be at least 8 characters with uppercase, lowercase letters and numbers.
 
-### Low Memory Servers (512MB-1GB)
+### Low Memory Servers (512 MB or less)
+
+If your server has less than 1 GB of RAM, enable Swap before deploying:
 
 ```bash
 cd FRP-ALL-IN-ONE/deploy
 chmod +x setup-swap.sh
-sudo ./setup-swap.sh
+sudo ./setup-swap.sh   # creates 2 GB Swap
 sudo ./deploy.sh
 ```
+
+> 💡 A 1 vCPU + 1 GB server can typically deploy directly without Swap.
 
 ### Data Persistence
 
@@ -267,6 +304,7 @@ curl http://localhost:8000/api/settings/tls-status
 | Agent system metrics collection | Every 3 seconds          |
 | WebSocket push to frontend      | Every 1 second           |
 | Frontend UI update              | Real-time (event-driven) |
+| FRPS status cache refresh       | Every 5 seconds          |
 | Certificate renewal check       | Every 24 hours           |
 
 ### Traffic Statistics Scope
@@ -299,9 +337,9 @@ podman compose -f compose.yml logs -f
 podman compose -f compose.yml restart
 podman restart frps
 
-# Rebuild (update to latest version)
+# Update to latest version
 podman compose -f compose.yml down
-podman compose -f compose.yml pull
+git pull
 podman compose -f compose.yml up -d --build
 
 # View certificate renewal logs
@@ -398,7 +436,10 @@ FRP-ALL-IN-ONE/
 │   └── services/          # Business logic layer
 │       ├── tls_manager.py     # Certificate management, Nginx config
 │       └── dns_checker.py     # DNS resolution verification
-├── frontend/              # Web interface (React + Vite + TailwindCSS)
+├── frontend/              # Web interface (Native H5 + CSS + JS, no build tools required)
+│   ├── index.html         # Single-page app entry
+│   ├── style.css          # Global styles
+│   └── app.js             # All frontend logic
 ├── deploy/                # Deployment scripts & compose
 ├── demo.png               # Demo screenshot
 └── demo-logs.png          # Logs feature screenshot
@@ -410,10 +451,20 @@ FRP-ALL-IN-ONE/
 
 ### Frontend
 
+The frontend is pure native H5 — **no build step required**. Just edit the three files in `frontend/`:
+
+```
+frontend/
+├── index.html   # Page structure & templates
+├── style.css    # Styles
+└── app.js       # All interaction logic
+```
+
+For local preview, use any static file server:
+
 ```bash
 cd frontend
-npm install
-npm run dev
+python3 -m http.server 3000
 ```
 
 ### Agent
@@ -421,6 +472,15 @@ npm run dev
 ```bash
 cd agent
 go build -o frp-agent ./cmd/frp-agent
+```
+
+Cross-compilation examples:
+
+```bash
+# Linux ARM64 (Raspberry Pi, etc.)
+GOOS=linux GOARCH=arm64 go build -o frp-agent-linux-arm64 ./cmd/frp-agent
+# Linux x86_64
+GOOS=linux GOARCH=amd64 go build -o frp-agent-linux-amd64 ./cmd/frp-agent
 ```
 
 ### Backend

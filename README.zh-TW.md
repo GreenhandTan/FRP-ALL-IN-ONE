@@ -1,15 +1,17 @@
 <div align="center">
   <h1>FRP-ALL-IN-ONE</h1>
   <p>一個基於 Web 的 FRP 內網穿透管理系統：用瀏覽器完成 <b>FRPS 配置</b>、<b>客戶端一鍵部署</b>、<b>設備註冊/心跳</b>、<b>端口映射管理</b>，並提供<b>實時流量監控</b>與<b>系統資源監控</b>。</p>
+  <p><b>🪶 極致輕量 · ⚡ 開箱即用 · 🔥 功能強大</b></p>
   <p>
     <a href="https://github.com/GreenhandTan/FRP-ALL-IN-ONE/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/GreenhandTan/FRP-ALL-IN-ONE?style=flat&logo=github"></a>
     <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/GreenhandTan/FRP-ALL-IN-ONE?style=flat"></a>
     <img alt="Podman" src="https://img.shields.io/badge/Podman-892CA0?style=flat&logo=podman&logoColor=white">
     <img alt="Go" src="https://img.shields.io/badge/Go-00ADD8?style=flat&logo=go&logoColor=white">
     <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-009688?style=flat&logo=fastapi&logoColor=white">
-    <img alt="React" src="https://img.shields.io/badge/React-61DAFB?style=flat&logo=react&logoColor=000">
+    <img alt="H5" src="https://img.shields.io/badge/原生 H5-E34F26?style=flat&logo=html5&logoColor=white">
   </p>
   <p>
+    <a href="#highlights">核心優勢</a> ·
     <a href="#features">功能特性</a> ·
     <a href="#quick-start-server">部署指南</a> ·
     <a href="#ports">端口放行</a> ·
@@ -51,6 +53,7 @@
 
 ## 目錄
 
+- [核心優勢](#highlights)
 - [核心特性](#features)
 - [架構說明](#architecture)
 - [快速開始（伺服器端）](#quick-start-server)
@@ -64,6 +67,33 @@
 - [項目結構](#layout)
 - [開發與構建](#development)
 - [開源協議與使用要求](#license)
+
+<a id="highlights"></a>
+
+## 核心優勢
+
+### 🪶 極致輕量
+
+- **1栻1G 伺服器即可流畅運行**：經過實際測試，最低配置（1 vCPU + 1 GB RAM）的雲伺服器完全滴足系統部署與運行需求
+- **前端零依賴構建**：Web 介面使用原生 H5 + CSS + JS 編寫，無需 Node.js、無需 npm install，無構建工具鏈，瀏覽器直接載入
+- **輕量後端技術棄**：FastAPI + SQLite，無需 MySQL/PostgreSQL，資料檔案僅數 MB，極低磁碟與記憶體占用
+- **容器極度精簡**：Nginx Alpine 鏡像 + 純靜態檔案，Web 容器記憶體占用 < 10 MB
+
+### ⚡ 開笱即用
+
+- **一條指令完成全部部署**：`git clone` + 執行 `deploy.sh`，自動處理依賴安裝、容器構建、服務啟動
+- **可視化配置導籬**：首次登入後透過 Web 介面導籬完成 FRPS 配置（IP/網域模式可選），無需手動編輯任何配置檔案
+- **客戶端腳本自動生成**：在控制台一鍵生成針對不同平台（Linux/macOS/Windows）、不同架構（x86/ARM/MIPS）的部署腳本，複製後直接在內網機器執行
+
+### 🔥 功能強大
+
+- **WebSocket 即時推送**：每秒推送全局狀態，每個客戶端的 CPU/記憶體/磁碟/網路指標即時可見，無需手動刷新
+- **配置熱重載**：透過 FRPC Admin API 動態新剂端口映射，通道變更立即生效，無需重啟 frpc 處理程序
+- **HTTPS 全自動**：網域模式下一鍵申請 Let's Encrypt 憑證並自動續期（到期前 30 天），也支持上傳自定義憑證
+- **多架構 Agent**：Go 編寫的 frp-agent 支持 x86_64 / ARM64 / ARMv7 / MIPS，涉蓋樹莓派、路由器等各類設備
+- **完善的安全機制**：JWT 鑑權、API 限流、強制首次改密、密碼強度校驗，生產級別安全保障
+
+---
 
 <a id="features"></a>
 
@@ -101,8 +131,9 @@
 ### 🌐 其他特性
 
 - **WebSocket 實時推送**：每秒推送狀態更新，無需手動刷新
-- **國際化**：支持中文/英文/繁體中文切換
-- **數據持久化**：SQLite 資料庫和證書自動持久化到 Podman 卷
+- **國際化**：支持簡體中文/英文/繁體中文三語切換
+- **原生 H5 前端**：無構建工具依賴，直接部署靜態檔案，維護極簡
+- **資料持久化**：SQLite 資料庫和憑證自動持久化到 Podman 卷
 
 <a id="architecture"></a>
 
@@ -111,7 +142,7 @@
 ```mermaid
 flowchart TB
     subgraph Server["伺服器端 Podman Compose"]
-        Web["Web<br/>Nginx + React<br/>:80/TCP 或 :443/TCP"]
+        Web["Web<br/>Nginx Alpine + 原生 H5<br/>:80/TCP 或 :443/TCP"]
         Backend["Backend<br/>FastAPI + SQLite<br/>WebSocket 實時推送"]
         FRPS["FRPS<br/>FRP Server<br/>:7000 + :7500"]
         Web <--> Backend
@@ -134,11 +165,13 @@ flowchart TB
 
 ### 前置要求
 
-- 一台具備公網 IP 的伺服器（**建議採用 Linux 系統，已完整適配本項目的部署**）
+- 一台具備公網 IP 的伺服器（**建議 Linux 系統，最低 1栻1G 即可流畅運行**，實測驗證）
 - Podman & Podman Compose（可由部署腳本自動安裝）
 - 端口放行（至少）：80/TCP、FRPS 端口（預設 7000/TCP）
 
 > 💡 **系統建議**：本項目基於 Podman 部署，部署腳本會自動識別 Linux 發行版（含 Alpine、Debian/Ubuntu、RHEL 系）並安裝依賴。
+
+> 🪶 **輕量提示**：前端為原生 H5 純靜態檔案，Nginx 容器記憶體占用 < 10 MB；後端 FastAPI + SQLite，整套系統在 1核1G 機器上運行綽綽有餘。
 
 ### 一鍵部署
 
@@ -158,14 +191,18 @@ sudo ./deploy.sh
 
 > ⚠️ **系統已強制要求首次登入後修改預設密碼**，密碼需滿足：至少 8 位，包含大寫字母、小寫字母和數字。
 
-### 低記憶體伺服器（512MB-1GB）
+### 低記憶體伺服器（512MB 或更低）
+
+如伺服器記憶體低於 1 GB，建議先開啟 Swap 再部署：
 
 ```bash
 cd FRP-ALL-IN-ONE/deploy
 chmod +x setup-swap.sh
-sudo ./setup-swap.sh
+sudo ./setup-swap.sh   # 建立 2GB Swap
 sudo ./deploy.sh
 ```
+
+> 💡 1核1G 的伺服器通常無需開啟 Swap 即可直接部署。
 
 ### 數據持久化
 
@@ -267,7 +304,8 @@ curl http://localhost:8000/api/settings/tls-status
 | Agent 系統指標採集   | 每 3 秒          |
 | WebSocket 推送到前端 | 每 1 秒          |
 | 前端 UI 更新         | 實時（事件驅動） |
-| 證書續期檢查         | 每 24 小時       |
+| FRPS 狀態快取刷新    | 每 5 秒          |
+| 憑證續期檢查         | 每 24 小時       |
 
 ### 流量統計口徑
 
@@ -299,9 +337,9 @@ podman compose -f compose.yml logs -f
 podman compose -f compose.yml restart
 podman restart frps
 
-# 重新構建（更新到最新版本）
+# 更新到最新版本
 podman compose -f compose.yml down
-podman compose -f compose.yml pull
+git pull
 podman compose -f compose.yml up -d --build
 
 # 查看證書續期日誌
@@ -398,7 +436,10 @@ FRP-ALL-IN-ONE/
 │   └── services/          # 業務邏輯層
 │       ├── tls_manager.py     # 證書申請、Nginx 配置
 │       └── dns_checker.py     # DNS 解析驗證
-├── frontend/              # Web 介面（React + Vite + TailwindCSS）
+├── frontend/              # Web 介面（原生 H5 + CSS + JS，無構建工具依賴）
+│   ├── index.html         # 單頁應用入口
+│   ├── style.css          # 全局樣式
+│   └── app.js             # 全部前端邏輯
 ├── deploy/                # 部署腳本 & compose
 ├── demo.png               # 演示截圖
 └── demo-logs.png          # 日誌功能截圖
@@ -410,10 +451,20 @@ FRP-ALL-IN-ONE/
 
 ### 前端
 
+前端為原生 H5，**無需任何構建步驟**，直接編輯 `frontend/` 下的三個檔案：
+
+```
+frontend/
+├── index.html   # 頁面結構與模板
+├── style.css    # 樣式
+└── app.js       # 全部互動邏輯
+```
+
+本地預覽可用任意靜態檔案伺服器：
+
 ```bash
 cd frontend
-npm install
-npm run dev
+python3 -m http.server 3000
 ```
 
 ### Agent
@@ -421,6 +472,15 @@ npm run dev
 ```bash
 cd agent
 go build -o frp-agent ./cmd/frp-agent
+```
+
+多平台交叉編譯範例：
+
+```bash
+# Linux ARM64（樹莓派等）
+GOOS=linux GOARCH=arm64 go build -o frp-agent-linux-arm64 ./cmd/frp-agent
+# Linux x86_64
+GOOS=linux GOARCH=amd64 go build -o frp-agent-linux-amd64 ./cmd/frp-agent
 ```
 
 ### 後端
