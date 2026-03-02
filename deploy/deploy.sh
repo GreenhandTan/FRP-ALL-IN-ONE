@@ -14,6 +14,7 @@ NC='\033[0m'
 COMPOSE_FILE="$SCRIPT_DIR/compose.yml"
 COMPOSE_MODE=""
 LOW_MEM_NO_SWAP="0"
+PROJECT_CONTAINERS="frp-manager-backend frp-manager-web frps"
 
 echo "=========================================="
 echo "  FRP-All in one - Podman 一键部署脚本"
@@ -198,6 +199,28 @@ check_ports() {
     echo -e "${GREEN}[OK] 端口检查通过${NC}"
 }
 
+cleanup_existing_project_containers() {
+    echo ""
+    echo "[CHECK] 检查并清理本项目旧容器..."
+
+    run_compose down --remove-orphans >/dev/null 2>&1 || true
+
+    removed_any="0"
+    for container_name in $PROJECT_CONTAINERS; do
+        if podman container exists "$container_name" >/dev/null 2>&1; then
+            echo -e "${YELLOW}[WARN] 发现旧容器: ${container_name}，正在移除...${NC}"
+            podman rm -f "$container_name" >/dev/null 2>&1 || true
+            removed_any="1"
+        fi
+    done
+
+    if [ "$removed_any" = "1" ]; then
+        echo -e "${GREEN}[OK] 旧容器已清理完成${NC}"
+    else
+        echo -e "${GREEN}[OK] 未发现本项目旧容器${NC}"
+    fi
+}
+
 deploy_services() {
     echo ""
     echo "[DEPLOY] 构建并启动服务..."
@@ -267,6 +290,7 @@ main() {
     detect_compose_mode
     ensure_podman_socket
     check_memory
+    cleanup_existing_project_containers
     check_ports
     deploy_services
     show_info
