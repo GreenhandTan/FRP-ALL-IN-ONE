@@ -271,6 +271,10 @@
           <div class="success-icon-big" style="color:var(--green)">✓</div>
           <p id="lbl-pwd-success">密码修改成功！</p>
         </div>
+        <!-- 首次登录强制改密提示（仅强制模式下显示） -->
+        <div id="change-pwd-forced-notice" class="alert alert-warning hidden">
+          首次登录请先修改默认密码，完成后即可继续使用。
+        </div>
         <form id="change-pwd-form">
           <div id="change-pwd-error" class="alert alert-danger hidden"></div>
           <div class="form-group">
@@ -440,7 +444,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260302"></script>
+  <script src="app.js?v=20260302b"></script>
 </body>
 
 </html>
