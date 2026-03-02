@@ -741,7 +741,7 @@ async function handleClientAction(e) {
     case "enable-tunnel": {
       const enabled = action === "enable-tunnel";
       try {
-        await api.patch(`/clients/${clientId}/tunnels/${tunnelId}`, {
+        await api.patch(`/api/clients/${clientId}/tunnels/${tunnelId}`, {
           enabled,
         });
       } catch (err) {
@@ -757,7 +757,7 @@ async function handleClientAction(e) {
       });
       if (!ok) return;
       try {
-        await api.delete(`/clients/${clientId}/tunnels/${tunnelId}`);
+        await api.delete(`/api/clients/${clientId}/tunnels/${tunnelId}`);
       } catch (err) {
         showGlobalError(err.message);
       }
@@ -827,7 +827,7 @@ $("add-tunnel-form").addEventListener("submit", async (e) => {
   btn.disabled = true;
   hideAlert("add-tunnel-error");
   try {
-    await api.post(`/clients/${clientId}/tunnels/`, {
+    await api.post(`/api/clients/${clientId}/tunnels/`, {
       name,
       type,
       local_ip,
@@ -1335,7 +1335,7 @@ $("login-form").addEventListener("submit", async (e) => {
   params.set("password", $("inp-password").value);
 
   try {
-    const res = await api.post("/token", params);
+    const res = await api.post("/api/auth/token", params);
     const token = res.access_token;
     localStorage.setItem("token", token);
     await checkAuthAndRoute();

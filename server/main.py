@@ -156,19 +156,6 @@ app.include_router(agents_router.router, prefix="/api")
 app.include_router(frp_router.router, prefix="/api")
 app.include_router(settings_router.router, prefix="/api")
 
-# 保留旧路径兼容性
-from fastapi import APIRouter
-legacy_router = APIRouter()
-
-
-@legacy_router.post("/token", response_model=schemas.Token)
-async def legacy_login(form_data, db: Session = Depends(auth_router.get_db)):
-    """兼容旧版登录路径"""
-    return await auth_router.login_for_access_token(form_data, db)
-
-
-app.include_router(legacy_router)
-
 
 # ===========================
 # WebSocket 端点
