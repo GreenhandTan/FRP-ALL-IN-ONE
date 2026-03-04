@@ -79,8 +79,8 @@
 - **Minimal backend stack**: FastAPI + SQLite — no MySQL/PostgreSQL needed, database files stay just a few MBs, ultra-low disk and memory footprint
 - **Tiny containers**: Nginx Alpine image serving pure static files — the web container uses < 10 MB of memory
 
-> **📌 Real-World Example: Extreme Low-Spec LXC Server**  
-> Using a **local build + remote import** deployment technique (build Docker images locally, then transfer and import them on the cloud server to bypass memory constraints during the build phase), this project runs smoothly on an LXC-type cloud server with only **1 vCPU, 256 MB RAM, and a 2 GB data disk**, delivering full centralized FRP management. The author's test machine costs just **¥29.9 for 3 years** — exceptional value. See the detailed walkthrough: [Author's Blog #25](https://greenhandtan.top/blog/25)
+> **Real-World Example: Extreme Low-Spec LXC Server**  
+> Using a **local build + remote import** deployment technique (build project images locally, then transfer and import them on the cloud server to bypass memory constraints during the build phase), this project runs smoothly on an LXC-type cloud server with only **1 vCPU, 256 MB RAM, and a 2 GB data disk**, delivering full centralized FRP management. The author's test machine costs just **¥29.9 for 3 years** — exceptional value. See the detailed walkthrough: [Author's Blog #25](https://greenhandtan.top/blog/25)
 
 ### Ready to Use
 
