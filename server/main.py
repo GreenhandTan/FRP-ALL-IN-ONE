@@ -247,25 +247,26 @@ async def websocket_dashboard(websocket: WebSocket):
                             "agent_version": agent_info_db.agent_version,
                         })
                     
-                    # 注入实时状态和系统指标
-                    if c.id in ws_agents_info:
-                        ws_info = ws_agents_info[c.id]
-                        client_data.update({
-                            "is_online": True,
-                            "cpu_percent": ws_info.get("cpu_percent"),
-                            "memory_percent": ws_info.get("memory_percent"),
-                            "memory_used": ws_info.get("memory_used"),
-                            "memory_total": ws_info.get("memory_total"),
-                            "disk_percent": ws_info.get("disk_percent"),
-                            "disk_used": ws_info.get("disk_used"),
-                            "disk_total": ws_info.get("disk_total"),
-                            "net_bytes_in": ws_info.get("net_bytes_in"),
-                            "net_bytes_out": ws_info.get("net_bytes_out"),
-                            "net_speed_in": ws_info.get("net_speed_in"),
-                            "net_speed_out": ws_info.get("net_speed_out"),
-                        })
-                    else:
-                        client_data["is_online"] = False
+                    # 直接用 agent_connections 判断在线状态，不依赖 system_info 是否到达
+                    # 原先用 ws_agents_info（只含 agent_system_info 记录）会导致：
+                    # Agent 已连接但尚未发送 system_info（3 秒内）或 gopsutil 采集失败时，
+                    # is_online 错误地为 False
+                    is_ws_connected = ws_manager.is_agent_online(c.id)
+                    ws_info = ws_agents_info.get(c.id, {})
+                    client_data.update({
+                        "is_online": is_ws_connected,
+                        "cpu_percent": ws_info.get("cpu_percent"),
+                        "memory_percent": ws_info.get("memory_percent"),
+                        "memory_used": ws_info.get("memory_used"),
+                        "memory_total": ws_info.get("memory_total"),
+                        "disk_percent": ws_info.get("disk_percent"),
+                        "disk_used": ws_info.get("disk_used"),
+                        "disk_total": ws_info.get("disk_total"),
+                        "net_bytes_in": ws_info.get("net_bytes_in"),
+                        "net_bytes_out": ws_info.get("net_bytes_out"),
+                        "net_speed_in": ws_info.get("net_speed_in"),
+                        "net_speed_out": ws_info.get("net_speed_out"),
+                    })
 
                     # 隧道信息
                     client_data["tunnels"] = [

@@ -555,11 +555,15 @@ AGENT_PATH="$INSTALL_DIR/frp-agent"
 AGENT_FILENAME="frp-agent-${{OS}}-${{ARCH}}"
 GITHUB_URL="$DOWNLOAD_BASE/$AGENT_FILENAME"
 
+AGENT_DOWNLOAD_OK=0
 if wget -q --show-progress "$GITHUB_URL" -O "$AGENT_PATH" 2>/dev/null; then
     chmod +x "$AGENT_PATH"
     log_ok "Agent 下载完成"
+    AGENT_DOWNLOAD_OK=1
 else
-    log_warn "Agent 下载失败，跳过（FRPC 仍可正常使用）"
+    log_warn "Agent 下载失败（$GITHUB_URL）"
+    log_warn "管理控制台将无法监控该设备，FRPC 仍可正常建立隧道"
+    log_warn "请确认 GitHub Releases 中已有 frp-agent-${{OS}}-${{ARCH}} 文件，或手动下载后放置到 $AGENT_PATH"
 fi
 
 # 创建配置文件
@@ -575,8 +579,9 @@ log_ok "配置文件已创建"
 
 # 创建系统服务
 log_info "[5/5] 创建系统服务..."
-if [ "$OS" = "linux" ] && [ -f "$INSTALL_DIR/frp-agent" ]; then
-    cat > /etc/systemd/system/frp-agent.service << AGENT_SERVICE
+if [ "$AGENT_DOWNLOAD_OK" = "1" ]; then
+    if [ "$OS" = "linux" ]; then
+        cat > /etc/systemd/system/frp-agent.service << AGENT_SERVICE
 [Unit]
 Description=FRP Manager Agent
 After=network.target
@@ -591,10 +596,42 @@ RestartSec=5
 WantedBy=multi-user.target
 AGENT_SERVICE
 
-    systemctl daemon-reload
-    systemctl enable frp-agent
-    systemctl start frp-agent
-    log_ok "Agent 服务已创建并启动"
+        systemctl daemon-reload
+        systemctl enable frp-agent
+        systemctl start frp-agent
+        log_ok "Agent 服务已创建并启动 (systemd)"
+    elif [ "$OS" = "darwin" ]; then
+        PLIST_PATH="$HOME/Library/LaunchAgents/com.frpmanager.agent.plist"
+        mkdir -p "$HOME/Library/LaunchAgents"
+        cat > "$PLIST_PATH" << DARWIN_PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key><string>com.frpmanager.agent</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>$INSTALL_DIR/frp-agent</string>
+        <string>-server</string><string>ws://$SERVER_IP/ws/agent/$CLIENT_ID</string>
+        <string>-id</string><string>$CLIENT_ID</string>
+        <string>-token</string><string>$CLIENT_TOKEN</string>
+        <string>-frpc</string><string>$INSTALL_DIR/frpc</string>
+        <string>-config</string><string>$INSTALL_DIR/frpc.toml</string>
+        <string>-log</string><string>$INSTALL_DIR/logs</string>
+    </array>
+    <key>RunAtLoad</key><true/>
+    <key>KeepAlive</key><true/>
+    <key>StandardOutPath</key><string>$INSTALL_DIR/logs/agent.log</string>
+    <key>StandardErrorPath</key><string>$INSTALL_DIR/logs/agent.err</string>
+</dict>
+</plist>
+DARWIN_PLIST
+        launchctl load "$PLIST_PATH" 2>/dev/null || true
+        launchctl start com.frpmanager.agent 2>/dev/null || true
+        log_ok "Agent 服务已创建并启动 (launchd)"
+    fi
+else
+    log_warn "跳过 Agent 服务创建（Agent 二进制未下载成功）"
 fi
 
 echo ""

@@ -349,14 +349,8 @@ document.addEventListener("click", (e) => {
       closeModal(modalId);
     }
   }
-  // 点击遮罩关闭（排除 confirm 弹窗及强制改密）
-  if (
-    e.target.classList.contains("modal-overlay") &&
-    e.target.id !== "modal-confirm" &&
-    e.target.dataset.forced !== "1"
-  ) {
-    closeModal(e.target.id);
-  }
+  // 点击遮罩不关闭弹窗：所有含表单的弹窗（修改密码、添加隧道、部署设备等）
+  // 均需通过 X 按钮或取消按钮明确关闭，防止因误触丢失已填写内容
 });
 
 /* =============================================================

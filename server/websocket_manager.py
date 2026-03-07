@@ -97,6 +97,9 @@ class ConnectionManager:
                 pass
         
         self.agent_connections[client_id] = websocket
+        # 重连时清除旧的离线标记，确保 system_info 缓存中的 online 标记一致
+        if client_id in self.agent_system_info:
+            self.agent_system_info[client_id]["online"] = True
         logger.info(f"Agent {client_id} 已连接，当前 Agent 数: {len(self.agent_connections)}")
     
     def get_recent_conflicts(self) -> List[dict]:
