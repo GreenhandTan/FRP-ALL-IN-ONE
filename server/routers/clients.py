@@ -109,6 +109,19 @@ def read_client(
     return db_client
 
 
+@router.delete("/{client_id}")
+def delete_client_endpoint(
+    client_id: str,
+    db: Session = Depends(lambda: SessionLocal()),
+    current_user: models.Admin = Depends(require_password_changed)
+):
+    """删除客户端及其所有隧道"""
+    ok = crud.delete_client(db, client_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Client not found")
+    return {"success": True}
+
+
 @router.patch("/{client_id}", response_model=schemas.Client)
 def update_client(
     client_id: str,

@@ -68,13 +68,21 @@ def create_client_with_token(db: Session, name: str):
         id=str(uuid.uuid4()),
         name=name,
         auth_token=secrets.token_hex(16),
-        status="online",
-        last_seen=int(time.time()),
+        status="offline",
+        last_seen=0,
     )
     db.add(db_client)
     db.commit()
     db.refresh(db_client)
     return db_client
+
+def delete_client(db: Session, client_id: str):
+    client = get_client(db, client_id)
+    if not client:
+        return False
+    db.delete(client)
+    db.commit()
+    return True
 
 def touch_client(db: Session, client_id: str, status: str = "online"):
     client = get_client(db, client_id)

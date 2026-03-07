@@ -346,6 +346,11 @@ document.addEventListener("click", (e) => {
     const modalId = btn.dataset.modal;
     // 强制改密模式下禁止关闭
     if (modalId && !($(modalId) && $(modalId).dataset.forced === "1")) {
+      // Agent 部署弹窗关闭时检查是否需要清理未部署的客户端
+      if (modalId === "modal-agent-deploy" && agentCreatedClientId) {
+        confirmCleanupAgentClient();
+        return;
+      }
       closeModal(modalId);
     }
   }
@@ -1144,6 +1149,7 @@ let setupStep = 0;
 let setupMode = "ip"; // 'ip' | 'domain'
 let deployResult = null;
 let selectedPlatform = null;
+let setupCreatedClientId = null;
 
 function goSetupStep(n) {
   setupStep = n;
@@ -1251,6 +1257,7 @@ $("btn-copy-token").addEventListener("click", async () => {
 
 $("btn-step3").addEventListener("click", () => {
   selectedPlatform = null;
+  setupCreatedClientId = null;
   $("btn-finish-setup").disabled = true;
   hide("script-area");
   goSetupStep(3);
@@ -1265,11 +1272,15 @@ $$(".platform-btn", $("setup-step-3")).forEach((btn) => {
     show("script-area");
     $("btn-finish-setup").disabled = true;
     try {
-      const script = await api.get(
-        `/api/frp/agent/install-script/${selectedPlatform}`,
-      );
-      $("script-content").textContent =
-        typeof script === "string" ? script : JSON.stringify(script);
+      let url = `/api/frp/agent/install-script/${selectedPlatform}`;
+      if (setupCreatedClientId) url += `?client_id=${setupCreatedClientId}`;
+      const script = await api.get(url);
+      const scriptText = typeof script === "string" ? script : JSON.stringify(script);
+      $("script-content").textContent = scriptText;
+      if (!setupCreatedClientId) {
+        const m = scriptText.match(/CLIENT_ID\s*=\s*"([^"]+)"/);
+        if (m) setupCreatedClientId = m[1];
+      }
       $("btn-finish-setup").disabled = false;
     } catch (err) {
       $("script-content").textContent = `# 获取失败: ${err.message}`;
@@ -1318,9 +1329,11 @@ $("btn-finish-setup").addEventListener("click", async () => {
    18. Agent 部署弹窗（从仪表盘打开）
    ============================================================= */
 let agentScriptPlatform = null;
+let agentCreatedClientId = null;
 
 async function openAgentDeploy() {
   agentScriptPlatform = null;
+  agentCreatedClientId = null;
   show("agent-platform-select");
   hide("agent-script-area");
   hide("btn-agent-done");
@@ -1348,11 +1361,15 @@ $$(".platform-btn", $("modal-agent-deploy")).forEach((btn) => {
     $("agent-platform-label").textContent = agentScriptPlatform;
     $("agent-script-content").textContent = "加载中…";
     try {
-      const script = await api.get(
-        `/api/frp/agent/install-script/${agentScriptPlatform}`,
-      );
-      $("agent-script-content").textContent =
-        typeof script === "string" ? script : JSON.stringify(script);
+      let url = `/api/frp/agent/install-script/${agentScriptPlatform}`;
+      if (agentCreatedClientId) url += `?client_id=${agentCreatedClientId}`;
+      const script = await api.get(url);
+      const scriptText = typeof script === "string" ? script : JSON.stringify(script);
+      $("agent-script-content").textContent = scriptText;
+      if (!agentCreatedClientId) {
+        const m = scriptText.match(/CLIENT_ID\s*=\s*"([^"]+)"/);
+        if (m) agentCreatedClientId = m[1];
+      }
     } catch (err) {
       $("agent-script-content").textContent = `# 获取失败: ${err.message}`;
     }
@@ -1387,9 +1404,27 @@ $("btn-download-agent-script").addEventListener("click", () => {
   URL.revokeObjectURL(url);
 });
 
-$("btn-agent-done").addEventListener("click", () =>
-  closeModal("modal-agent-deploy"),
-);
+$("btn-agent-done").addEventListener("click", () => {
+  agentCreatedClientId = null;
+  closeModal("modal-agent-deploy");
+});
+
+async function confirmCleanupAgentClient() {
+  const shouldDelete = await showConfirm(
+    lang === "en"
+      ? "A device record was created but the agent script has not been deployed. Delete this device?"
+      : "已为此设备创建记录但尚未完成部署。是否删除该设备？",
+    { title: lang === "en" ? "Confirm" : "关闭确认",
+      confirmText: lang === "en" ? "Delete" : "删除设备",
+      cancelText: lang === "en" ? "Keep" : "保留",
+      tone: "danger" }
+  );
+  if (shouldDelete && agentCreatedClientId) {
+    try { await api.delete(`/api/clients/${agentCreatedClientId}`); } catch {}
+  }
+  agentCreatedClientId = null;
+  closeModal("modal-agent-deploy");
+}
 
 /* =============================================================
    19. 登录流程
