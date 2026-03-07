@@ -302,6 +302,7 @@ In this scenario, without extra configuration the generated client install scrip
 3. Click **Save**
 
 Once saved, all subsequently generated client install scripts will automatically use:
+
 ```
 ws://151.242.85.89:10967/ws/agent/<CLIENT_ID>
 ```
@@ -310,12 +311,12 @@ ws://151.242.85.89:10967/ws/agent/<CLIENT_ID>
 
 The `MANAGER_WS_URL` in generated scripts is determined by the following priority:
 
-| Priority | Condition | Address Used |
-| -------- | --------- | ------------ |
-| ① Highest | NAT port explicitly configured in settings | `ws://PUBLIC_IP:NAT_PORT` |
-| ② | Browser request carries Host header with port | `ws://host:port from Host header` |
-| ③ | HTTPS enabled + domain configured | `wss://domain` |
-| ④ Fallback | Otherwise | `ws://PUBLIC_IP` |
+| Priority   | Condition                                     | Address Used                      |
+| ---------- | --------------------------------------------- | --------------------------------- |
+| ① Highest  | NAT port explicitly configured in settings    | `ws://PUBLIC_IP:NAT_PORT`         |
+| ②          | Browser request carries Host header with port | `ws://host:port from Host header` |
+| ③          | HTTPS enabled + domain configured             | `wss://domain`                    |
+| ④ Fallback | Otherwise                                     | `ws://PUBLIC_IP`                  |
 
 > **Normal cloud servers**: No configuration needed. Leave blank and the system uses the public IP automatically.
 
