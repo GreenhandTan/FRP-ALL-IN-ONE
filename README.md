@@ -60,6 +60,7 @@
 - [首次使用流程](#first-time-workflow)
 - [HTTPS 配置（可选）](#https-setup)
 - [NAT 访问端口配置（可选）](#nat-port-setup)
+- [飞牛 OS 客户端部署说明](#fnos-client)
 - [端口与安全组](#ports)
 - [监控与统计说明](#monitoring)
 - [常用运维命令](#ops)
@@ -319,6 +320,33 @@ ws://151.242.85.89:10967/ws/agent/<CLIENT_ID>
 | ④ 兜底 | 其余情况                         | `ws://公网IP`              |
 
 > **普通云服务器**：无需任何配置，留空即可，系统自动使用公网 IP。
+
+<a id="fnos-client"></a>
+
+## 飞牛 OS 客户端部署说明
+
+可以，但需要区分“Agent 能运行”和“当前一键脚本能直接运行”这两件事。
+
+- **可以作为客户端部署**：飞牛 OS 本质上属于 Linux 环境，只要设备架构是 `x86_64` 或 `arm64`，理论上即可运行本项目的 Linux Agent。
+- **当前一键脚本有前提**：现有 Linux 安装脚本默认依赖 `systemd`、`sudo`、`/opt/frp` 可写，以及 `curl`/`wget` 等常见工具。
+- **若飞牛 OS 提供标准 Linux 用户态**：可直接尝试使用控制台生成的 Linux 客户端脚本安装。
+- **若飞牛 OS 不带 systemd 或限制系统服务**：Agent 和 frpc 仍可能可以运行，但需要改为手动启动，或接入飞牛自己的任务/服务管理方式，当前一键脚本不一定能直接成功。
+
+建议先在飞牛 OS 上检查以下命令：
+
+```bash
+uname -m
+command -v systemctl
+command -v curl
+command -v wget
+test -w /opt || sudo test -w /opt
+```
+
+判定原则：
+
+- 输出为 `x86_64` 或 `aarch64`：架构满足。
+- 存在 `systemctl`，且 `/opt` 可写：通常可直接使用当前脚本。
+- 缺少 `systemctl`：建议改为手动部署或使用飞牛 OS 自带的服务管理机制。
 
 <a id="ports"></a>
 

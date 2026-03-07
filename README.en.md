@@ -60,6 +60,7 @@
 - [First-time Workflow](#first-time-workflow)
 - [HTTPS Configuration (Optional)](#https-setup)
 - [NAT Access Port Configuration (Optional)](#nat-port-setup)
+- [Feiniu OS Client Notes](#fnos-client)
 - [Ports & Security Groups](#ports)
 - [Monitoring & Statistics](#monitoring)
 - [Common Operations](#ops)
@@ -319,6 +320,33 @@ The `MANAGER_WS_URL` in generated scripts is determined by the following priorit
 | ④ Fallback | Otherwise                                     | `ws://PUBLIC_IP`                  |
 
 > **Normal cloud servers**: No configuration needed. Leave blank and the system uses the public IP automatically.
+
+<a id="fnos-client"></a>
+
+## Feiniu OS Client Notes
+
+Yes, but you need to distinguish between “the Agent binary can run” and “the current one-click install script works out of the box”.
+
+- **Client deployment is generally possible**: Feiniu OS is still a Linux-based environment, so the Linux Agent can usually run as long as the device architecture is `x86_64` or `arm64`.
+- **The current one-click script has assumptions**: it expects `systemd`, `sudo`, a writable `/opt/frp`, and common tools such as `curl` or `wget`.
+- **If Feiniu OS provides a standard Linux userspace**: you can usually deploy with the generated Linux client script directly.
+- **If Feiniu OS does not use systemd or restricts system services**: the Agent and frpc may still run, but you will likely need manual startup or Feiniu OS specific service/task management. In that case, the current one-click script may not work unchanged.
+
+Recommended checks on Feiniu OS:
+
+```bash
+uname -m
+command -v systemctl
+command -v curl
+command -v wget
+test -w /opt || sudo test -w /opt
+```
+
+Quick interpretation:
+
+- `x86_64` or `aarch64`: architecture is supported.
+- `systemctl` exists and `/opt` is writable: the current script will usually work.
+- No `systemctl`: prefer manual deployment or Feiniu OS native service management.
 
 <a id="ports"></a>
 
