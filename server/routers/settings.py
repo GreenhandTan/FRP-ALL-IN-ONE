@@ -281,3 +281,43 @@ async def renew_certificate(
             result["nginx_error"] = reload_result["message"]
     
     return result
+
+
+class PanelPortConfig(BaseModel):
+    port: str  # 空字符串表示使用默认端口（80/443）
+
+
+@router.get("/panel-port")
+async def get_panel_port(
+    db: Session = Depends(get_db),
+    current_user: models.Admin = Depends(require_password_changed)
+):
+    """
+    获取管理面板公网访问端口配置。
+    用于 NAT 场景：公网 IP:port 映射到服务器内网 80 端口。
+    留空表示使用默认端口（直连云服务器无需配置）。
+    """
+    port = crud.get_config(db, models.ConfigKeys.PANEL_ACCESS_PORT) or ""
+    return {"port": port}
+
+
+@router.post("/panel-port")
+async def set_panel_port(
+    config: PanelPortConfig,
+    db: Session = Depends(get_db),
+    current_user: models.Admin = Depends(require_password_changed)
+):
+    """
+    设置管理面板公网访问端口。
+    仅在 NAT 场景下填写（如公网 10967 → 内网 80）。
+    """
+    port_str = config.port.strip()
+    if port_str:
+        try:
+            port_num = int(port_str)
+            if not (1 <= port_num <= 65535):
+                raise ValueError()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="端口号必须是 1-65535 之间的整数")
+    crud.set_config(db, models.ConfigKeys.PANEL_ACCESS_PORT, port_str)
+    return {"success": True, "port": port_str}

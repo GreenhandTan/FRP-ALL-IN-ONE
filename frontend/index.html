@@ -225,6 +225,12 @@
           </div>
           <div class="nav-actions">
             <button id="btn-lang" class="btn btn-sm btn-ghost">EN</button>
+            <button id="btn-panel-settings" class="btn btn-sm btn-ghost" title="面板设置">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </button>
             <button id="btn-change-pwd" class="btn btn-sm btn-ghost" title="修改密码">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="3" y="11" width="18" height="11" rx="2" />
@@ -525,6 +531,31 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary btn-close-modal" data-modal="modal-agent-deploy">关闭</button>
         <button id="btn-agent-done" type="button" class="btn btn-primary hidden">完成，进入控制面板</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 面板设置弹窗 -->
+  <div id="modal-panel-settings" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="modal-panel-settings-title">面板设置</h3>
+        <button type="button" class="modal-close btn-close-modal" data-modal="modal-panel-settings">×</button>
+      </div>
+      <div class="modal-body">
+        <div id="panel-settings-error" class="alert alert-danger hidden"></div>
+        <div id="panel-settings-success" class="alert alert-success hidden"></div>
+        <form id="panel-settings-form">
+          <div class="form-group">
+            <label id="lbl-panel-access-port" for="inp-panel-access-port">管理面板公网访问端口</label>
+            <input id="inp-panel-access-port" type="number" min="1" max="65535" placeholder="留空表示使用默认端口（80/443）">
+            <small class="text-muted" id="hint-panel-access-port">仅 NAT 场景需要填写。例如公网通过 10967 端口访问面板，则填写 10967。普通云服务器留空即可。</small>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary btn-close-modal" data-modal="modal-panel-settings">取消</button>
+            <button type="submit" id="btn-panel-settings-submit" class="btn btn-primary">保存</button>
+          </div>
+        </form>
       </div>
     </div>
   </div>

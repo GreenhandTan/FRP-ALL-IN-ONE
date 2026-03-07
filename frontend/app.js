@@ -1103,6 +1103,41 @@ $("btn-dismiss-error").addEventListener("click", () => {
 });
 
 /* =============================================================
+   16b. 面板设置（NAT 端口等）
+   ============================================================= */
+$("btn-panel-settings").addEventListener("click", async () => {
+  hideAlert("panel-settings-error");
+  hideAlert("panel-settings-success");
+  try {
+    const data = await api.get("/api/settings/panel-port");
+    $("inp-panel-access-port").value = data.port || "";
+  } catch (err) {
+    $("inp-panel-access-port").value = "";
+  }
+  openModal("modal-panel-settings");
+});
+
+$("panel-settings-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  hideAlert("panel-settings-error");
+  hideAlert("panel-settings-success");
+  const portVal = $("inp-panel-access-port").value.trim();
+  const btn = $("btn-panel-settings-submit");
+  btn.disabled = true;
+  btn.textContent = t("loading");
+  try {
+    await api.post("/api/settings/panel-port", { port: portVal });
+    showAlert("panel-settings-success", "保存成功");
+    setTimeout(() => closeModal("modal-panel-settings"), 1200);
+  } catch (err) {
+    showAlert("panel-settings-error", err.message || "保存失败");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = t("save");
+  }
+});
+
+/* =============================================================
    17. 设置向导
    ============================================================= */
 let setupStep = 0;

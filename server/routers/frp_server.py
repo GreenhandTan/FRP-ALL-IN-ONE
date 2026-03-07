@@ -4,7 +4,7 @@ FRP 服务端管理路由
 """
 import subprocess
 import time
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import PlainTextResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
@@ -379,6 +379,7 @@ async def get_available_agent_platforms():
 async def get_agent_install_script(
     platform: str,
     client_id: str = None,
+    request: Request = None,
     db: Session = Depends(get_db),
     current_user: models.Admin = Depends(require_password_changed)
 ):
@@ -392,16 +393,31 @@ async def get_agent_install_script(
     server_ip = crud_module.get_config(db, models.ConfigKeys.SERVER_PUBLIC_IP) or "YOUR_SERVER_IP"
     frps_port = crud_module.get_config(db, models.ConfigKeys.FRPS_PORT) or "7000"
     frps_version = crud_module.get_config(db, models.ConfigKeys.FRPS_VERSION) or "0.61.1"
+    panel_access_port = (crud_module.get_config(db, models.ConfigKeys.PANEL_ACCESS_PORT) or "").strip()
 
-    # 判断管理面板的 WebSocket 连接方式：启用 HTTPS + 域名时使用 wss://域名，否则 ws://公网IP
-    tls_enabled = crud_module.get_config(db, models.ConfigKeys.TLS_ENABLED) == "true"
-    server_domain = (crud_module.get_config(db, models.ConfigKeys.SERVER_DOMAIN) or "").strip()
-    if tls_enabled and server_domain:
+    # 优先级：① 已配置的面板访问端口（NAT 场景显式指定） → ② 请求 Host 头中携带的端口（浏览器经 NAT 访问时）
+    # → ③ 启用 HTTPS+域名 → ④ 公网 IP（裸协议 80）
+    forwarded_proto = ""
+    forwarded_host = ""
+    if request is not None:
+        forwarded_proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "").split(",")[0].strip().lower()
+        forwarded_host = (request.headers.get("x-forwarded-host") or request.headers.get("host") or "").split(",")[0].strip()
+
+    if forwarded_proto in ("https", "wss"):
         ws_scheme = "wss"
-        manager_host = server_domain
     else:
         ws_scheme = "ws"
-        manager_host = server_ip
+
+    if panel_access_port:
+        # 显式 NAT 端口配置：使用公网 IP + 配置的端口
+        manager_host = f"{server_ip}:{panel_access_port}"
+    elif forwarded_host:
+        manager_host = forwarded_host
+    else:
+        # 回退逻辑：启用 HTTPS + 域名时使用域名，否则使用公网 IP
+        tls_enabled = crud_module.get_config(db, models.ConfigKeys.TLS_ENABLED) == "true"
+        server_domain = (crud_module.get_config(db, models.ConfigKeys.SERVER_DOMAIN) or "").strip()
+        manager_host = server_domain if (tls_enabled and server_domain) else server_ip
 
     if client_id:
         client = crud_module.get_client(db, client_id=client_id)

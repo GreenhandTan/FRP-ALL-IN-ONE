@@ -49,6 +49,7 @@ class ConfigKeys:
     JWT_SECRET_KEY = "jwt_secret_key"  # JWT 密钥（自动生成并持久化）
     TLS_ENABLED = "tls_enabled"        # HTTPS 是否启用
     TLS_MODE = "tls_mode"              # HTTPS 模式：auto(Let's Encrypt) / custom(自定义证书)
+    PANEL_ACCESS_PORT = "panel_access_port"  # 管理面板公网访问端口（NAT 映射场景，如 10967）
 
 class Tunnel(Base):
     __tablename__ = "tunnels"
