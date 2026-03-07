@@ -5,9 +5,8 @@ FRP Manager API - 主入口
 """
 import asyncio
 from datetime import datetime
-from typing import List
 
-from fastapi import FastAPI, Depends, HTTPException, status, Header, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
@@ -17,7 +16,7 @@ import crud
 import auth
 from database import SessionLocal, engine
 from websocket_manager import manager as ws_manager
-from core.rate_limit import limiter, setup_rate_limit
+from core.rate_limit import setup_rate_limit
 import time as _time
 
 # FRPS Dashboard 状态缓存（每 5 秒刷新一次，避免 WS 循环每秒调用）

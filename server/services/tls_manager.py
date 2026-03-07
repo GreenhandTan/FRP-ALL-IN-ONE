@@ -4,8 +4,7 @@ TLS 证书管理服务
 """
 import os
 import subprocess
-import shutil
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional
 from pathlib import Path
 from core.container_engine import run_podman
@@ -322,54 +321,54 @@ server {{
 }}
 '''
         else:
-            config = f'''server {{
+            config = '''server {
     listen 80;
     server_name _;
 
-    location /assets/ {{
+    location /assets/ {
         root /usr/share/nginx/html;
         try_files $uri =404;
         expires 7d;
         add_header Cache-Control "public, max-age=604800, immutable";
-    }}
+    }
 
-    location = /index.html {{
+    location = /index.html {
         root /usr/share/nginx/html;
         add_header Cache-Control "no-store";
-    }}
+    }
 
     # 前端静态文件
-    location / {{
+    location / {
         root /usr/share/nginx/html;
         try_files $uri $uri/ /index.html;
-    }}
+    }
 
     # API 代理
-    location /api/ {{
+    location /api/ {
         proxy_pass http://127.0.0.1:8000;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-    }}
+    }
 
-    location /token {{
+    location /token {
         proxy_pass http://127.0.0.1:8000/token;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }}
+    }
 
-    location /clients {{
+    location /clients {
         proxy_pass http://127.0.0.1:8000/clients;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }}
+    }
 
     # WebSocket 代理
-    location /ws/ {{
+    location /ws/ {
         proxy_pass http://127.0.0.1:8000/ws/;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
@@ -377,8 +376,8 @@ server {{
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_read_timeout 86400;
-    }}
-}}
+    }
+}
 '''
         return config
     

@@ -4,7 +4,6 @@ Agent 管理路由
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
 
 import models
 from core import get_db, require_password_changed

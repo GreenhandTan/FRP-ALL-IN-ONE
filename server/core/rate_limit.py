@@ -5,7 +5,6 @@ API 限流配置
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from fastapi import Request
 
 # 创建限流器（使用内存存储，基于客户端 IP）
 limiter = Limiter(

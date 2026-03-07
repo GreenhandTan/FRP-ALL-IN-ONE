@@ -3,7 +3,7 @@ import os
 import secrets
 from datetime import datetime, timedelta
 from typing import Optional
-from jose import JWTError, jwt
+from jose import jwt
 
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
@@ -38,7 +38,6 @@ def init_secret_key():
         try:
             # 延迟导入避免循环依赖
             import models
-            from sqlalchemy.orm import Session
             
             config = db.query(models.SystemConfig).filter(
                 models.SystemConfig.key == models.ConfigKeys.JWT_SECRET_KEY
@@ -74,7 +73,6 @@ def init_secret_key():
 
 def get_secret_key():
     """获取当前密钥，如果未初始化则先初始化"""
-    global SECRET_KEY
     if SECRET_KEY is None:
         init_secret_key()
     return SECRET_KEY

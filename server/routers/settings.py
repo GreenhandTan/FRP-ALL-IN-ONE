@@ -4,7 +4,6 @@
 """
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request
 from sqlalchemy.orm import Session
-from typing import Optional
 from pydantic import BaseModel
 
 import models
