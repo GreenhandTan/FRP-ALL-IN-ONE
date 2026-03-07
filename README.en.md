@@ -59,6 +59,7 @@
 - [Quick Start (Server)](#quick-start-server)
 - [First-time Workflow](#first-time-workflow)
 - [HTTPS Configuration (Optional)](#https-setup)
+- [NAT Access Port Configuration (Optional)](#nat-port-setup)
 - [Ports & Security Groups](#ports)
 - [Monitoring & Statistics](#monitoring)
 - [Common Operations](#ops)
@@ -87,6 +88,7 @@
 - **Full deployment in one command**: `git clone` + run `deploy.sh` — handles dependency installation, container build, and service startup automatically
 - **Visual setup wizard**: Complete FRPS configuration (IP direct or domain mode) through the web wizard on first login — no manual config file editing required
 - **Auto-generated client scripts**: One click generates deployment scripts for any platform (Linux/macOS/Windows) and architecture (x86/ARM/MIPS), ready to paste and run on LAN machines
+- **NAT Compatibility**: Supports explicit panel access port configuration for NAT environments (e.g., `PUBLIC_IP:10967 → internal port 80`), ensuring generated agent scripts always contain the correct address
 
 ### Feature-Rich
 
@@ -108,6 +110,7 @@
 - **Configuration Wizard**: Web interface for FRPS port, token, and public IP settings
 - **One-click Scripts**: Auto-generate client deployment scripts (multi-arch, systemd, auto-start)
 - **HTTPS Automation**: Support for auto-issuing Let's Encrypt certificates or uploading custom certificates
+- **NAT Port Config**: Support explicit panel access port for NAT cloud servers, scripts auto-use correct address
 
 ### Security Enhancements
 
@@ -282,6 +285,39 @@ The system supports two HTTPS activation methods:
 # View certificate info and expiration
 curl http://localhost:8000/api/settings/tls-status
 ```
+
+<a id="nat-port-setup"></a>
+
+## NAT Access Port Configuration (Optional)
+
+> **Use Case**: Your cloud server accesses the management panel through a NAT port mapping rather than a direct public IP, for example:
+> `Public 151.242.85.89:10967` → `Internal server:80` (panel accessed via NAT)
+
+In this scenario, without extra configuration the generated client install scripts will lack the port number (defaulting to 80), causing Agents to fail connecting to the management panel.
+
+### How to Configure
+
+1. Log in to the management console and click the **gear icon** (⚙) in the top-right navbar
+2. Enter the NAT-mapped public port in the "Panel Access Port" field (e.g., `10967`)
+3. Click **Save**
+
+Once saved, all subsequently generated client install scripts will automatically use:
+```
+ws://151.242.85.89:10967/ws/agent/<CLIENT_ID>
+```
+
+### Address Resolution Priority
+
+The `MANAGER_WS_URL` in generated scripts is determined by the following priority:
+
+| Priority | Condition | Address Used |
+| -------- | --------- | ------------ |
+| ① Highest | NAT port explicitly configured in settings | `ws://PUBLIC_IP:NAT_PORT` |
+| ② | Browser request carries Host header with port | `ws://host:port from Host header` |
+| ③ | HTTPS enabled + domain configured | `wss://domain` |
+| ④ Fallback | Otherwise | `ws://PUBLIC_IP` |
+
+> **Normal cloud servers**: No configuration needed. Leave blank and the system uses the public IP automatically.
 
 <a id="ports"></a>
 
