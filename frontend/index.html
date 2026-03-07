@@ -143,6 +143,11 @@
         <div id="setup-step-3" class="hidden">
           <h2 id="setup-script-title">客户端部署脚本</h2>
           <p id="setup-script-hint" class="text-muted">在内网机器上以 root 权限执行</p>
+          <div class="alert alert-warning" style="margin-bottom:16px;font-size:13px">
+            ⚠️ <strong>重要：每台设备必须单独生成专属脚本！</strong>
+            点击下方平台按钮时，系统会为该设备创建唯一身份标识（CLIENT_ID）。
+            <br>请勿将同一份脚本复制到多台内网设备，否则多台设备会互相顶替，控制台只能看到最后一台。
+          </div>
           <div id="setup-platform-grid" class="platform-grid">
             <button type="button" class="platform-btn" data-platform="linux">
               <span class="platform-icon">
@@ -306,6 +311,9 @@
         <!-- 客户端列表 -->
         <div class="section-header">
           <h2 id="clients-section-title">客户端列表</h2>
+          <button id="btn-add-device" type="button" class="btn btn-sm btn-primary" onclick="openAgentDeploy()">
+            + 添加新设备
+          </button>
         </div>
         <div id="clients-list"></div>
         <div id="clients-empty" class="empty-state hidden">
@@ -451,7 +459,11 @@
       </div>
       <div class="modal-body">
         <div id="agent-platform-select">
-          <p class="text-muted" style="text-align:center;margin-bottom:16px">选择客户端操作系统</p>
+          <div class="alert alert-warning" style="margin-bottom:12px;font-size:13px">
+            ⚠️ <strong>每台设备必须单独生成脚本！</strong>
+            点击平台按钮后系统会创建唯一设备身份（CLIENT_ID），请勿将脚本复制到多台设备。
+          </div>
+          <p class="text-muted" style="text-align:center;margin-bottom:16px">选择目标设备的操作系统</p>
           <div class="platform-grid">
             <button type="button" class="platform-btn" data-platform="linux">
               <span class="platform-icon">

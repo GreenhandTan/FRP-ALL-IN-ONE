@@ -3,9 +3,10 @@ WebSocket 连接管理器
 用于管理 Dashboard 客户端和 Agent 的 WebSocket 连接
 """
 from fastapi import WebSocket
-from typing import Dict, Set
+from typing import Dict, Set, List
 import asyncio
 import logging
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,9 @@ class ConnectionManager:
         
         # Agent 日志缓存（client_id -> deque）
         self.agent_log_buffer: Dict[str, any] = {}
+        
+        # 冲突事件记录（最近 20 条）：记录同一 client_id 被多台设备抢占的情况
+        self.conflict_events: List[dict] = []
     
     # ========================
     # Dashboard 连接管理
@@ -68,15 +72,36 @@ class ConnectionManager:
     
     async def connect_agent(self, websocket: WebSocket, client_id: str):
         """接受 Agent 连接"""
-        # 如果已有同 ID 的连接，先断开旧连接
+        # 如果已有同 ID 的连接，说明同一份脚本被安装到了多台设备上
+        # 这会导致两台设备竞争同一个 client_id，只有最新连接的设备可见
         if client_id in self.agent_connections:
+            logger.warning(
+                f"[冲突] Agent {client_id} 已存在活跃连接，检测到重复 client_id！"
+                f" 原因：同一份安装脚本被部署到了多台设备。"
+                f" 请为每台设备单独生成安装脚本（管理后台 → 部署设备）。"
+                f" 正在关闭旧连接并接受新连接..."
+            )
+            # 记录冲突事件（最多保留 20 条）
+            event = {
+                "client_id": client_id,
+                "time": datetime.utcnow().isoformat(),
+                "message": f"检测到重复 client_id [{client_id[:8]}...]：同一脚本被安装到多台设备，请从控制台为每台设备单独生成脚本"
+            }
+            self.conflict_events.append(event)
+            if len(self.conflict_events) > 20:
+                self.conflict_events.pop(0)
+            
             try:
-                await self.agent_connections[client_id].close()
+                await self.agent_connections[client_id].close(1008, "Duplicate client_id: per-device script required")
             except:
                 pass
         
         self.agent_connections[client_id] = websocket
         logger.info(f"Agent {client_id} 已连接，当前 Agent 数: {len(self.agent_connections)}")
+    
+    def get_recent_conflicts(self) -> List[dict]:
+        """获取最近的 client_id 冲突事件列表"""
+        return list(self.conflict_events)
     
     def disconnect_agent(self, client_id: str):
         """断开 Agent 连接"""

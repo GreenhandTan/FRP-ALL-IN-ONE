@@ -306,6 +306,7 @@ async def websocket_dashboard(websocket: WebSocket):
                         "registered_clients": registered_clients,
                         "disabled_ports": disabled_ports,
                         "frps_status": _frps_cache["data"],
+                        "conflict_events": ws_manager.get_recent_conflicts(),
                     }
                 })
             finally:

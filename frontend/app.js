@@ -974,7 +974,8 @@ document
    ============================================================= */
 function onDashboardMessage(msg) {
   if (msg.type !== "dashboard") return;
-  const { registered_clients, disabled_ports, frps_status } = msg.data || {};
+  const { registered_clients, disabled_ports, frps_status, conflict_events } =
+    msg.data || {};
 
   // 后端已将 is_online / cpu_percent / net_speed_* 等字段直接内嵌在每个 client 对象中
   // 不再需要额外的 agents 数组映射，直接使用
@@ -984,6 +985,21 @@ function onDashboardMessage(msg) {
   if (frps_status?.success) {
     STATE.serverInfo = frps_status.server_info || {};
     STATE.frpProxies = frps_status.proxies || [];
+  }
+
+  // 显示最新的 client_id 冲突告警
+  if (conflict_events && conflict_events.length > 0) {
+    const latest = conflict_events[conflict_events.length - 1];
+    const latestTime = latest.time;
+    // 只在有新冲突且用户未关闭过此条记录时弹出
+    if (latestTime !== STATE._lastDismissedConflictTime) {
+      STATE._lastShownConflictTime = latestTime;
+      const banner = $("error-banner");
+      if (banner) {
+        $("error-text").textContent = "⚠️ 设备冲突：" + latest.message;
+        banner.classList.remove("hidden");
+      }
+    }
   }
 
   // 计算统计数据（基于内嵌字段）
@@ -1004,10 +1020,7 @@ function onDashboardMessage(msg) {
   );
 
   STATE.stats = {
-    totalClients: Math.max(
-      STATE.serverInfo?.clientCounts || 0,
-      STATE.registeredClients.length,
-    ),
+    totalClients: STATE.registeredClients.length,
     onlineClients,
     totalProxies: configuredTunnels,
     activeProxies: STATE.frpProxies?.length || 0,
@@ -1089,7 +1102,11 @@ function showGlobalError(msg) {
   setText("error-text", msg);
   show("error-banner");
 }
-$("btn-dismiss-error").addEventListener("click", () => hide("error-banner"));
+$("btn-dismiss-error").addEventListener("click", () => {
+  hide("error-banner");
+  // 记录关闭时间，避免同一冲突事件重复弹出
+  STATE._lastDismissedConflictTime = STATE._lastShownConflictTime || null;
+});
 
 /* =============================================================
    17. 设置向导
