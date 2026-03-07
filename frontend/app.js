@@ -1275,7 +1275,8 @@ $$(".platform-btn", $("setup-step-3")).forEach((btn) => {
       let url = `/api/frp/agent/install-script/${selectedPlatform}`;
       if (setupCreatedClientId) url += `?client_id=${setupCreatedClientId}`;
       const script = await api.get(url);
-      const scriptText = typeof script === "string" ? script : JSON.stringify(script);
+      const scriptText =
+        typeof script === "string" ? script : JSON.stringify(script);
       $("script-content").textContent = scriptText;
       if (!setupCreatedClientId) {
         const m = scriptText.match(/CLIENT_ID\s*=\s*"([^"]+)"/);
@@ -1364,7 +1365,8 @@ $$(".platform-btn", $("modal-agent-deploy")).forEach((btn) => {
       let url = `/api/frp/agent/install-script/${agentScriptPlatform}`;
       if (agentCreatedClientId) url += `?client_id=${agentCreatedClientId}`;
       const script = await api.get(url);
-      const scriptText = typeof script === "string" ? script : JSON.stringify(script);
+      const scriptText =
+        typeof script === "string" ? script : JSON.stringify(script);
       $("agent-script-content").textContent = scriptText;
       if (!agentCreatedClientId) {
         const m = scriptText.match(/CLIENT_ID\s*=\s*"([^"]+)"/);
@@ -1414,13 +1416,17 @@ async function confirmCleanupAgentClient() {
     lang === "en"
       ? "A device record was created but the agent script has not been deployed. Delete this device?"
       : "已为此设备创建记录但尚未完成部署。是否删除该设备？",
-    { title: lang === "en" ? "Confirm" : "关闭确认",
+    {
+      title: lang === "en" ? "Confirm" : "关闭确认",
       confirmText: lang === "en" ? "Delete" : "删除设备",
       cancelText: lang === "en" ? "Keep" : "保留",
-      tone: "danger" }
+      tone: "danger",
+    },
   );
   if (shouldDelete && agentCreatedClientId) {
-    try { await api.delete(`/api/clients/${agentCreatedClientId}`); } catch {}
+    try {
+      await api.delete(`/api/clients/${agentCreatedClientId}`);
+    } catch {}
   }
   agentCreatedClientId = null;
   closeModal("modal-agent-deploy");
