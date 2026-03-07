@@ -393,6 +393,16 @@ async def get_agent_install_script(
     frps_port = crud_module.get_config(db, models.ConfigKeys.FRPS_PORT) or "7000"
     frps_version = crud_module.get_config(db, models.ConfigKeys.FRPS_VERSION) or "0.61.1"
 
+    # 判断管理面板的 WebSocket 连接方式：启用 HTTPS + 域名时使用 wss://域名，否则 ws://公网IP
+    tls_enabled = crud_module.get_config(db, models.ConfigKeys.TLS_ENABLED) == "true"
+    server_domain = (crud_module.get_config(db, models.ConfigKeys.SERVER_DOMAIN) or "").strip()
+    if tls_enabled and server_domain:
+        ws_scheme = "wss"
+        manager_host = server_domain
+    else:
+        ws_scheme = "ws"
+        manager_host = server_ip
+
     if client_id:
         client = crud_module.get_client(db, client_id=client_id)
         if not client:
@@ -400,22 +410,25 @@ async def get_agent_install_script(
     else:
         suffix = str(int(time.time()))[-6:]
         client = crud_module.create_client_with_token(db, name=f"device-{suffix}")
-    
+
     client_id = client.id
     client_token = client.auth_token
     download_base = "https://github.com/GreenhandTan/FRP-ALL-IN-ONE/releases/latest/download"
-    
+
     if platform == "windows":
-        script = _generate_windows_script(server_ip, frps_port, auth_token, client_id, client_token, frps_version, download_base)
+        script = _generate_windows_script(server_ip, frps_port, auth_token, client_id, client_token, frps_version, download_base, ws_scheme, manager_host)
         return PlainTextResponse(content=script, media_type="text/plain")
     else:
         os_type = "darwin" if platform == "darwin" else "linux"
-        script = _generate_unix_script(server_ip, frps_port, auth_token, client_id, client_token, frps_version, download_base, os_type)
+        script = _generate_unix_script(server_ip, frps_port, auth_token, client_id, client_token, frps_version, download_base, os_type, ws_scheme, manager_host)
         return PlainTextResponse(content=script, media_type="text/plain")
 
 
-def _generate_windows_script(server_ip, frps_port, auth_token, client_id, client_token, frp_version, download_base):
+def _generate_windows_script(server_ip, frps_port, auth_token, client_id, client_token, frp_version, download_base, ws_scheme="ws", manager_host=None):
     """生成 Windows PowerShell 安装脚本"""
+    if manager_host is None:
+        manager_host = server_ip
+    manager_ws_url = f"{ws_scheme}://{manager_host}/ws/agent/{client_id}"
     return f'''# FRP Manager Agent + FRPC 一键安装脚本 (Windows)
 $ErrorActionPreference = "Stop"
 
@@ -427,6 +440,7 @@ $CLIENT_ID = "{client_id}"
 $FRP_VERSION = "{frp_version}"
 $INSTALL_DIR = "C:\\frp"
 $DOWNLOAD_BASE = "{download_base}"
+$MANAGER_WS_URL = "{manager_ws_url}"
 
 Write-Host "===============================================" -ForegroundColor Cyan
 Write-Host "  FRP Manager Agent 一键安装 (Windows)" -ForegroundColor Cyan
@@ -472,18 +486,21 @@ Copy-Item "$INSTALL_DIR\\start-frpc.bat" "$startupFolder\\start-frpc.bat" -Force
 Start-Process -FilePath "$INSTALL_DIR\\frpc.exe" -ArgumentList "-c", "$INSTALL_DIR\\frpc.toml" -WindowStyle Minimized
 
 if (Test-Path "$INSTALL_DIR\\frp-agent.exe") {{
-    $agentScript = "@echo off`ncd /d \"$INSTALL_DIR\"`nstart /min \"\" \"$INSTALL_DIR\\frp-agent.exe\" -server ws://$SERVER_IP/ws/agent/$CLIENT_ID -id $CLIENT_ID -token $CLIENT_TOKEN -frpc \"$INSTALL_DIR\\frpc.exe\" -config \"$INSTALL_DIR\\frpc.toml\" -log \"$INSTALL_DIR\\logs\""
+    $agentScript = "@echo off`ncd /d \"$INSTALL_DIR\"`nstart /min \"\" \"$INSTALL_DIR\\frp-agent.exe\" -server $MANAGER_WS_URL -id $CLIENT_ID -token $CLIENT_TOKEN -frpc \"$INSTALL_DIR\\frpc.exe\" -config \"$INSTALL_DIR\\frpc.toml\" -log \"$INSTALL_DIR\\logs\""
     $agentScript | Out-File -FilePath "$INSTALL_DIR\\start-frp-agent.bat" -Encoding ASCII
     Copy-Item "$INSTALL_DIR\\start-frp-agent.bat" "$startupFolder\\start-frp-agent.bat" -Force
-    Start-Process -FilePath "$INSTALL_DIR\\frp-agent.exe" -ArgumentList "-server", "ws://$SERVER_IP/ws/agent/$CLIENT_ID", "-id", "$CLIENT_ID", "-token", "$CLIENT_TOKEN", "-frpc", "$INSTALL_DIR\\frpc.exe", "-config", "$INSTALL_DIR\\frpc.toml", "-log", "$INSTALL_DIR\\logs" -WindowStyle Minimized
+    Start-Process -FilePath "$INSTALL_DIR\\frp-agent.exe" -ArgumentList "-server", "$MANAGER_WS_URL", "-id", "$CLIENT_ID", "-token", "$CLIENT_TOKEN", "-frpc", "$INSTALL_DIR\\frpc.exe", "-config", "$INSTALL_DIR\\frpc.toml", "-log", "$INSTALL_DIR\\logs" -WindowStyle Minimized
 }}
 
 Write-Host "安装完成！" -ForegroundColor Green
 '''
 
 
-def _generate_unix_script(server_ip, frps_port, auth_token, client_id, client_token, frp_version, download_base, os_type):
+def _generate_unix_script(server_ip, frps_port, auth_token, client_id, client_token, frp_version, download_base, os_type, ws_scheme="ws", manager_host=None):
     """生成 Linux/macOS Bash 安装脚本"""
+    if manager_host is None:
+        manager_host = server_ip
+    manager_ws_url = f"{ws_scheme}://{manager_host}/ws/agent/{client_id}"
     return f'''#!/bin/bash
 # FRP Manager Agent + FRPC 一键安装脚本 (Linux/macOS)
 
@@ -497,6 +514,7 @@ CLIENT_ID="{client_id}"
 FRP_VERSION="{frp_version}"
 INSTALL_DIR="/opt/frp"
 DOWNLOAD_BASE="{download_base}"
+MANAGER_WS_URL="{manager_ws_url}"
 
 RED='\\033[0;31m'
 GREEN='\\033[0;32m'
@@ -588,7 +606,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=$INSTALL_DIR/frp-agent -server ws://$SERVER_IP/ws/agent/$CLIENT_ID -id $CLIENT_ID -token $CLIENT_TOKEN -frpc $INSTALL_DIR/frpc -config $INSTALL_DIR/frpc.toml -log $INSTALL_DIR/logs
+ExecStart=$INSTALL_DIR/frp-agent -server $MANAGER_WS_URL -id $CLIENT_ID -token $CLIENT_TOKEN -frpc $INSTALL_DIR/frpc -config $INSTALL_DIR/frpc.toml -log $INSTALL_DIR/logs
 Restart=always
 RestartSec=5
 
@@ -612,7 +630,7 @@ AGENT_SERVICE
     <key>ProgramArguments</key>
     <array>
         <string>$INSTALL_DIR/frp-agent</string>
-        <string>-server</string><string>ws://$SERVER_IP/ws/agent/$CLIENT_ID</string>
+        <string>-server</string><string>$MANAGER_WS_URL</string>
         <string>-id</string><string>$CLIENT_ID</string>
         <string>-token</string><string>$CLIENT_TOKEN</string>
         <string>-frpc</string><string>$INSTALL_DIR/frpc</string>
