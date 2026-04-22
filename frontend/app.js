@@ -969,30 +969,64 @@ document
   });
 
 /* =============================================================
-   14. WebSocket 实时状态处理
+   14. WebSocket 实时状态处理（事件驱动）
    ============================================================= */
-function onDashboardMessage(msg) {
-  if (msg.type !== "dashboard") return;
-  const { registered_clients, disabled_ports, frps_status, conflict_events } =
-    msg.data || {};
 
-  // 后端已将 is_online / cpu_percent / net_speed_* 等字段直接内嵌在每个 client 对象中
-  // 不再需要额外的 agents 数组映射，直接使用
+/** 重新计算顶部统计数字并写入 STATE.stats */
+function _recalcStats() {
+  const onlineClients = STATE.registeredClients.filter((c) => c.is_online).length;
+  const configuredTunnels = STATE.registeredClients.reduce(
+    (acc, c) => acc + (c.tunnels?.length || 0), 0
+  );
+  const machineTrafficIn  = STATE.registeredClients.reduce((s, c) => s + (c.net_bytes_in  || 0), 0);
+  const machineTrafficOut = STATE.registeredClients.reduce((s, c) => s + (c.net_bytes_out || 0), 0);
+  STATE.stats = {
+    totalClients:    STATE.registeredClients.length,
+    onlineClients,
+    totalProxies:    configuredTunnels,
+    activeProxies:   STATE.frpProxies?.length || 0,
+    onlineAgents:    onlineClients,
+    machineTrafficIn,
+    machineTrafficOut,
+  };
+}
+
+/** 局部更新某客户端卡片的实时指标（进度条 + 网速），避免全量重渲染 */
+function _updateClientMetricsDom(clientId, data) {
+  const card = document.querySelector(`#clients-list [data-client-id="${CSS.escape(clientId)}"]`);
+  if (!card) return;
+
+  // 更新资源进度条
+  const resBarsEl = card.querySelector(".client-res-bars");
+  if (resBarsEl && data.cpu_percent != null) {
+    resBarsEl.innerHTML =
+      resBar(data.cpu_percent,    "CPU",  "cpu")  +
+      resBar(data.memory_percent, "Mem",  "mem")  +
+      resBar(data.disk_percent,   "Disk", "disk");
+  }
+
+  // 更新网络速率显示
+  const speedInEl  = card.querySelector(".speed-in");
+  const speedOutEl = card.querySelector(".speed-out");
+  if (speedInEl)  speedInEl.textContent  = formatSpeed(data.net_speed_in  || 0);
+  if (speedOutEl) speedOutEl.textContent = formatSpeed(data.net_speed_out || 0);
+}
+
+/** 处理首次连接的全量数据（full_sync）*/
+function handleFullSync(data) {
+  const { registered_clients, disabled_ports, frps_status, conflict_events } = data || {};
   STATE.registeredClients = registered_clients || [];
-  STATE.disabledPorts = disabled_ports || [];
+  STATE.disabledPorts     = disabled_ports     || [];
 
   if (frps_status?.success) {
     STATE.serverInfo = frps_status.server_info || {};
-    STATE.frpProxies = frps_status.proxies || [];
+    STATE.frpProxies = frps_status.proxies     || [];
   }
 
-  // 显示最新的 client_id 冲突告警
   if (conflict_events && conflict_events.length > 0) {
     const latest = conflict_events[conflict_events.length - 1];
-    const latestTime = latest.time;
-    // 只在有新冲突且用户未关闭过此条记录时弹出
-    if (latestTime !== STATE._lastDismissedConflictTime) {
-      STATE._lastShownConflictTime = latestTime;
+    if (latest.time !== STATE._lastDismissedConflictTime) {
+      STATE._lastShownConflictTime = latest.time;
       const banner = $("error-banner");
       if (banner) {
         $("error-text").textContent = "⚠️ 设备冲突：" + latest.message;
@@ -1001,36 +1035,95 @@ function onDashboardMessage(msg) {
     }
   }
 
-  // 计算统计数据（基于内嵌字段）
-  const configuredTunnels = STATE.registeredClients.reduce(
-    (acc, c) => acc + (c.tunnels?.length || 0),
-    0,
-  );
-  const onlineClients = STATE.registeredClients.filter(
-    (c) => c.is_online,
-  ).length;
-  const machineTrafficIn = STATE.registeredClients.reduce(
-    (s, c) => s + (c.net_bytes_in || 0),
-    0,
-  );
-  const machineTrafficOut = STATE.registeredClients.reduce(
-    (s, c) => s + (c.net_bytes_out || 0),
-    0,
-  );
-
-  STATE.stats = {
-    totalClients: STATE.registeredClients.length,
-    onlineClients,
-    totalProxies: configuredTunnels,
-    activeProxies: STATE.frpProxies?.length || 0,
-    onlineAgents: onlineClients,
-    machineTrafficIn,
-    machineTrafficOut,
-  };
-
+  _recalcStats();
   renderStats();
   renderClients();
 }
+
+/** 处理单个 Agent 的实时指标增量（metrics_update）*/
+function handleMetricsUpdate(clientId, data) {
+  if (!clientId || !data) return;
+  const client = STATE.registeredClients.find((c) => c.id === clientId);
+  if (!client) return;
+
+  // 合并指标字段到 STATE
+  Object.assign(client, data);
+
+  // 局部更新顶部统计（流量汇总）
+  _recalcStats();
+  renderStats();
+
+  // 局部更新该卡片的进度条和网速，无需重建 DOM
+  _updateClientMetricsDom(clientId, data);
+}
+
+/** 处理客户端上线/离线事件（client_event）*/
+function handleClientEvent(clientId, isOnline) {
+  const client = STATE.registeredClients.find((c) => c.id === clientId);
+  if (!client) return;
+
+  client.is_online = isOnline;
+  _recalcStats();
+  renderStats();
+
+  // 重建该客户端卡片（在线状态切换影响多处 UI，整卡替换最稳健）
+  const nowSec = Math.floor(Date.now() / 1000);
+  const proxiesByName = {};
+  (STATE.frpProxies || []).forEach((p) => { if (p?.name) proxiesByName[p.name] = p; });
+
+  const existingCard = document.querySelector(
+    `#clients-list [data-client-id="${CSS.escape(clientId)}"]`
+  );
+  if (existingCard) {
+    const tmp = document.createElement("div");
+    tmp.innerHTML = renderClientCard(client, proxiesByName, nowSec);
+    const newCard = tmp.firstElementChild;
+    existingCard.replaceWith(newCard);
+    newCard.querySelectorAll("[data-action]").forEach((btn) => {
+      btn.addEventListener("click", handleClientAction);
+    });
+  }
+}
+
+/** 处理 FRPS 状态变化推送（frps_status）*/
+function handleFrpsStatus(data) {
+  if (!data?.success) return;
+  STATE.serverInfo = data.server_info || {};
+  STATE.frpProxies = data.proxies     || [];
+  _recalcStats();
+  renderStats();
+}
+
+/**
+ * Dashboard WebSocket 消息路由入口
+ * 取代原来只处理单一 "dashboard" 全量包的方式
+ */
+function onDashboardMessage(msg) {
+  switch (msg.type) {
+    case "full_sync":
+      handleFullSync(msg.data);
+      break;
+    case "metrics_update":
+      handleMetricsUpdate(msg.client_id, msg.data);
+      break;
+    case "client_event":
+      handleClientEvent(msg.client_id, msg.is_online);
+      break;
+    case "frps_status":
+      handleFrpsStatus(msg.data);
+      break;
+    case "ping":
+      // 服务端保活心跳，无需响应
+      break;
+    case "dashboard":
+      // 兼容旧版消息格式（降级处理）
+      handleFullSync(msg.data);
+      break;
+    default:
+      break;
+  }
+}
+
 
 /* =============================================================
    15. 修改密码弹窗

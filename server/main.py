@@ -74,6 +74,7 @@ def init_database():
     # 启动后台任务
     asyncio.create_task(background_ping_task())
     asyncio.create_task(background_cert_renew_task())  # 证书自动续期任务
+    asyncio.create_task(background_frps_status_task())  # FRPS 状态事件推送任务
 
 
 async def background_ping_task():
@@ -137,6 +138,110 @@ async def background_cert_renew_task():
 
 
 # ===========================
+# 全量同步数据构建（仅首次 Dashboard 连接时调用）
+# ===========================
+
+def _build_full_sync_data(db) -> dict:
+    """构建全量快照，供 Dashboard 初次连接时使用"""
+    clients = crud.get_clients(db)
+    ws_agents_info = {
+        info["client_id"]: info
+        for info in ws_manager.get_all_agents_info()
+    }
+    registered_clients = []
+    for c in clients:
+        client_data = {
+            "id": c.id,
+            "name": c.name,
+            "auth_token": c.auth_token,
+            "status": c.status,
+            "last_seen": c.last_seen,
+            "tunnels": [
+                {
+                    "id": t.id,
+                    "client_id": t.client_id,
+                    "name": t.name,
+                    "type": t.type.value if hasattr(t.type, "value") else str(t.type),
+                    "enabled": getattr(t, "enabled", True),
+                    "local_ip": t.local_ip,
+                    "local_port": t.local_port,
+                    "remote_port": t.remote_port,
+                    "custom_domains": t.custom_domains,
+                }
+                for t in (c.tunnels or [])
+            ],
+        }
+        agent_info_db = db.query(models.AgentInfo).filter(
+            models.AgentInfo.client_id == c.id
+        ).first()
+        if agent_info_db:
+            client_data.update({
+                "hostname": agent_info_db.hostname,
+                "os": agent_info_db.os,
+                "arch": agent_info_db.arch,
+                "platform": agent_info_db.platform,
+                "agent_version": agent_info_db.agent_version,
+            })
+        is_ws_connected = ws_manager.is_agent_online(c.id)
+        ws_info = ws_agents_info.get(c.id, {})
+        client_data.update({
+            "is_online": is_ws_connected,
+            "cpu_percent":    ws_info.get("cpu_percent"),
+            "memory_percent": ws_info.get("memory_percent"),
+            "memory_used":    ws_info.get("memory_used"),
+            "memory_total":   ws_info.get("memory_total"),
+            "disk_percent":   ws_info.get("disk_percent"),
+            "disk_used":      ws_info.get("disk_used"),
+            "disk_total":     ws_info.get("disk_total"),
+            "net_bytes_in":   ws_info.get("net_bytes_in"),
+            "net_bytes_out":  ws_info.get("net_bytes_out"),
+            "net_speed_in":   ws_info.get("net_speed_in"),
+            "net_speed_out":  ws_info.get("net_speed_out"),
+        })
+        registered_clients.append(client_data)
+
+    disabled_ports_str = crud.get_config(db, models.ConfigKeys.DISABLED_PORTS) or ""
+    disabled_ports = [int(p) for p in disabled_ports_str.split(",") if p.strip()]
+
+    return {
+        "registered_clients": registered_clients,
+        "disabled_ports": disabled_ports,
+        "frps_status": _frps_cache["data"],
+        "conflict_events": ws_manager.get_recent_conflicts(),
+    }
+
+
+async def background_frps_status_task():
+    """
+    每 10 秒轮询一次 FRPS 状态，仅在数据发生变化时向所有 Dashboard 推送。
+    取代原先在 WS 循环中每 5 秒全量刷新的方式。
+    """
+    import json as _json
+    await asyncio.sleep(15)  # 等待系统完全初始化后再启动
+    _last_frps_hash = None
+
+    while True:
+        try:
+            db = SessionLocal()
+            try:
+                from routers.frp_server import get_frps_status
+                frps_data = await get_frps_status(db=db, current_user=None)
+                current_hash = hash(_json.dumps(frps_data, sort_keys=True, default=str))
+                if current_hash != _last_frps_hash:
+                    _last_frps_hash = current_hash
+                    # 同步更新缓存，供 full_sync 使用
+                    _frps_cache["data"] = frps_data
+                    _frps_cache["ts"] = _time.time()
+                    await ws_manager.broadcast_frps_status(frps_data)
+            finally:
+                db.close()
+        except Exception as e:
+            print(f"[FRPSTask] 状态获取失败: {e}")
+
+        await asyncio.sleep(10)
+
+
+# ===========================
 # 导入并注册路由
 # ===========================
 
@@ -181,8 +286,10 @@ def _get_admin_from_token(db: Session, token: str):
 @app.websocket("/ws/dashboard")
 async def websocket_dashboard(websocket: WebSocket):
     """
-    Dashboard 实时状态推送
-    每秒推送一次 FRPS 状态
+    Dashboard 实时状态推送（事件驱动模式）
+    - 连接建立时发送一次 full_sync 全量数据
+    - 后续由 Agent 上报、上下线事件、FRPS 状态变化触发增量推送
+    - 服务端每 30 秒发送 ping 保持连接活跃
     """
     db = SessionLocal()
     try:
@@ -196,131 +303,33 @@ async def websocket_dashboard(websocket: WebSocket):
 
     await websocket.accept()
     await ws_manager.connect_dashboard(websocket)
-    
+
     try:
+        # 首次连接：发送全量数据供前端初始化，此后所有更新均由事件驱动
+        db = SessionLocal()
+        try:
+            full_data = _build_full_sync_data(db)
+        finally:
+            db.close()
+        await websocket.send_json({"type": "full_sync", "data": full_data})
+
+        # 保持连接；每 30 秒发送一次 ping 防止代理层断开空闲连接
         while True:
-            db = SessionLocal()
             try:
-                # 获取基础数据
-                clients = crud.get_clients(db)
-                
-                # 获取 WebSocket 实时在线状态和内存缓存
-                ws_agents_info = {
-                    info["client_id"]: info 
-                    for info in ws_manager.get_all_agents_info()
-                }
-
-                registered_clients = []
-                for c in clients:
-                    client_data = {
-                        "id": c.id,
-                        "name": c.name,
-                        "auth_token": c.auth_token,
-                        "status": c.status,
-                        "last_seen": c.last_seen,
-                        "tunnels": [
-                            {
-                                "id": t.id,
-                                "name": t.name,
-                                "type": t.type,
-                                "local_ip": t.local_ip,
-                                "local_port": t.local_port,
-                                "remote_port": t.remote_port,
-                                "custom_domains": t.custom_domains,
-                            }
-                            for t in c.tunnels
-                        ],
-                    }
-
-                    # 注入 Agent 硬件信息
-                    agent_info_db = db.query(models.AgentInfo).filter(
-                        models.AgentInfo.client_id == c.id
-                    ).first()
-                    
-                    if agent_info_db:
-                        client_data.update({
-                            "hostname": agent_info_db.hostname,
-                            "os": agent_info_db.os,
-                            "arch": agent_info_db.arch,
-                            "platform": agent_info_db.platform,
-                            "agent_version": agent_info_db.agent_version,
-                        })
-                    
-                    # 直接用 agent_connections 判断在线状态，不依赖 system_info 是否到达
-                    # 原先用 ws_agents_info（只含 agent_system_info 记录）会导致：
-                    # Agent 已连接但尚未发送 system_info（3 秒内）或 gopsutil 采集失败时，
-                    # is_online 错误地为 False
-                    is_ws_connected = ws_manager.is_agent_online(c.id)
-                    ws_info = ws_agents_info.get(c.id, {})
-                    client_data.update({
-                        "is_online": is_ws_connected,
-                        "cpu_percent": ws_info.get("cpu_percent"),
-                        "memory_percent": ws_info.get("memory_percent"),
-                        "memory_used": ws_info.get("memory_used"),
-                        "memory_total": ws_info.get("memory_total"),
-                        "disk_percent": ws_info.get("disk_percent"),
-                        "disk_used": ws_info.get("disk_used"),
-                        "disk_total": ws_info.get("disk_total"),
-                        "net_bytes_in": ws_info.get("net_bytes_in"),
-                        "net_bytes_out": ws_info.get("net_bytes_out"),
-                        "net_speed_in": ws_info.get("net_speed_in"),
-                        "net_speed_out": ws_info.get("net_speed_out"),
-                    })
-
-                    # 隧道信息
-                    client_data["tunnels"] = [
-                        {
-                            "id": t.id,
-                            "client_id": t.client_id,
-                            "name": t.name,
-                            "type": t.type.value if hasattr(t.type, "value") else str(t.type),
-                            "enabled": getattr(t, "enabled", True),
-                            "local_ip": t.local_ip,
-                            "local_port": t.local_port,
-                            "remote_port": t.remote_port,
-                            "custom_domains": t.custom_domains,
-                        }
-                        for t in (c.tunnels or [])
-                    ]
-                    
-                    registered_clients.append(client_data)
-
-                # 获取禁用端口列表
-                disabled_ports_str = crud.get_config(db, models.ConfigKeys.DISABLED_PORTS) or ""
-                disabled_ports = [int(p) for p in disabled_ports_str.split(",") if p.strip()]
-
-                # FRPS Dashboard 状态（每 5 秒刷新，避免高频请求）
-                now_ts = _time.time()
-                if now_ts - _frps_cache["ts"] > 5:
-                    try:
-                        from routers.frp_server import get_frps_status
-                        frps_data = await get_frps_status(db=db, current_user=None)
-                        _frps_cache["data"] = frps_data
-                        _frps_cache["ts"] = now_ts
-                    except Exception as _e:
-                        print(f"[WS] FRPS 状态刷新失败: {_e}")
-
-                await websocket.send_json({
-                    "type": "dashboard",
-                    "data": {
-                        "registered_clients": registered_clients,
-                        "disabled_ports": disabled_ports,
-                        "frps_status": _frps_cache["data"],
-                        "conflict_events": ws_manager.get_recent_conflicts(),
-                    }
-                })
-            finally:
-                db.close()
-
-            await asyncio.sleep(1)
+                await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+            except asyncio.TimeoutError:
+                await websocket.send_json({"type": "ping"})
     except WebSocketDisconnect:
         print("[WS Dashboard] Client disconnected normally")
         ws_manager.disconnect_dashboard(websocket)
     except Exception as e:
         import traceback
-        print(f"[WS Dashboard] FATAL ERROR: {type(e).__name__}: {e}")
+        print(f"[WS Dashboard] ERROR: {type(e).__name__}: {e}")
         traceback.print_exc()
         ws_manager.disconnect_dashboard(websocket)
+
+
+
 
 
 @app.websocket("/ws/agent/{client_id}")
@@ -352,9 +361,9 @@ async def websocket_agent(websocket: WebSocket, client_id: str):
             data = await websocket.receive_json()
             await _handle_agent_message(client_id, data)
     except WebSocketDisconnect:
-        ws_manager.disconnect_agent(client_id)
+        await ws_manager.disconnect_agent(client_id)
     except Exception:
-        ws_manager.disconnect_agent(client_id)
+        await ws_manager.disconnect_agent(client_id)
 
 
 @app.websocket("/ws/logs/{client_id}")
@@ -429,17 +438,29 @@ async def _handle_agent_message(client_id: str, msg: dict):
     elif msg_type == "system_info":
         if not isinstance(data, dict):
             return
-        
+
+        # 1. 更新内存缓存
         ws_manager.update_agent_system_info(client_id, data)
-        
+
+        # 2. 立即广播增量指标给所有 Dashboard（事件驱动核心）
+        await ws_manager.broadcast_metrics_patch(client_id, data)
+
+        # 3. 数据库写入节流：每 30 秒持久化一次，大幅降低 SQLite 写压力
+        import time as _t
+        now = _t.time()
+        last_write = ws_manager._metrics_last_write.get(client_id, 0)
+        if now - last_write < 30:
+            return  # 距上次写入还不到 30 秒，跳过
+        ws_manager._metrics_last_write[client_id] = now
+
         db = SessionLocal()
         try:
             crud.touch_client(db, client_id=client_id, status="online")
-            
+
             agent = db.query(models.AgentInfo).filter(
                 models.AgentInfo.client_id == client_id
             ).first()
-            
+
             if agent:
                 if "hostname" in data:
                     agent.hostname = data["hostname"]
@@ -447,8 +468,8 @@ async def _handle_agent_message(client_id: str, msg: dict):
                     agent.os = data["os"]
                 if "arch" in data:
                     agent.arch = data["arch"]
-            
-            # 存储系统指标
+
+            # 持久化当前指标（每 30 秒一条，取代每次都写）
             metrics = models.SystemMetrics(
                 client_id=client_id,
                 timestamp=datetime.utcnow(),
@@ -465,19 +486,18 @@ async def _handle_agent_message(client_id: str, msg: dict):
                 net_speed_out=data.get("net_speed_out")
             )
             db.add(metrics)
-            
-            # 清理旧数据（保留最近 1000 条）
+
+            # 清理超过 1000 条的旧数据
             count = db.query(models.SystemMetrics).filter(
                 models.SystemMetrics.client_id == client_id
             ).count()
-            
             if count > 1000:
                 oldest = db.query(models.SystemMetrics).filter(
                     models.SystemMetrics.client_id == client_id
                 ).order_by(models.SystemMetrics.timestamp.asc()).limit(count - 1000).all()
                 for old in oldest:
                     db.delete(old)
-            
+
             db.commit()
         finally:
             db.close()

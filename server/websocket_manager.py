@@ -32,6 +32,9 @@ class ConnectionManager:
         
         # 冲突事件记录（最近 20 条）：记录同一 client_id 被多台设备抢占的情况
         self.conflict_events: List[dict] = []
+
+        # 各 Agent 最后一次写入 DB 的时间戳，用于节流（每 30 秒写一次）
+        self._metrics_last_write: Dict[str, float] = {}
     
     # ========================
     # Dashboard 连接管理
@@ -101,12 +104,14 @@ class ConnectionManager:
         if client_id in self.agent_system_info:
             self.agent_system_info[client_id]["online"] = True
         logger.info(f"Agent {client_id} 已连接，当前 Agent 数: {len(self.agent_connections)}")
+        # 广播客户端上线事件给所有 Dashboard
+        await self.broadcast_client_event(client_id, True)
     
     def get_recent_conflicts(self) -> List[dict]:
         """获取最近的 client_id 冲突事件列表"""
         return list(self.conflict_events)
     
-    def disconnect_agent(self, client_id: str):
+    async def disconnect_agent(self, client_id: str):
         """断开 Agent 连接"""
         if client_id in self.agent_connections:
             del self.agent_connections[client_id]
@@ -114,6 +119,8 @@ class ConnectionManager:
         # 保留系统信息一段时间，标记为离线
         if client_id in self.agent_system_info:
             self.agent_system_info[client_id]["online"] = False
+        # 广播客户端下线事件给所有 Dashboard
+        await self.broadcast_client_event(client_id, False)
     
     def update_agent_system_info(self, client_id: str, system_info: dict):
         """更新 Agent 系统信息"""
@@ -147,7 +154,7 @@ class ConnectionManager:
                 return True
             except Exception as e:
                 logger.warning(f"发送消息到 Agent {client_id} 失败: {e}")
-                self.disconnect_agent(client_id)
+                await self.disconnect_agent(client_id)
         return False
     
     async def push_config_to_agent(self, client_id: str, config: str) -> bool:
@@ -243,7 +250,73 @@ class ConnectionManager:
                 disconnected.append(client_id)
         
         for client_id in disconnected:
-            self.disconnect_agent(client_id)
+            await self.disconnect_agent(client_id)
+
+    # ========================
+    # 事件驱动广播（新增）
+    # ========================
+
+    async def broadcast_metrics_patch(self, client_id: str, data: dict):
+        """向所有 Dashboard 广播单个 Agent 的实时指标（增量推送，不含静态信息）"""
+        if not self.dashboard_connections:
+            return
+        message = {
+            "type": "metrics_update",
+            "client_id": client_id,
+            "data": {
+                "cpu_percent":     data.get("cpu_percent"),
+                "memory_percent":  data.get("memory_percent"),
+                "memory_used":     data.get("memory_used"),
+                "memory_total":    data.get("memory_total"),
+                "disk_percent":    data.get("disk_percent"),
+                "disk_used":       data.get("disk_used"),
+                "disk_total":      data.get("disk_total"),
+                "net_bytes_in":    data.get("net_bytes_in"),
+                "net_bytes_out":   data.get("net_bytes_out"),
+                "net_speed_in":    data.get("net_speed_in"),
+                "net_speed_out":   data.get("net_speed_out"),
+            }
+        }
+        disconnected = []
+        for ws in self.dashboard_connections:
+            try:
+                await ws.send_json(message)
+            except Exception:
+                disconnected.append(ws)
+        for ws in disconnected:
+            self.disconnect_dashboard(ws)
+
+    async def broadcast_client_event(self, client_id: str, is_online: bool):
+        """向所有 Dashboard 广播客户端上线/离线事件"""
+        if not self.dashboard_connections:
+            return
+        message = {
+            "type": "client_event",
+            "client_id": client_id,
+            "is_online": is_online,
+        }
+        disconnected = []
+        for ws in self.dashboard_connections:
+            try:
+                await ws.send_json(message)
+            except Exception:
+                disconnected.append(ws)
+        for ws in disconnected:
+            self.disconnect_dashboard(ws)
+
+    async def broadcast_frps_status(self, frps_data: dict):
+        """向所有 Dashboard 广播 FRPS 状态变化"""
+        if not self.dashboard_connections:
+            return
+        message = {"type": "frps_status", "data": frps_data}
+        disconnected = []
+        for ws in self.dashboard_connections:
+            try:
+                await ws.send_json(message)
+            except Exception:
+                disconnected.append(ws)
+        for ws in disconnected:
+            self.disconnect_dashboard(ws)
 
 
 # 全局连接管理器实例
