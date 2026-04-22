@@ -703,4 +703,5 @@ async def get_public_ip(
     current_user: models.Admin = Depends(require_password_changed)
 ):
     """获取服务器公网 IP"""
-    return frp_deploy.get_public_ip_details()
+    import asyncio
+    return await asyncio.to_thread(frp_deploy.get_public_ip_details)

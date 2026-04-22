@@ -9,7 +9,6 @@ RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debia
         gnupg \
         openssl \
         socat \
-        cron \
         podman \
     && rm -rf /var/lib/apt/lists/*
 
@@ -24,9 +23,6 @@ RUN mkdir -p /tmp/acme-install \
 
 ENV PATH="/opt/acme.sh:$PATH"
 ENV LE_WORKING_DIR="/opt/acme.sh"
-
-# 配置 acme.sh 自动续期（每天凌晨 2 点检查）
-RUN echo "0 2 * * * /opt/acme.sh/acme.sh --cron --home /opt/acme.sh >> /var/log/acme.cron.log 2>&1" | crontab -
 
 WORKDIR /app
 
@@ -53,5 +49,6 @@ VOLUME /opt/frp
 EXPOSE 8000
 
 # 以 root 运行（需要权限创建文件和启动进程）
-# 启动 cron 服务和主应用
-CMD cron && python -m uvicorn main:app --host 0.0.0.0 --port 8000
+# 证书续期由 Python 后台任务处理，无需 cron
+# 绑定到 127.0.0.1 避免在 host 网络模式下向公网暴露 8000 端口，仅限同主机 Nginx 代理访问
+CMD python -m uvicorn main:app --host 127.0.0.1 --port 8000

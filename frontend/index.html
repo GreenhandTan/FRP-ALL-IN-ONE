@@ -553,6 +553,22 @@
             <small class="text-muted" id="hint-panel-access-port">仅 NAT 场景需要填写。例如公网通过 10967 端口访问面板，则填写
               10967。普通云服务器留空即可。</small>
           </div>
+          
+          <hr style="margin: 16px 0; border: none; border-top: 1px solid var(--border-color);">
+          
+          <div class="form-group" id="cert-management-group">
+            <label>SSL 证书管理</label>
+            <div id="cert-status-info" class="info-table" style="margin-top: 8px;">
+               <div class="info-row"><span>状态</span><code id="cert-status-text">加载中...</code></div>
+               <div class="info-row"><span>域名</span><code id="cert-domain-text">—</code></div>
+               <div class="info-row"><span>到期时间</span><code id="cert-expire-text">—</code></div>
+               <div class="info-row"><span>剩余天数</span><code id="cert-days-text">—</code></div>
+            </div>
+            <div style="margin-top: 12px; display: flex; gap: 8px;">
+               <button type="button" id="btn-renew-cert" class="btn btn-sm btn-outline">手动续期证书</button>
+            </div>
+          </div>
+
           <div class="form-actions">
             <button type="button" class="btn btn-secondary btn-close-modal"
               data-modal="modal-panel-settings">取消</button>

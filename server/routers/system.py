@@ -22,9 +22,10 @@ def get_system_status(db: Session = Depends(get_db)):
 
 
 @router.get("/public-ip")
-def get_public_ip():
+async def get_public_ip():
     """自动检测服务器公网 IP"""
-    details = frp_deploy.get_public_ip_details()
+    import asyncio
+    details = await asyncio.to_thread(frp_deploy.get_public_ip_details)
     ip = details.get("ip")
     if ip:
         return {"success": True, "ip": ip}

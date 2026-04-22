@@ -2,6 +2,8 @@
 系统设置路由
 包含域名设置、HTTPS 配置等
 """
+import re
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -15,6 +17,18 @@ from services.tls_manager import tls_manager
 from core.container_engine import run_podman
 
 router = APIRouter(prefix="/settings", tags=["系统设置"])
+
+# 域名格式校验正则：仅允许字母、数字、连字符和点号
+_DOMAIN_RE = re.compile(r'^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$')
+
+def _validate_domain(domain: str) -> str:
+    """校验并清洗域名，防止 Nginx 配置注入"""
+    domain = domain.strip().lower()
+    if not domain or len(domain) > 253:
+        raise HTTPException(status_code=400, detail="域名不能为空且长度不超过253个字符")
+    if not _DOMAIN_RE.match(domain):
+        raise HTTPException(status_code=400, detail="域名格式无效，仅允许字母、数字、连字符和点号")
+    return domain
 
 
 class DomainConfig(BaseModel):
@@ -44,7 +58,7 @@ async def get_domain_config(
         "domain": domain,
         "tls_enabled": tls_enabled,
         "tls_mode": tls_mode,
-        "public_ip": get_public_ip(),
+        "public_ip": await asyncio.to_thread(get_public_ip),
         "cert_info": cert_info
     }
 
@@ -56,14 +70,10 @@ async def set_domain(
     current_user: models.Admin = Depends(require_password_changed)
 ):
     """设置域名"""
-    domain = config.domain.strip().lower()
+    domain = _validate_domain(config.domain)
     
-    # 简单验证域名格式
-    if not domain or "." not in domain:
-        raise HTTPException(status_code=400, detail="无效的域名格式")
-    
-    # 检查 DNS 解析
-    check_result = check_dns_resolution(domain)
+    # 检查 DNS 解析（异步执行避免阻塞事件循环）
+    check_result = await asyncio.to_thread(check_dns_resolution, domain)
     
     # 保存域名配置（即使 DNS 检查失败也保存）
     crud.set_config(db, models.ConfigKeys.SERVER_DOMAIN, domain)
@@ -82,7 +92,7 @@ async def check_domain_dns(
     current_user: models.Admin = Depends(require_password_changed)
 ):
     """检查域名 DNS 解析状态"""
-    return check_dns_resolution(domain)
+    return await asyncio.to_thread(check_dns_resolution, domain)
 
 
 @router.post("/enable-tls")
@@ -98,11 +108,11 @@ async def enable_tls(
     mode: auto - 自动申请 Let's Encrypt 证书
     mode: custom - 使用已上传的自定义证书
     """
-    domain = tls_request.domain.strip().lower()
+    domain = _validate_domain(tls_request.domain)
     mode = tls_request.mode
     
-    # 验证 DNS 解析
-    dns_check = check_dns_resolution(domain)
+    # 验证 DNS 解析（异步执行避免阻塞事件循环）
+    dns_check = await asyncio.to_thread(check_dns_resolution, domain)
     if not dns_check["success"]:
         return {
             "success": False,
@@ -321,3 +331,39 @@ async def set_panel_port(
             raise HTTPException(status_code=400, detail="端口号必须是 1-65535 之间的整数")
     crud.set_config(db, models.ConfigKeys.PANEL_ACCESS_PORT, port_str)
     return {"success": True, "port": port_str}
+
+
+@router.post("/renew-cert")
+async def renew_certificate(
+    db: Session = Depends(get_db),
+    current_user: models.Admin = Depends(require_password_changed)
+):
+    """手动续期证书"""
+    domain = crud.get_config(db, models.ConfigKeys.SERVER_DOMAIN)
+    tls_enabled = crud.get_config(db, models.ConfigKeys.TLS_ENABLED) == "true"
+    tls_mode = crud.get_config(db, models.ConfigKeys.TLS_MODE)
+
+    if not domain or not tls_enabled or tls_mode != "auto":
+        return {
+            "success": False,
+            "message": "未开启自动 HTTPS，无法续期证书"
+        }
+
+    # 执行续期
+    import asyncio
+    result = await asyncio.to_thread(tls_manager.renew_cert, domain)
+    
+    if result["success"]:
+        # 续期成功，重载 Nginx
+        reload_result = await asyncio.to_thread(tls_manager.reload_nginx)
+        if not reload_result["success"]:
+            return {
+                "success": False,
+                "message": f"证书已续期，但重载 Nginx 失败：{reload_result['message']}"
+            }
+        return {
+            "success": True,
+            "message": "证书续期成功并已生效"
+        }
+    else:
+        return result
