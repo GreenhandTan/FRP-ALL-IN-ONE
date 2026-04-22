@@ -76,6 +76,8 @@ export function initSetup(startDashboard) {
   $("btn-deploy").addEventListener("click", async () => {
     const serverIp = $("inp-serverip").value.trim();
     const port = parseInt($("inp-port").value, 10) || 7000;
+    const domain = $("inp-domain").value.trim();
+    
     if (!serverIp) {
       showAlert("setup-error", t("setup.serverIpRequired"));
       return;
@@ -91,6 +93,15 @@ export function initSetup(startDashboard) {
         null,
       );
       if (res.success) {
+        // 如果处于域名模式且填写了域名，则一并保存域名配置
+        if (setupMode === "domain" && domain) {
+          try {
+            await api.post("/api/settings/domain", { domain: domain });
+          } catch (err) {
+            console.warn("保存域名失败:", err);
+          }
+        }
+        
         deployResult = { ...res.info, frps_restarted: res.frps_restarted };
         $("info-version").textContent = deployResult.version || "—";
         $("info-port").textContent = deployResult.port || port;
