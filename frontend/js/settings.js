@@ -28,11 +28,18 @@ export function initSettings() {
       $("inp-panel-access-port").value = "";
     }
 
-    // 获取证书信息
+    // 获取证书与域名信息
     try {
       const domainData = await api.get("/api/settings/domain");
+      
+      // 回显域名
+      if (domainData.domain) {
+        $("inp-panel-domain").value = domainData.domain;
+      }
+      
       if (domainData.tls_enabled && domainData.tls_mode === "auto") {
         $("cert-management-group").style.display = "block";
+        $("tls-enable-group").style.display = "none";
         const certInfo = domainData.cert_info;
         if (certInfo) {
           $("cert-status-text").textContent = "有效";
@@ -56,12 +63,77 @@ export function initSettings() {
           $("cert-status-text").style.color = "var(--red)";
           $("btn-renew-cert").disabled = false;
         }
+      } else {
+        $("cert-management-group").style.display = "none";
+        $("tls-enable-group").style.display = "block";
       }
     } catch (err) {
-      console.error("获取证书信息失败:", err);
+      console.error("获取域名与证书信息失败:", err);
     }
 
     openModal("modal-panel-settings");
+  });
+
+  // 检测 DNS
+  $("btn-check-dns").addEventListener("click", async () => {
+    const domainVal = $("inp-panel-domain").value.trim();
+    const resultDiv = $("dns-check-result");
+    if (!domainVal) {
+      resultDiv.innerHTML = `<span style="color:var(--red)">请先输入域名</span>`;
+      return;
+    }
+    
+    $("btn-check-dns").disabled = true;
+    $("btn-check-dns").textContent = "检测中...";
+    resultDiv.innerHTML = `<span style="color:var(--text-color)">正在查询 A 记录...</span>`;
+    
+    try {
+      // check-dns 在后端是接收 Query 参数: ?domain=xxx
+      const res = await api.post(`/api/settings/check-dns?domain=${encodeURIComponent(domainVal)}`);
+      if (res.success) {
+         resultDiv.innerHTML = `<span style="color:var(--green)">✅ ${res.message}</span>`;
+      } else {
+         resultDiv.innerHTML = `<span style="color:var(--red)">❌ ${res.message}</span>`;
+      }
+    } catch (err) {
+      resultDiv.innerHTML = `<span style="color:var(--red)">❌ 检测异常: ${err.message}</span>`;
+    } finally {
+      $("btn-check-dns").disabled = false;
+      $("btn-check-dns").textContent = "检测 DNS";
+    }
+  });
+
+  // 一键申请证书并启用 HTTPS
+  $("btn-enable-tls").addEventListener("click", async () => {
+    const domainVal = $("inp-panel-domain").value.trim();
+    if (!domainVal) {
+      showAlert("panel-settings-error", "请先输入要申请证书的域名");
+      return;
+    }
+    
+    const btn = $("btn-enable-tls");
+    btn.disabled = true;
+    btn.textContent = "正在申请证书并配置 Nginx，请耐心等待 (约 1-2 分钟)...";
+    hideAlert("panel-settings-error");
+    hideAlert("panel-settings-success");
+    
+    try {
+      const res = await api.post("/api/settings/enable-tls", { domain: domainVal, mode: "auto" });
+      if (res.success) {
+        showAlert("panel-settings-success", "HTTPS 启用成功！页面即将刷新并跳转...");
+        setTimeout(() => {
+          // 跳转到 HTTPS 协议的新域名
+          window.location.href = `https://${domainVal}`;
+        }, 3000);
+      } else {
+        showAlert("panel-settings-error", res.message || "证书申请失败");
+      }
+    } catch (err) {
+      showAlert("panel-settings-error", "请求异常：" + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "一键申请 Let's Encrypt 证书并启用 HTTPS";
+    }
   });
 
   // 续期证书
@@ -95,11 +167,18 @@ export function initSettings() {
     hideAlert("panel-settings-error");
     hideAlert("panel-settings-success");
     const portVal = $("inp-panel-access-port").value.trim();
+    const domainVal = $("inp-panel-domain").value.trim();
     const btn = $("btn-panel-settings-submit");
     btn.disabled = true;
     btn.textContent = t("loading");
     try {
+      // 先保存端口
       await api.post("/api/settings/panel-port", { port: portVal });
+      // 如果输入了域名，则保存域名
+      if (domainVal) {
+        await api.post("/api/settings/domain", { domain: domainVal });
+      }
+      
       showAlert("panel-settings-success", "保存成功");
       setTimeout(() => closeModal("modal-panel-settings"), 1200);
     } catch (err) {

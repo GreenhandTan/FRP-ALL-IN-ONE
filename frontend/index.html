@@ -556,7 +556,21 @@
           
           <hr style="margin: 16px 0; border: none; border-top: 1px solid var(--border-color);">
           
-          <div class="form-group" id="cert-management-group">
+          <div class="form-group">
+            <label id="lbl-panel-domain" for="inp-panel-domain">面板访问域名</label>
+            <div style="display:flex; gap:8px;">
+               <input id="inp-panel-domain" type="text" placeholder="例如: frp.example.com">
+               <button type="button" id="btn-check-dns" class="btn btn-outline" style="white-space: nowrap;">检测 DNS</button>
+            </div>
+            <small class="text-muted" id="hint-panel-domain">配置域名后，可自动申请 HTTPS 证书。如果不使用 HTTPS，请留空。</small>
+            <div id="dns-check-result" style="margin-top:4px; font-size:12px;"></div>
+          </div>
+
+          <div class="form-group" id="tls-enable-group" style="display:none; margin-top: 12px;">
+             <button type="button" id="btn-enable-tls" class="btn btn-outline" style="width: 100%; border-color: var(--green); color: var(--green);">一键申请 Let's Encrypt 证书并启用 HTTPS</button>
+          </div>
+          
+          <div class="form-group" id="cert-management-group" style="display:none; margin-top: 12px;">
             <label>SSL 证书管理</label>
             <div id="cert-status-info" class="info-table" style="margin-top: 8px;">
                <div class="info-row"><span>状态</span><code id="cert-status-text">加载中...</code></div>
