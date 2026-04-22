@@ -51,14 +51,7 @@ def check_dns_resolution(domain: str, expected_ip: str = None) -> dict:
     if expected_ip is None:
         expected_ip = get_public_ip()
         if expected_ip is None:
-            return {
-                "success": False,
-                "domain": domain,
-                "resolved_ip": None,
-                "expected_ip": None,
-                "matches": False,
-                "message": "无法获取本机公网 IP，请检查网络连接"
-            }
+            expected_ip = "未知(获取失败)"
     
     try:
         # 解析域名
@@ -74,16 +67,16 @@ def check_dns_resolution(domain: str, expected_ip: str = None) -> dict:
                 "resolved_ip": resolved_ip,
                 "expected_ip": expected_ip,
                 "matches": True,
-                "message": f"DNS 解析正确：{domain} -> {resolved_ip}"
+                "message": f"DNS 解析完全匹配：{domain} -> {resolved_ip}"
             }
         else:
             return {
-                "success": False,
+                "success": True,  # 放宽限制：允许 CDN 或多 IP 情况
                 "domain": domain,
                 "resolved_ip": resolved_ip,
                 "expected_ip": expected_ip,
                 "matches": False,
-                "message": f"DNS 解析不匹配：{domain} 解析到 {resolved_ip}，期望 {expected_ip}。请将域名 A 记录指向 {expected_ip}"
+                "message": f"DNS 解析成功 ({resolved_ip})。与本机获取的 IP ({expected_ip}) 不一致，若使用了 CDN/NAT 属于正常现象，请确保流量能正常触达本机。"
             }
     except socket.gaierror:
         return {
