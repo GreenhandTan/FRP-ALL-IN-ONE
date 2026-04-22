@@ -17,7 +17,7 @@ RUN mkdir -p /tmp/acme-install \
     && curl -sSL https://github.com/acmesh-official/acme.sh/raw/master/acme.sh -o /tmp/acme-install/acme.sh \
     && chmod +x /tmp/acme-install/acme.sh \
     && cd /tmp/acme-install \
-    && ./acme.sh --install --home /opt/acme.sh --accountemail "admin@localhost" \
+    && ./acme.sh --install --home /opt/acme.sh --accountemail "admin@localhost" --no-cron --force \
     && cd / \
     && rm -rf /tmp/acme-install
 
