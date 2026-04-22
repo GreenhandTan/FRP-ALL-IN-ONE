@@ -23,8 +23,6 @@ services:
     container_name: frp-manager-web
     restart: always
     network_mode: host
-    depends_on:
-      - backend
     volumes:
       - frp-certs:/etc/nginx/certs:ro
 
