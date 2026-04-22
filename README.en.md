@@ -77,7 +77,7 @@
 ### Ultra Lightweight
 
 - **Runs smoothly on 1 vCPU + 1 GB RAM**: Tested and verified — the minimum spec cloud server is fully sufficient for deployment and daily operation
-- **Zero build-tool frontend**: The web UI is written in pure native H5 + CSS + JS. No Node.js, no `npm install`, no build pipeline — browsers load it directly
+- **Zero-dependency Engineering**: The web UI is modularized using pure Native ES Modules (ESM). No Node.js, no `npm install`, and no heavy bundlers like Vite/Webpack. The browser loads it natively, blending engineering best practices with extreme minimalism
 - **Minimal backend stack**: FastAPI + SQLite — no MySQL/PostgreSQL needed, database files stay just a few MBs, ultra-low disk and memory footprint
 - **Tiny containers**: Nginx Alpine image serving pure static files — the web container uses < 10 MB of memory
 
@@ -116,9 +116,10 @@
 ### Security Enhancements
 
 - **Mandatory Password Change**: First login requires password change with strength validation (8+ chars, upper/lower case, numbers)
-- **JWT Security**: Auto-generate strong keys with persistence, environment variable override support
+- **Advanced JWT Protection**: Stateless Ephemeral JWT Keys based on memory (prevents database leakage), supports `SECRET_KEY` environment variable injection for multi-node setups
+- **Network Isolation Defense**: The backend management port is strictly bound to 127.0.0.1 (localhost) to prevent direct public access bypassing Nginx, combined with strict regex validation to block Nginx config injections
 - **API Rate Limiting**: 5 requests/minute for login, 3 requests/hour for certificate issuance, preventing brute force attacks
-- **Auto Certificate Renewal**: Let's Encrypt certificates automatically renew 30 days before expiration
+- **Smart Certificate Management**: Let's Encrypt certificates automatically renew (via Python background async tasks, removing bulky crond daemon). Supports viewing certificate expiration days and manual renewal directly from the console
 
 ### Real-time Monitoring
 
@@ -504,10 +505,14 @@ FRP-ALL-IN-ONE/
 │   └── services/          # Business logic layer
 │       ├── tls_manager.py     # Certificate management, Nginx config
 │       └── dns_checker.py     # DNS resolution verification
-├── frontend/              # Web interface (Native H5 + CSS + JS, no build tools required)
+├── frontend/              # Web interface (Pure Native ES Modules, no build tools required)
 │   ├── index.html         # Single-page app entry
 │   ├── style.css          # Global styles
-│   └── app.js             # All frontend logic
+│   ├── app.js             # ESM Main Entry & Router
+│   └── js/                # Modularized business logic
+│       ├── api.js         # API wrapper
+│       ├── dashboard.js   # Dashboard rendering
+│       └── ...            # Other modules
 ├── deploy/                # Deployment scripts & compose
 ├── demo.png               # Demo screenshot
 └── demo-logs.png          # Logs feature screenshot
@@ -519,13 +524,14 @@ FRP-ALL-IN-ONE/
 
 ### Frontend
 
-The frontend is pure native H5 — **no build step required**. Just edit the three files in `frontend/`:
+The frontend is based on pure Native ES Modules (ESM) — **zero build step required**. Changes take effect immediately:
 
 ```
 frontend/
 ├── index.html   # Page structure & templates
 ├── style.css    # Styles
-└── app.js       # All interaction logic
+├── app.js       # ESM main router
+└── js/          # Splitted business logic modules
 ```
 
 For local preview, use any static file server:

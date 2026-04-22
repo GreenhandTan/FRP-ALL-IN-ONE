@@ -77,7 +77,7 @@
 ### 極致輕量
 
 - **1栻1G 伺服器即可流畅運行**：經過實際測試，最低配置（1 vCPU + 1 GB RAM）的雲伺服器完全滴足系統部署與運行需求
-- **前端零依賴構建**：Web 介面使用原生 H5 + CSS + JS 編寫，無需 Node.js、無需 npm install，無構建工具鏈，瀏覽器直接載入
+- **前端零依賴工程化**：Web 介面採用純原生 ES Modules 架構模組化拆分，無需 Node.js、無需 npm install 或 Vite/Webpack，瀏覽器原生載入，兼顧工程化與極簡主義
 - **輕量後端技術棄**：FastAPI + SQLite，無需 MySQL/PostgreSQL，資料檔案僅數 MB，極低磁碟與記憶體占用
 - **容器極度精簡**：Nginx Alpine 鏡像 + 純靜態檔案，Web 容器記憶體占用 < 10 MB
 
@@ -116,9 +116,10 @@
 ### 安全增強
 
 - **強制修改密碼**：首次登入強制修改預設密碼，密碼強度校驗（8位+大小寫+數字）
-- **JWT 安全**：自動生成強密鑰並持久化，支持環境變量覆蓋
+- **高階 JWT 保護**：基於記憶體的無狀態 Ephemeral JWT Keys（防資料庫脫庫），支援環境變數 `SECRET_KEY` 注入多節點
+- **網路隔離防禦**：將後端管理端口嚴格綁定至 127.0.0.1，防公網直連繞過 Nginx，並具備強正則校驗阻斷 Nginx 配置注入
 - **API 限流**：登入接口 5次/分鐘，證書申請 3次/小時，防止暴力破解
-- **證書自動續期**：Let's Encrypt 證書自動續期，到期前 30 天自動處理
+- **證書智能化管理**：Let's Encrypt 證書自動續期（後台 Python 非同步守護任務，去除臃腫的 crond），支援控制台查看證書剩餘時間與一鍵手動續期
 
 ### 實時監控
 
@@ -504,10 +505,14 @@ FRP-ALL-IN-ONE/
 │   └── services/          # 業務邏輯層
 │       ├── tls_manager.py     # 證書申請、Nginx 配置
 │       └── dns_checker.py     # DNS 解析驗證
-├── frontend/              # Web 介面（原生 H5 + CSS + JS，無構建工具依賴）
+├── frontend/              # Web 介面（純原生 ES Modules，無構建工具依賴）
 │   ├── index.html         # 單頁應用入口
 │   ├── style.css          # 全局樣式
-│   └── app.js             # 全部前端邏輯
+│   ├── app.js             # 模組化入口總線
+│   └── js/                # 分離的業務邏輯模組
+│       ├── api.js         # API 封裝
+│       ├── dashboard.js   # 儀表盤渲染
+│       └── ...            # 其他模組
 ├── deploy/                # 部署腳本 & compose
 ├── demo.png               # 演示截圖
 └── demo-logs.png          # 日誌功能截圖
@@ -519,13 +524,14 @@ FRP-ALL-IN-ONE/
 
 ### 前端
 
-前端為原生 H5，**無需任何構建步驟**，直接編輯 `frontend/` 下的三個檔案：
+前端基於純原生 ES Modules (ESM)，**徹底零構建步驟**，修改代碼後直接生效：
 
 ```
 frontend/
 ├── index.html   # 頁面結構與模板
 ├── style.css    # 樣式
-└── app.js       # 全部互動邏輯
+├── app.js       # ESM 入口調度
+└── js/          # 拆分後的各業務模組
 ```
 
 本地預覽可用任意靜態檔案伺服器：

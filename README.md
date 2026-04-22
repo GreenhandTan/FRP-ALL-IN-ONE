@@ -77,7 +77,7 @@
 ### 极致轻量
 
 - **1核1G 服务器即可流畅运行**：经过实际测试，最低配置（1 vCPU + 1 GB RAM）的云服务器完全满足系统部署与运行需求
-- **前端零依赖构建**：Web 界面使用原生 H5 + CSS + JS 编写，无需 Node.js、无需 npm install，无构建工具链，浏览器直接加载
+- **前端零依赖工程化**：Web 界面采用纯原生 ES Modules 架构模块化拆分，无需 Node.js、无需 npm install 或 Vite/Webpack，浏览器原生加载，兼顾工程化与极简主义
 - **轻量后端技术栈**：FastAPI + SQLite，无需 MySQL/PostgreSQL，数据文件仅数 MB，极低磁盘与内存占用
 - **容器极度精简**：Nginx Alpine 镜像 + 纯静态文件，Web 容器内存占用 < 10 MB
 
@@ -116,9 +116,10 @@
 ### 安全增强
 
 - **强制修改密码**：首次登录强制修改默认密码，密码强度校验（8位+大小写+数字）
-- **JWT 安全**：自动生成强密钥并持久化，支持环境变量覆盖
+- **高阶 JWT 保护**：基于内存的无状态 Ephemeral JWT Keys（防数据库脱库），支持环境变量 `SECRET_KEY` 注入多节点
+- **网络隔离防御**：将后端管理端口严格绑定至 127.0.0.1，防公网直连绕过 Nginx，并具备强正则校验阻断 Nginx 配置注入
 - **API 限流**：登录接口 5次/分钟，证书申请 3次/小时，防止暴力破解
-- **证书自动续期**：Let's Encrypt 证书自动续期，到期前 30 天自动处理
+- **证书智能化管理**：Let's Encrypt 证书自动续期（后台 Python 异步守护任务，去除臃肿的 crond），支持控制台查看证书剩余时间与一键手动续期
 
 ### 实时监控
 
@@ -504,10 +505,14 @@ FRP-ALL-IN-ONE/
 │   └── services/          # 业务逻辑层
 │       ├── tls_manager.py     # 证书申请、Nginx 配置
 │       └── dns_checker.py     # DNS 解析验证
-├── frontend/               # Web 界面（原生 H5 + CSS + JS，无构建工具依赖）
+├── frontend/               # Web 界面（纯原生 ES Modules，无构建工具依赖）
 │   ├── index.html          # 单页应用入口
 │   ├── style.css           # 全局样式
-│   └── app.js              # 全部前端逻辑
+│   ├── app.js              # 模块化入口总线
+│   └── js/                 # 分离的业务逻辑模块
+│       ├── api.js          # API 封装
+│       ├── dashboard.js    # 仪表盘渲染
+│       └── ...             # 其他模块
 ├── deploy/                # 部署脚本 & compose
 ├── demo.png               # 演示截图
 └── demo-logs.png          # 日志功能截图
@@ -519,13 +524,14 @@ FRP-ALL-IN-ONE/
 
 ### 前端
 
-前端为原生 H5，**无需任何构建步骤**，直接编辑 `frontend/` 下的三个文件：
+前端基于纯原生 ES Modules (ESM)，**彻底零构建步骤**，修改代码后直接生效：
 
 ```
 frontend/
 ├── index.html   # 页面结构与模板
 ├── style.css    # 样式
-└── app.js       # 全部交互逻辑
+├── app.js       # ESM 入口调度
+└── js/          # 拆分后的各业务模块
 ```
 
 本地预览可用任意静态文件服务器：
