@@ -41,13 +41,13 @@
 
 ## Demo
 
-### Main Dashboard
-
-<img src="demo.png" alt="FRP-ALL-IN-ONE Demo" width="900" />
-
-### Real-time Logs
-
-<img src="demo-logs.png" alt="FRP-ALL-IN-ONE Logs" width="900" />
+<img src="demo1.png" alt="Demo 1" width="900" />
+<br/><br/>
+<img src="demo2.png" alt="Demo 2" width="900" />
+<br/><br/>
+<img src="demo3.png" alt="Demo 3" width="900" />
+<br/><br/>
+<img src="demo4.png" alt="Demo 4" width="900" />
 
 <a id="toc"></a>
 
@@ -514,8 +514,10 @@ FRP-ALL-IN-ONE/
 │       ├── dashboard.js   # Dashboard rendering
 │       └── ...            # Other modules
 ├── deploy/                # Deployment scripts & compose
-├── demo.png               # Demo screenshot
-└── demo-logs.png          # Logs feature screenshot
+├── demo1.png              # Demo screenshot 1
+├── demo2.png              # Demo screenshot 2
+├── demo3.png              # Demo screenshot 3
+└── demo4.png              # Demo screenshot 4
 ```
 
 <a id="development"></a>

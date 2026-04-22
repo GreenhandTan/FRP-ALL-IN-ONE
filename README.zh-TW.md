@@ -41,13 +41,13 @@
 
 ## 效果演示
 
-### 主控制台
-
-<img src="demo.png" alt="FRP-ALL-IN-ONE Demo" width="900" />
-
-### 實時日誌
-
-<img src="demo-logs.png" alt="FRP-ALL-IN-ONE Logs" width="900" />
+<img src="demo1.png" alt="Demo 1" width="900" />
+<br/><br/>
+<img src="demo2.png" alt="Demo 2" width="900" />
+<br/><br/>
+<img src="demo3.png" alt="Demo 3" width="900" />
+<br/><br/>
+<img src="demo4.png" alt="Demo 4" width="900" />
 
 <a id="toc"></a>
 
@@ -514,8 +514,10 @@ FRP-ALL-IN-ONE/
 │       ├── dashboard.js   # 儀表盤渲染
 │       └── ...            # 其他模組
 ├── deploy/                # 部署腳本 & compose
-├── demo.png               # 演示截圖
-└── demo-logs.png          # 日誌功能截圖
+├── demo1.png              # 演示截圖 1
+├── demo2.png              # 演示截圖 2
+├── demo3.png              # 演示截圖 3
+└── demo4.png              # 演示截圖 4
 ```
 
 <a id="development"></a>
