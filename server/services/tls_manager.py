@@ -249,6 +249,14 @@ class TLSManager:
     listen 80;
     server_name {domain};
 
+    # 用于 acme.sh 独立模式的证书申请挑战
+    location /.well-known/acme-challenge/ {{
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }}
+
     # HTTP 自动跳转 HTTPS
     location / {{
         return 301 https://$host$request_uri;
