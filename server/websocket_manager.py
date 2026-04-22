@@ -68,6 +68,22 @@ class ConnectionManager:
         # 清理断开的连接
         for ws in disconnected:
             self.disconnect_dashboard(ws)
+
+    async def broadcast_dashboard(self, message: dict):
+        """向所有 Dashboard 广播任意 JSON 消息"""
+        if not self.dashboard_connections:
+            return
+        
+        disconnected = []
+        for ws in self.dashboard_connections:
+            try:
+                await ws.send_json(message)
+            except Exception as e:
+                logger.warning(f"发送 Dashboard 消息失败: {e}")
+                disconnected.append(ws)
+        
+        for ws in disconnected:
+            self.disconnect_dashboard(ws)
     
     # ========================
     # Agent 连接管理

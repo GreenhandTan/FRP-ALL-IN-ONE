@@ -61,8 +61,15 @@ def _render_frpc_toml(db: Session, client: models.Client) -> str | None:
     return "\n".join(lines).rstrip() + "\n"
 
 
+async def _broadcast_dashboard_sync(db: Session):
+    """向所有 Dashboard 广播最新全量状态"""
+    from services.dashboard import build_full_sync_data
+    full_data = build_full_sync_data(db)
+    await ws_manager.broadcast_dashboard({"type": "full_sync", "data": full_data})
+
+
 async def _push_config_for_client(client_id: str):
-    """推送配置到 Agent"""
+    """推送配置到 Agent，并触发 Dashboard 界面刷新"""
     db = SessionLocal()
     try:
         client = crud.get_client(db, client_id=client_id)
@@ -71,7 +78,10 @@ async def _push_config_for_client(client_id: str):
         toml = _render_frpc_toml(db, client)
         if not toml:
             return False
-        return await ws_manager.push_config_to_agent(client_id, toml)
+        
+        ok = await ws_manager.push_config_to_agent(client_id, toml)
+        await _broadcast_dashboard_sync(db)
+        return ok
     finally:
         db.close()
 
@@ -110,7 +120,7 @@ def read_client(
 
 
 @router.delete("/{client_id}")
-def delete_client_endpoint(
+async def delete_client_endpoint(
     client_id: str,
     db: Session = Depends(lambda: SessionLocal()),
     current_user: models.Admin = Depends(require_password_changed)
@@ -119,11 +129,13 @@ def delete_client_endpoint(
     ok = crud.delete_client(db, client_id)
     if not ok:
         raise HTTPException(status_code=404, detail="Client not found")
+    
+    await _broadcast_dashboard_sync(db)
     return {"success": True}
 
 
 @router.patch("/{client_id}", response_model=schemas.Client)
-def update_client(
+async def update_client(
     client_id: str,
     payload: dict,
     db: Session = Depends(lambda: SessionLocal()),
@@ -136,6 +148,9 @@ def update_client(
     updated = crud.update_client_name(db, client_id=client_id, new_name=name)
     if not updated:
         raise HTTPException(status_code=404, detail="Client not found")
+    
+    # 客户端名称修改会影响隧道的代理名称，需要重新推送配置
+    await _push_config_for_client(client_id)
     return updated
 
 
