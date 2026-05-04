@@ -25,6 +25,13 @@
   </p>
 </div>
 
+> [!CAUTION]
+> **升級提示（v2.1+）**：本次更新新增了 `token_version` 欄位用於密碼修改後自動使舊會話失效。如果你從舊版本升級，需要手動執行資料庫遷移：
+> ```sql
+> sqlite3 deploy/data/frp_manager.db "ALTER TABLE admins ADD COLUMN token_version INTEGER DEFAULT 1;"
+> ```
+> 全新部署無需任何額外操作。
+
 <a id="author"></a>
 
 ## 作者與社區
@@ -57,6 +64,7 @@
 - [核心特性](#features)
 - [架構說明](#architecture)
 - [快速開始（伺服器端）](#quick-start-server)
+- [升級指南](#upgrade)
 - [首次使用流程](#first-time-workflow)
 - [HTTPS 配置（可選）](#https-setup)
 - [NAT 訪問端口配置（可選）](#nat-port-setup)
@@ -97,7 +105,7 @@
 - **配置熱重載**：透過 FRPC Admin API 動態新剂端口映射，通道變更立即生效，無需重啟 frpc 處理程序
 - **HTTPS 全自動**：網域模式下一鍵申請 Let's Encrypt 憑證並自動續期（到期前 30 天），也支持上傳自定義憑證
 - **多架構 Agent**：Go 編寫的 frp-agent 支持 x86_64 / ARM64 / ARMv7 / MIPS，涉蓋樹莓派、路由器等各類設備
-- **完善的安全機制**：JWT 鑑權、API 限流、強制首次改密、密碼強度校驗，生產級別安全保障
+- **完善的安全機制**：JWT 鑑權（Token 版本號失效機制）、API 限流、強制首次改密、帳號設定（自定義用戶名/密碼）、Nginx 安全響應頭，生產級別安全保障
 
 ---
 
@@ -115,11 +123,14 @@
 
 ### 安全增強
 
+- **帳號設定**：支援自定義修改管理員用戶名和密碼，所有敏感操作均需密碼驗證身份
 - **強制修改密碼**：首次登入強制修改預設密碼，密碼強度校驗（8位+大小寫+數字）
 - **高階 JWT 保護**：基於記憶體的無狀態 Ephemeral JWT Keys（防資料庫脫庫），支援環境變數 `SECRET_KEY` 注入多節點
+- **Token 版本號失效**：修改密碼後自動遞增 Token 版本號，所有舊會話（含 REST API 和 WebSocket 連接）立即失效
 - **網路隔離防禦**：將後端管理端口嚴格綁定至 127.0.0.1，防公網直連繞過 Nginx，並具備強正則校驗阻斷 Nginx 配置注入
-- **API 限流**：登入接口 5次/分鐘，證書申請 3次/小時，防止暴力破解
-- **證書智能化管理**：Let's Encrypt 證書自動續期（後台 Python 非同步守護任務，去除臃腫的 crond），支援控制台查看證書剩餘時間與一鍵手動續期
+- **API 限流**：登入/改密/改名 5次/分鐘，證書申請 3次/小時，防止暴力破解
+- **安全響應頭**：Nginx 配置 `X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy` 等安全頭
+- **證書智能化管理**：Let's Encrypt 證書自動續期（後台 Python 非同步守護任務），支援控制台查看證書剩餘時間與一鍵手動續期
 
 ### 實時監控
 
@@ -219,6 +230,29 @@ sudo ./deploy.sh
 - `frp-data`：FRP 配置文件持久化
 - `frp-certs`：SSL 證書持久化
 - `./data`：SQLite 資料庫持久化
+
+<a id="upgrade"></a>
+
+## 升級指南
+
+### 從舊版本升級
+
+```bash
+cd FRP-ALL-IN-ONE/deploy
+podman compose -f compose.yml down
+git pull
+podman compose -f compose.yml up -d --build
+```
+
+### ⚠️ 資料庫遷移（必須）
+
+如果你從 **v2.0 或更早版本** 升級，需要執行以下命令添加新的 `token_version` 欄位：
+
+```bash
+sqlite3 deploy/data/frp_manager.db "ALTER TABLE admins ADD COLUMN token_version INTEGER DEFAULT 1;"
+```
+
+> `token_version` 用於密碼修改後自動使所有舊會話失效。如果不執行此遷移，修改密碼功能將報錯。全新部署無需此操作。
 
 <a id="first-time-workflow"></a>
 
@@ -496,7 +530,7 @@ FRP-ALL-IN-ONE/
 │   │   ├── exceptions.py      # 統一異常處理
 │   │   └── rate_limit.py      # API 限流
 │   ├── routers/           # API 路由
-│   │   ├── auth.py            # 認證（登入、修改密碼）
+│   │   ├── auth.py            # 認證（登入、修改密碼、修改用戶名）
 │   │   ├── clients.py         # 客戶端、隧道管理
 │   │   ├── agents.py          # Agent 管理、指標查詢
 │   │   ├── frp_server.py      # FRPS 管理、安裝腳本
@@ -589,7 +623,9 @@ python -m uvicorn main:app --reload
 ## 安全建議
 
 - 首次登入後立即修改預設密碼（系統已強制要求）
+- 及時修改預設用戶名 `admin`，降低被暴力破解的風險
 - 使用強密碼（至少 8 位，包含大小寫+數字）
+- 生產環境配置 `SECRET_KEY` 環境變數（在 `compose.yml` 中設置），避免重啟後所有會話失效
 - 定期更新 Podman 鏡像
 - 安全組僅開放必要端口
 - FRPS Dashboard（7500）建議僅允許本機訪問

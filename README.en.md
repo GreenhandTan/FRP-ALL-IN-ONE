@@ -25,6 +25,13 @@
   </p>
 </div>
 
+> [!CAUTION]
+> **Upgrade Notice (v2.1+)**: This update adds a `token_version` field for automatic session invalidation after password changes. If upgrading from an older version, you must run a database migration:
+> ```sql
+> sqlite3 deploy/data/frp_manager.db "ALTER TABLE admins ADD COLUMN token_version INTEGER DEFAULT 1;"
+> ```
+> Fresh deployments require no additional steps.
+
 <a id="author"></a>
 
 ## Author & Community
@@ -57,6 +64,7 @@
 - [Core Features](#features)
 - [Architecture](#architecture)
 - [Quick Start (Server)](#quick-start-server)
+- [Upgrade Guide](#upgrade)
 - [First-time Workflow](#first-time-workflow)
 - [HTTPS Configuration (Optional)](#https-setup)
 - [NAT Access Port Configuration (Optional)](#nat-port-setup)
@@ -97,7 +105,7 @@
 - **Hot reload**: Dynamically add/remove port mappings via FRPC Admin API; changes take effect immediately without restarting frpc
 - **Fully automated HTTPS**: One-click Let's Encrypt certificate issuance in domain mode with automatic renewal (30 days before expiry); custom certificate upload also supported
 - **Multi-arch Agent**: frp-agent written in Go supports x86_64 / ARM64 / ARMv7 / MIPS — covers Raspberry Pi, routers, and more
-- **Production-grade security**: JWT authentication, API rate limiting, forced first-login password change, password strength validation
+- **Production-grade security**: JWT authentication (token version invalidation), API rate limiting, forced first-login password change, account settings (custom username/password), Nginx security headers
 
 ---
 
@@ -115,11 +123,14 @@
 
 ### Security Enhancements
 
+- **Account Settings**: Customize admin username and password; all sensitive operations require password verification
 - **Mandatory Password Change**: First login requires password change with strength validation (8+ chars, upper/lower case, numbers)
-- **Advanced JWT Protection**: Stateless Ephemeral JWT Keys based on memory (prevents database leakage), supports `SECRET_KEY` environment variable injection for multi-node setups
-- **Network Isolation Defense**: The backend management port is strictly bound to 127.0.0.1 (localhost) to prevent direct public access bypassing Nginx, combined with strict regex validation to block Nginx config injections
-- **API Rate Limiting**: 5 requests/minute for login, 3 requests/hour for certificate issuance, preventing brute force attacks
-- **Smart Certificate Management**: Let's Encrypt certificates automatically renew (via Python background async tasks, removing bulky crond daemon). Supports viewing certificate expiration days and manual renewal directly from the console
+- **Advanced JWT Protection**: Stateless Ephemeral JWT Keys in memory (prevents DB leak), supports `SECRET_KEY` env var for multi-node
+- **Token Version Invalidation**: Password changes increment token version, instantly invalidating all old sessions (REST + WebSocket)
+- **Network Isolation**: Backend bound to 127.0.0.1, strict regex validation blocks Nginx config injection
+- **API Rate Limiting**: Login/password/username change: 5 req/min; certificate: 3 req/hour
+- **Security Headers**: Nginx adds `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`
+- **Smart Certificate Management**: Auto-renew Let's Encrypt certs via async Python tasks, console shows expiry and manual renewal
 
 ### Real-time Monitoring
 
@@ -219,6 +230,29 @@ The current `compose.yml` has data persistence enabled by default:
 - `frp-data`: FRP configuration file persistence
 - `frp-certs`: SSL certificate persistence
 - `./data`: SQLite database persistence
+
+<a id="upgrade"></a>
+
+## Upgrade Guide
+
+### Upgrading from Older Versions
+
+```bash
+cd FRP-ALL-IN-ONE/deploy
+podman compose -f compose.yml down
+git pull
+podman compose -f compose.yml up -d --build
+```
+
+### ⚠️ Database Migration (Required)
+
+If upgrading from **v2.0 or earlier**, run:
+
+```bash
+sqlite3 deploy/data/frp_manager.db "ALTER TABLE admins ADD COLUMN token_version INTEGER DEFAULT 1;"
+```
+
+> `token_version` enables automatic session invalidation after password changes. Skipping this will cause password change to fail. Fresh deployments do not need this.
 
 <a id="first-time-workflow"></a>
 
@@ -496,7 +530,7 @@ FRP-ALL-IN-ONE/
 │   │   ├── exceptions.py      # Unified exception handling
 │   │   └── rate_limit.py      # API rate limiting
 │   ├── routers/           # API routes
-│   │   ├── auth.py            # Authentication (login, password change)
+│   │   ├── auth.py            # Authentication (login, password change, username change)
 │   │   ├── clients.py         # Client, tunnel management
 │   │   ├── agents.py          # Agent management, metrics
 │   │   ├── frp_server.py      # FRPS management, install scripts
@@ -589,7 +623,9 @@ You must:
 ## Security Recommendations
 
 - Change default password immediately after first login (enforced by system)
+- Change the default username `admin` promptly to reduce brute-force risk
 - Use strong passwords (at least 8 characters with upper/lower case + numbers)
+- Configure `SECRET_KEY` environment variable in production (in `compose.yml`) to prevent sessions expiring on restart
 - Regularly update Podman images
 - Only open necessary ports in security groups
 - FRPS Dashboard (7500) should only allow localhost access
