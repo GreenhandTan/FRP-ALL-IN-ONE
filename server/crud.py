@@ -44,6 +44,22 @@ def update_admin_password(db: Session, admin_id: int, new_password: str):
         return True
     return False
 
+def update_admin_username(db: Session, admin_id: int, new_username: str):
+    """更新管理员用户名，返回 (success, message)"""
+    admin = db.query(models.Admin).filter(models.Admin.id == admin_id).first()
+    if not admin:
+        return False, "用户不存在"
+    # 检查新用户名是否已被占用
+    existing = db.query(models.Admin).filter(
+        models.Admin.username == new_username,
+        models.Admin.id != admin_id
+    ).first()
+    if existing:
+        return False, "用户名已存在"
+    admin.username = new_username
+    db.commit()
+    return True, "用户名修改成功"
+
 def get_client(db: Session, client_id: str):
     return db.query(models.Client).filter(models.Client.id == client_id).first()
 

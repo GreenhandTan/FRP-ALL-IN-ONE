@@ -232,7 +232,7 @@
                   d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
               </svg>
             </button>
-            <button id="btn-change-pwd" class="btn btn-sm btn-ghost" title="修改密码">
+            <button id="btn-change-pwd" class="btn btn-sm btn-ghost" title="账号设置">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="3" y="11" width="18" height="11" rx="2" />
                 <path d="M7 11V7a5 5 0 0 1 10 0v4" />
@@ -340,41 +340,72 @@
 
   <!-- ===================== 弹窗区域 ===================== -->
 
-  <!-- 修改密码弹窗 -->
+  <!-- 账号设置弹窗（修改用户名 + 修改密码） -->
   <div id="modal-change-pwd" class="modal-overlay hidden">
     <div class="modal">
       <div class="modal-header">
-        <h3 id="modal-change-pwd-title">修改密码</h3>
+        <h3 id="modal-change-pwd-title">账号设置</h3>
         <button type="button" class="modal-close btn-close-modal" data-modal="modal-change-pwd">×</button>
       </div>
       <div class="modal-body">
         <div id="change-pwd-success" class="success-block hidden">
           <div class="success-icon-big" style="color:var(--green)">✓</div>
-          <p id="lbl-pwd-success">密码修改成功！</p>
+          <p id="lbl-pwd-success">修改成功！</p>
         </div>
         <!-- 首次登录强制改密提示（仅强制模式下显示） -->
         <div id="change-pwd-forced-notice" class="alert alert-warning hidden">
           首次登录请先修改默认密码，完成后即可继续使用。
         </div>
-        <form id="change-pwd-form">
-          <div id="change-pwd-error" class="alert alert-danger hidden"></div>
-          <div class="form-group">
-            <label id="lbl-old-pwd" for="inp-old-pwd">当前密码</label>
-            <input id="inp-old-pwd" type="password" required autocomplete="current-password">
-          </div>
-          <div class="form-group">
-            <label id="lbl-new-pwd" for="inp-new-pwd">新密码</label>
-            <input id="inp-new-pwd" type="password" required autocomplete="new-password">
-          </div>
-          <div class="form-group">
-            <label id="lbl-confirm-pwd" for="inp-confirm-pwd">确认新密码</label>
-            <input id="inp-confirm-pwd" type="password" required autocomplete="new-password">
-          </div>
-          <div class="form-actions">
-            <button type="button" class="btn btn-secondary btn-close-modal" data-modal="modal-change-pwd">取消</button>
-            <button type="submit" id="btn-pwd-submit" class="btn btn-primary">确认修改</button>
-          </div>
-        </form>
+
+        <!-- 修改用户名区域 -->
+        <div id="change-username-section">
+          <h4 style="margin:0 0 12px 0;font-size:14px;color:var(--text-color);font-weight:600">修改用户名</h4>
+          <form id="change-username-form">
+            <div id="change-username-error" class="alert alert-danger hidden"></div>
+            <div id="change-username-success-msg" class="alert alert-success hidden"></div>
+            <div class="form-group">
+              <label for="inp-current-username">当前用户名</label>
+              <input id="inp-current-username" type="text" disabled style="opacity:0.6;cursor:not-allowed">
+            </div>
+            <div class="form-group">
+              <label for="inp-new-username">新用户名</label>
+              <input id="inp-new-username" type="text" required minlength="3" maxlength="32" placeholder="3-32位，字母/数字/下划线/连字符" autocomplete="username">
+            </div>
+            <div class="form-group">
+              <label for="inp-username-pwd">当前密码（验证身份）</label>
+              <input id="inp-username-pwd" type="password" required autocomplete="current-password">
+            </div>
+            <div class="form-actions">
+              <button type="submit" id="btn-username-submit" class="btn btn-primary">确认修改用户名</button>
+            </div>
+          </form>
+        </div>
+
+        <hr style="margin: 20px 0; border: none; border-top: 1px solid var(--border-color);">
+
+        <!-- 修改密码区域 -->
+        <div id="change-password-section">
+          <h4 style="margin:0 0 12px 0;font-size:14px;color:var(--text-color);font-weight:600">修改密码</h4>
+          <form id="change-pwd-form">
+            <div id="change-pwd-error" class="alert alert-danger hidden"></div>
+            <div class="form-group">
+              <label id="lbl-old-pwd" for="inp-old-pwd">当前密码</label>
+              <input id="inp-old-pwd" type="password" required autocomplete="current-password">
+            </div>
+            <div class="form-group">
+              <label id="lbl-new-pwd" for="inp-new-pwd">新密码</label>
+              <input id="inp-new-pwd" type="password" required autocomplete="new-password">
+            </div>
+            <div class="form-group">
+              <label id="lbl-confirm-pwd" for="inp-confirm-pwd">确认新密码</label>
+              <input id="inp-confirm-pwd" type="password" required autocomplete="new-password">
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn btn-secondary btn-close-modal" data-modal="modal-change-pwd">取消</button>
+              <button type="submit" id="btn-pwd-submit" class="btn btn-primary">确认修改密码</button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   </div>

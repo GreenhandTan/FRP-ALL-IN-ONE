@@ -6,7 +6,7 @@ from typing import Optional
 from jose import jwt
 
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 
 # 全局变量，将在 init_secret_key 中初始化
 SECRET_KEY = None

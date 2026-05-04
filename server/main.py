@@ -7,7 +7,6 @@ import asyncio
 from datetime import datetime
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
 import models
@@ -29,15 +28,6 @@ app = FastAPI(title="FRP Manager API")
 
 # 注册限流器
 setup_rate_limit(app)
-
-# CORS 配置
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # 生产环境建议限制
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # 初始化 JWT Secret Key
 auth.init_secret_key()
@@ -209,7 +199,15 @@ def _get_admin_from_token(db: Session, token: str):
         username = payload.get("sub")
         if not username:
             return None
-        return crud.get_admin_by_username(db, username=username)
+        user = crud.get_admin_by_username(db, username=username)
+        if not user:
+            return None
+        # 检查 Token 版本号（修改密码后旧 Token 自动失效）
+        token_ver = payload.get("ver", 1)
+        user_ver = getattr(user, "token_version", 1) or 1
+        if token_ver != user_ver:
+            return None
+        return user
     except Exception:
         return None
 

@@ -79,24 +79,27 @@ export function initSettings() {
     const domainVal = $("inp-panel-domain").value.trim();
     const resultDiv = $("dns-check-result");
     if (!domainVal) {
-      resultDiv.innerHTML = `<span style="color:var(--red)">请先输入域名</span>`;
+      resultDiv.textContent = "请先输入域名";
       return;
     }
     
     $("btn-check-dns").disabled = true;
     $("btn-check-dns").textContent = "检测中...";
-    resultDiv.innerHTML = `<span style="color:var(--text-color)">正在查询 A 记录...</span>`;
+    resultDiv.textContent = "正在查询 A 记录...";
     
     try {
       // check-dns 在后端是接收 Query 参数: ?domain=xxx
       const res = await api.post(`/api/settings/check-dns?domain=${encodeURIComponent(domainVal)}`);
       if (res.success) {
-         resultDiv.innerHTML = `<span style="color:var(--green)">✅ ${res.message}</span>`;
+         resultDiv.textContent = "✅ " + res.message;
+         resultDiv.style.color = "var(--green)";
       } else {
-         resultDiv.innerHTML = `<span style="color:var(--red)">❌ ${res.message}</span>`;
+         resultDiv.textContent = "❌ " + res.message;
+         resultDiv.style.color = "var(--red)";
       }
     } catch (err) {
-      resultDiv.innerHTML = `<span style="color:var(--red)">❌ 检测异常: ${err.message}</span>`;
+      resultDiv.textContent = "❌ 检测异常: " + err.message;
+      resultDiv.style.color = "var(--red)";
     } finally {
       $("btn-check-dns").disabled = false;
       $("btn-check-dns").textContent = "检测 DNS";

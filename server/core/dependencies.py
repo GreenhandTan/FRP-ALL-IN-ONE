@@ -49,6 +49,13 @@ async def get_current_user(
     user = crud.get_admin_by_username(db, username=token_data.username)
     if user is None:
         raise credentials_exception
+    
+    # 检查 Token 版本号（修改密码后旧 Token 自动失效）
+    token_ver = payload.get("ver", 1)
+    user_ver = getattr(user, "token_version", 1) or 1
+    if token_ver != user_ver:
+        raise credentials_exception
+    
     return user
 
 

@@ -28,6 +28,7 @@ class Admin(Base):
     username = Column(String, unique=True, index=True)
     hashed_password = Column(String)
     is_password_changed = Column(Boolean, default=False)  # 首次登录强制修改密码标记
+    token_version = Column(Integer, default=1)  # Token 版本号，修改密码时递增，使旧 Token 失效
 
 class SystemConfig(Base):
     __tablename__ = "system_config"
