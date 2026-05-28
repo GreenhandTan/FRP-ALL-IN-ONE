@@ -39,6 +39,7 @@ class Client(ClientBase):
     status: str
     last_seen: int
     tunnels: List[Tunnel] = []
+    agent_info: Optional[dict] = None
 
     class Config:
         from_attributes = True

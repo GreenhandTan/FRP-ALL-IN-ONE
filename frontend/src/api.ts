@@ -193,9 +193,11 @@ export const frpApi = {
 
   /** 部署 FRPS */
   deployServer(port: number, authToken: string, serverIp: string) {
-    return request('POST', '/api/frp/deploy-server', null, {
-      // 使用 query params
-    } as any);
+    const params = new URLSearchParams();
+    params.set('port', String(port));
+    if (authToken) params.set('auth_token', authToken);
+    if (serverIp) params.set('server_ip', serverIp);
+    return request('POST', `/api/frp/deploy-server?${params.toString()}`);
   },
 
   /** 重启 FRPS */

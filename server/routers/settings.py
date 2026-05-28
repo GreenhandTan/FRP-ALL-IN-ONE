@@ -263,36 +263,6 @@ async def get_tls_status(
     }
 
 
-@router.post("/renew-cert")
-async def renew_certificate(
-    db: Session = Depends(get_db),
-    current_user: models.Admin = Depends(get_current_user)
-):
-    """手动续期证书"""
-    domain = crud.get_config(db, models.ConfigKeys.SERVER_DOMAIN)
-    tls_mode = crud.get_config(db, models.ConfigKeys.TLS_MODE)
-    
-    if not domain:
-        raise HTTPException(status_code=400, detail="未配置域名")
-    
-    if tls_mode != "auto":
-        raise HTTPException(status_code=400, detail="自定义证书无法自动续期，请手动上传新证书")
-    
-    result = tls_manager.renew_cert(domain)
-    
-    if result["success"]:
-        # 续期成功，自动重载 Nginx
-        reload_result = tls_manager.reload_nginx()
-        if reload_result["success"]:
-            result["nginx_reloaded"] = True
-            result["message"] += "，Nginx 已重载"
-        else:
-            result["nginx_reloaded"] = False
-            result["nginx_error"] = reload_result["message"]
-    
-    return result
-
-
 class PanelPortConfig(BaseModel):
     port: str  # 空字符串表示使用默认端口（80/443）
 

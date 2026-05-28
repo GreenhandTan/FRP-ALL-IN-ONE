@@ -103,7 +103,37 @@ def read_clients(
     current_user: models.Admin = Depends(get_current_user)
 ):
     """获取客户端列表"""
-    return crud.get_clients(db, skip=skip, limit=limit)
+    clients = crud.get_clients(db, skip=skip, limit=limit)
+    # 为每个客户端附加 agent_info（从 WebSocket 缓存或数据库）
+    from websocket_manager import manager as ws_manager
+    for client in clients:
+        agent_info = ws_manager.agent_system_info.get(client.id, {})
+        if not agent_info:
+            # 从数据库查询
+            db_agent = db.query(models.AgentInfo).filter(
+                models.AgentInfo.client_id == client.id
+            ).first()
+            if db_agent:
+                agent_info = {
+                    "hostname": db_agent.hostname,
+                    "os": db_agent.os,
+                    "arch": db_agent.arch,
+                    "agent_version": db_agent.agent_version,
+                    "platform": db_agent.platform,
+                }
+        # 标记在线状态（基于 WebSocket 连接）
+        agent_info["online"] = ws_manager.is_agent_online(client.id)
+        # 附加最新的系统指标
+        if client.id in ws_manager.agent_system_info:
+            cached = ws_manager.agent_system_info[client.id]
+            for key in ("cpu_percent", "memory_percent", "memory_used", "memory_total",
+                        "disk_percent", "disk_used", "disk_total",
+                        "net_speed_in", "net_speed_out", "net_bytes_in", "net_bytes_out"):
+                if key in cached:
+                    agent_info[key] = cached[key]
+        # 将 agent_info 作为额外属性挂载到 client 对象上
+        client.agent_info = agent_info
+    return clients
 
 
 @router.get("/{client_id}", response_model=schemas.Client)

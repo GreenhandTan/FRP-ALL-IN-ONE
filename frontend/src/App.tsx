@@ -473,49 +473,12 @@ export default function App() {
     changeScreen(Screen.CLIENT_SCRIPT, 'none');
   };
 
-  // Finish setup script demonstration
+  // 完成部署脚本引导，返回设备列表
+  // 真实设备会在 Agent 通过 WebSocket 连接后自动注册
   const handleCompleteDeployment = () => {
-    // Generate a fresh mock online node representing the completed deployment setup!
-    const namesByOs = {
-      linux: 'Prod-Database-Ubuntu',
-      windows: 'Developer-PC-Win11',
-      macos: 'Office-Studio-MacBook'
-    };
-    const randomHex = Math.random().toString(16).slice(2, 6).toUpperCase();
-    const newDevice: Device = {
-      id: `dev-${Math.random().toString(36).substring(2, 10)}`,
-      name: `${namesByOs[selectedOs]} [${randomHex}]`,
-      os: selectedOs,
-      ip: `192.168.${Math.floor(Math.random() * 100) + 10}.${Math.floor(Math.random() * 200) + 2}`,
-      status: 'online',
-      lastSeen: new Date().toISOString().replace('T', ' ').slice(0, 19),
-      tunnelsCount: 1,
-      cpuUsage: 12,
-      memUsage: 45,
-      arch: selectedOs === 'linux' ? 'amd64' : selectedOs === 'windows' ? 'x86_64' : 'arm64',
-      uploadRate: '4.2 KB/s',
-      downloadRate: '12.8 KB/s',
-      totalTraffic: '17.0 KB'
-    };
-
-    const newTunnel: Tunnel = {
-      id: `tun-${Math.random().toString(36).substring(2, 8)}`,
-      deviceId: newDevice.id,
-      name: `tunnel-${selectedOs}-service`,
-      type: selectedOs === 'windows' ? 'tcp' : 'http',
-      localIp: '127.0.0.1',
-      localPort: selectedOs === 'windows' ? 3389 : 80,
-      remotePort: Math.floor(Math.random() * 1000) + 8000,
-      status: 'online',
-      trafficIn: '1.4 KB',
-      trafficOut: '2.5 KB'
-    };
-
-    setDevices(prev => [newDevice, ...prev]);
-    setTunnels(prev => [newTunnel, ...prev]);
-
+    loadDashboardData();
     changeScreen(Screen.DEVICE_MANAGEMENT, 'push_back');
-    triggerToast(`设备 '${newDevice.name}' 及其 FRP Agent 已部署配置并成功注册!`, 'success');
+    triggerToast(t('请在目标设备上执行安装脚本，Agent 启动后将自动注册到系统', 'Run the install script on your target device. The agent will register automatically via WebSocket.'), 'info');
   };
 
   // Copy to clipboard helper
@@ -709,6 +672,14 @@ export default function App() {
       if (tempDomain) {
         await settingsApi.setDomain(tempDomain);
       }
+      // 保存面板端口
+      await settingsApi.setPanelPort(String(tempDashboardPort));
+      // 处理 TLS 开关
+      if (enableAutoHttps && tempDomain) {
+        await settingsApi.enableTls(tempDomain);
+      } else if (!enableAutoHttps) {
+        await settingsApi.disableTls();
+      }
       setServerConfig(prev => ({
         ...prev,
         domain: tempDomain,
@@ -751,11 +722,35 @@ export default function App() {
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (files && files.length > 0) {
-      setCertFileName(files[0].name);
-      triggerToast(t(`手动自定义证书 '${files[0].name}' 校验并载入成功`, `User custom certificate file '${files[0].name}' successfully mounted`), 'success');
+    if (!files || files.length === 0) return;
+    const file = files[0];
+    setCertFileName(file.name);
+
+    // 上传证书到后端
+    try {
+      const formData = new FormData();
+      formData.append('domain', tempDomain || serverConfig.domain || '');
+      formData.append('cert_file', file);
+      // 如果是 .key 文件也作为 key_file 上传
+      if (file.name.endsWith('.key')) {
+        formData.append('key_file', file);
+      }
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/settings/upload-cert', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData,
+      });
+      if (res.ok) {
+        triggerToast(t(`证书 '${file.name}' 上传成功`, `Certificate '${file.name}' uploaded successfully`), 'success');
+      } else {
+        const detail = await res.json().catch(() => ({}));
+        triggerToast(`上传失败: ${detail.detail || res.statusText}`, 'warning');
+      }
+    } catch (err: any) {
+      triggerToast(`上传失败: ${err.message}`, 'warning');
     }
   };
 
@@ -1372,8 +1367,7 @@ export default function App() {
                         <div className="flex items-center gap-3">
                           <button
                             onClick={() => {
-                              // Simulate a fresh state refresh
-                              setDevices(prev => [...prev]);
+                              loadDashboardData();
                             }}
                             className="w-8 h-8 rounded border border-border-subtle flex items-center justify-center text-on-surface-variant hover:bg-surface-container-low transition-colors cursor-pointer"
                             title={t('刷新组件', 'Refresh Components')}
@@ -1708,6 +1702,7 @@ export default function App() {
                             <button
                               onClick={() => {
                                 setDeviceSearchQuery('');
+                                loadDashboardData();
                                 triggerToast(t('客户端心跳映射数据已刷新', 'FRP client registry synchronized!'), 'success');
                               }}
                               className="p-2 border border-[#E2E8F0] rounded bg-white hover:bg-slate-50 transition-colors cursor-pointer"
