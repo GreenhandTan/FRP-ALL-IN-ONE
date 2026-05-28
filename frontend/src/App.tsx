@@ -83,6 +83,13 @@ const animationVariants = {
   }
 };
 
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return `${(bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
+}
+
 export default function App() {
   // Language translation state
   const [lang, setLang] = useState<'zh' | 'en'>('zh');
@@ -315,12 +322,18 @@ export default function App() {
       if (data.client_id) {
         setDevices(prev => prev.map(d => {
           if (d.id === data.client_id) {
+            const speedOut = data.net_speed_out ?? d.agentInfo?.net_speed_out;
+            const speedIn = data.net_speed_in ?? d.agentInfo?.net_speed_in;
+            const bytesIn = data.net_bytes_in ?? d.agentInfo?.net_bytes_in ?? 0;
+            const bytesOut = data.net_bytes_out ?? d.agentInfo?.net_bytes_out ?? 0;
             return {
               ...d,
-              cpuUsage: Math.round(data.cpu_percent || d.cpuUsage),
-              memUsage: Math.round(data.memory_percent || d.memUsage),
-              uploadRate: data.net_speed_out ? `${(data.net_speed_out / 1024).toFixed(1)} KB/s` : d.uploadRate,
-              downloadRate: data.net_speed_in ? `${(data.net_speed_in / 1024).toFixed(1)} KB/s` : d.downloadRate,
+              cpuUsage: data.cpu_percent != null ? Math.round(data.cpu_percent) : d.cpuUsage,
+              memUsage: data.memory_percent != null ? Math.round(data.memory_percent) : d.memUsage,
+              uploadRate: speedOut != null ? `${(speedOut / 1024).toFixed(1)} KB/s` : d.uploadRate,
+              downloadRate: speedIn != null ? `${(speedIn / 1024).toFixed(1)} KB/s` : d.downloadRate,
+              totalTraffic: formatBytes(bytesIn + bytesOut),
+              agentInfo: { ...d.agentInfo, ...data },
             };
           }
           return d;
@@ -389,9 +402,9 @@ export default function App() {
       cpuUsage: Math.round(agent.cpu_percent || 0),
       memUsage: Math.round(agent.memory_percent || 0),
       arch: agent.arch,
-      uploadRate: agent.net_speed_out ? `${(agent.net_speed_out / 1024).toFixed(1)} KB/s` : '0 KB/s',
-      downloadRate: agent.net_speed_in ? `${(agent.net_speed_in / 1024).toFixed(1)} KB/s` : '0 KB/s',
-      totalTraffic: agent.memory_total ? `${(agent.memory_used / 1024 / 1024).toFixed(0)} MB` : '0 MB',
+      uploadRate: agent.net_speed_out != null ? `${(agent.net_speed_out / 1024).toFixed(1)} KB/s` : '0 KB/s',
+      downloadRate: agent.net_speed_in != null ? `${(agent.net_speed_in / 1024).toFixed(1)} KB/s` : '0 KB/s',
+      totalTraffic: formatBytes((agent.net_bytes_in || 0) + (agent.net_bytes_out || 0)),
       agentInfo: agent,
     };
   };
