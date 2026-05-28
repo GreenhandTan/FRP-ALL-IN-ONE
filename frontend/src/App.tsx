@@ -55,7 +55,7 @@ import {
   defaultGlobalSettings,
   getOSScript
 } from './data';
-import { APP_VERSION_DISPLAY, GITHUB_REPO, VERSION_NUMBER } from './version';
+import { APP_VERSION_DISPLAY, GITHUB_REPO } from './version';
 import { authApi, clientsApi, tunnelsApi, frpApi, settingsApi, systemApi, isLoggedIn, setToken, clearToken, ClientData } from './api';
 import { dashboardWs } from './ws';
 
@@ -2362,34 +2362,7 @@ export default function App() {
 
                               <button
                                 type="button"
-                                onClick={async () => {
-                                  triggerToast(t('正在检查更新...', 'Checking for updates...'), 'info');
-                                  try {
-                                    const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`);
-                                    if (!res.ok) throw new Error('GitHub API error');
-                                    const data = await res.json();
-                                    const latestTag = data.tag_name || '';
-                                    const latestVersion = latestTag.replace(/^v/i, '').replace(/-.*$/, '');
-                                    if (latestVersion && latestVersion !== VERSION_NUMBER) {
-                                      triggerToast(
-                                        t(`发现新版本 ${latestTag}，当前版本 ${APP_VERSION_DISPLAY}`, `New version ${latestTag} available, current ${APP_VERSION_DISPLAY}`),
-                                        'info'
-                                      );
-                                      // 打开 GitHub releases 页面
-                                      window.open(data.html_url, '_blank');
-                                    } else {
-                                      triggerToast(
-                                        t(`已是最新版本 ${APP_VERSION_DISPLAY}`, `Already on latest version ${APP_VERSION_DISPLAY}`),
-                                        'success'
-                                      );
-                                    }
-                                  } catch {
-                                    triggerToast(
-                                      t('检查失败，请稍后重试', 'Check failed, please try again later'),
-                                      'warning'
-                                    );
-                                  }
-                                }}
+                                onClick={() => window.open(`https://github.com/${GITHUB_REPO}`, '_blank')}
                                 className="w-full mt-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 rounded font-bold text-xs transition-colors flex items-center justify-center gap-2 border border-slate-700 cursor-pointer select-none"
                               >
                                 <RefreshCw className="w-3.5 h-3.5 text-slate-300" />
