@@ -51,8 +51,6 @@ import {
 } from 'lucide-react';
 import { Screen, Device, Tunnel, ServerConfig, GlobalSettings, OS } from './types';
 import {
-  initialDevices,
-  initialTunnels,
   defaultServerConfig,
   defaultGlobalSettings,
   getOSScript
@@ -96,18 +94,18 @@ export default function App() {
   const [lastScreen, setLastScreen] = useState<Screen | null>(null);
   const [transitionDirection, setTransitionDirection] = useState<'push' | 'push_back' | 'slide_up' | 'none'>('none');
 
-  // Business state
-  const [devices, setDevices] = useState<Device[]>(initialDevices);
-  const [tunnels, setTunnels] = useState<Tunnel[]>(initialTunnels);
-  const [serverConfig, setServerConfig] = useState<ServerConfig>(defaultServerConfig);
+  // Business state — 初始为空，由 loadDashboardData 从后端 API 加载
+  const [devices, setDevices] = useState<Device[]>([]);
+  const [tunnels, setTunnels] = useState<Tunnel[]>([]);
+  const [serverConfig, setServerConfig] = useState<ServerConfig>({ ...defaultServerConfig, ip: '', port: 7000, token: '' });
   const [globalSettings, setGlobalSettings] = useState<GlobalSettings>(defaultGlobalSettings);
-  
+
   // Script / OS selection wizard
   const [selectedOs, setSelectedOs] = useState<OS>('linux');
-  
+
   // Form values (controlled temporarily during steps or inputs)
-  const [inputIp, setInputIp] = useState<string>(defaultServerConfig.ip);
-  const [inputPort, setInputPort] = useState<number>(defaultServerConfig.port);
+  const [inputIp, setInputIp] = useState<string>('');
+  const [inputPort, setInputPort] = useState<number>(7000);
   const [inputDomain, setInputDomain] = useState<string>('frp.example.com');
   const [tokenVisible, setTokenVisible] = useState<boolean>(false);
   
@@ -119,20 +117,9 @@ export default function App() {
   const [dnsCheckLoading, setDnsCheckLoading] = useState<boolean>(false);
   const [certFileName, setCertFileName] = useState<string>('');
   
-  // Log stream simulation
-  const [logs, setLogs] = useState<string[]>([
-    '[INFO] [server.go:193] frps started successfully',
-    `[INFO] [root.go:210] frps listening on 0.0.0.0:${defaultServerConfig.port}`,
-    '[INFO] [dashboard.go:88] dashboard listening on 0.0.0.0:7500',
-    '[INFO] [control.go:481] [dev-l8wPz9K2] active client connection established',
-    '[INFO] [proxy.go:225] [dev-l8wPz9K2] [ssh-tunnel] proxy started successfully',
-    '[INFO] [proxy.go:225] [dev-l8wPz9K2] [nextcloud-http] proxy started successfully'
-  ]);
+  // 日志流 — 由 WebSocket 实时推送填充
+  const [logs, setLogs] = useState<string[]>([]);
   const consoleEndRef = useRef<HTMLDivElement>(null);
-
-  // Live telemetry (changing bandwidth rate)
-  const [trafficHistory, setTrafficHistory] = useState<number[]>([12, 18, 15, 24, 35, 42, 38, 48, 55, 62, 78, 65, 78, 92, 105, 98, 112]);
-  const [currentBps, setCurrentBps] = useState<number>(112); // KB/s
 
   // Toast notifications helper
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'warning' } | null>(null);
@@ -234,7 +221,7 @@ export default function App() {
     localIp: '127.0.0.1',
     localPort: 80,
     remotePort: 8080,
-    deviceId: initialDevices[0]?.id || ''
+    deviceId: devices[0]?.id || ''
   });
 
   // ===========================
@@ -422,73 +409,6 @@ export default function App() {
       consoleEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [logs]);
-
-  // Simulate real-time monitoring metric jitter
-  useEffect(() => {
-    const telemetryInterval = setInterval(() => {
-      // Modify client diagnostics parameters
-      setDevices(prev => prev.map(d => {
-        if (d.status === 'online') {
-          const cpuDelta = Math.floor(Math.random() * 5) - 2;
-          const memDelta = Math.floor(Math.random() * 3) - 1;
-          
-          const staticUp = d.os === 'linux' ? 120 : d.os === 'windows' ? 45 : 30;
-          const staticDown = d.os === 'linux' ? 18 : d.os === 'windows' ? 385 : 55;
-          const upVal = Math.max(1, staticUp + Math.floor(Math.random() * 24 - 12));
-          const downVal = Math.max(1, staticDown + Math.floor(Math.random() * 40 - 20));
-          const uploadRate = `${upVal.toFixed(1)} KB/s`;
-          const downloadRate = `${downVal.toFixed(1)} KB/s`;
-
-          let currentTotalMB = 0;
-          const currentTotalStr = d.totalTraffic || '0 MB';
-          if (currentTotalStr.includes('GB')) {
-            currentTotalMB = parseFloat(currentTotalStr) * 1024;
-          } else {
-            currentTotalMB = parseFloat(currentTotalStr);
-          }
-          // Increment total traffic slightly (rate per second * 3 seconds in MB)
-          const increment = ((upVal + downVal) * 3) / 1024;
-          const nextMB = currentTotalMB + increment;
-          const totalTraffic = nextMB > 1024 
-            ? `${(nextMB / 1024).toFixed(2)} GB` 
-            : `${nextMB.toFixed(1)} MB`;
-
-          return {
-            ...d,
-            cpuUsage: Math.max(2, Math.min(98, d.cpuUsage + cpuDelta)),
-            memUsage: Math.max(10, Math.min(95, d.memUsage + memDelta)),
-            uploadRate,
-            downloadRate,
-            totalTraffic
-          };
-        }
-        return d;
-      }));
-
-      // Append logs occasionally
-      if (Math.random() > 0.6) {
-        const timestamp = new Date().toISOString().split('T')[1].slice(0, 8);
-        const randomDevice = devices[Math.floor(Math.random() * devices.length)];
-        const randomTunnel = tunnels[Math.floor(Math.random() * tunnels.length)];
-        
-        const logTemplates = [
-          `[INFO] [visitor.go:50] [${randomTunnel?.name || 'tunnel'}] visitor connect accepted from 203.0.113.${Math.floor(Math.random() * 254) + 1}`,
-          `[DEBUG] [proxy.go:121] [${randomDevice?.id || 'dev'}] raw transfer throughput check: ${Math.floor(Math.random() * 25) + 5} KB/s`,
-          `[INFO] [root.go:340] heartbeat received from client [${randomDevice?.name || 'agent'}]`
-        ];
-        const randomLog = logTemplates[Math.floor(Math.random() * logTemplates.length)];
-        setLogs(prev => [...prev.slice(-30), `[${timestamp}] ${randomLog}`]);
-      }
-
-      // Modify traffic speed
-      const nextBps = Math.max(10, Math.floor(currentBps + (Math.random() * 40 - 20)));
-      setCurrentBps(nextBps);
-      setTrafficHistory(prev => [...prev.slice(-20), nextBps]);
-
-    }, 3000);
-
-    return () => clearInterval(telemetryInterval);
-  }, [devices, tunnels, currentBps]);
 
   // Handle toast notifications helper
   const triggerToast = (message: string, type: 'success' | 'info' | 'warning' = 'success') => {
@@ -725,51 +645,32 @@ export default function App() {
     triggerToast(t('过滤器与过滤参数均已重置', 'All OS, architecture, and status filters reset'), 'info');
   };
 
-  // Set up initial live logs and simulation when a device is selected for log view
+  // 日志弹窗：打开时连接 WebSocket 日志流，关闭时断开
   useEffect(() => {
     if (logModalOpen && logModalDevice) {
-      const datePrefix = "2026-05-28";
-      setLiveLogs([
-        { id: '1', time: `${datePrefix} 10:00:00`, level: 'INFO', msg: 'frpc version 0.51.3' },
-        { id: '2', time: `${datePrefix} 10:00:01`, level: 'INFO', msg: `starting frpc on ${logModalDevice.name} (${logModalDevice.ip})...` },
-        { id: '3', time: `${datePrefix} 10:00:02`, level: 'INFO', msg: 'try to connect to server...' },
-        { id: '4', time: `${datePrefix} 10:00:03`, level: 'SUCCESS', msg: `login to server success, get run id [8f3a${logModalDevice.id.slice(-4)}], server udp port [0]` },
-        { id: '5', time: `${datePrefix} 10:00:04`, level: 'INFO', msg: `[${logModalDevice.name}] start proxy service map successfully` },
-        { id: '6', time: `${datePrefix} 10:05:22`, level: 'WARN', msg: 'connection pool is running low on resources' },
-        { id: '7', time: `${datePrefix} 10:05:25`, level: 'INFO', msg: 'heartbeat to server success' }
-      ]);
-    }
-  }, [logModalOpen, logModalDevice]);
+      setLiveLogs([]);
+      // 通过 WebSocket 订阅该设备的日志（后端 ws/logs/{client_id}）
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const token = localStorage.getItem('token');
+      const logWsUrl = `${protocol}//${window.location.host}/ws/logs/${logModalDevice.id}?token=${token}`;
+      const logSocket = new WebSocket(logWsUrl);
 
-  // Handle continuous log streaming output simulation
-  useEffect(() => {
-    if (!logModalOpen || !logModalDevice || logModalDevice.status !== 'online') return;
-    
-    const messages = [
-      'heartbeat to server success',
-      'connection pool health check passed',
-      'traffic routed successfully via ssh-tunnel',
-      'session active with client remote port mapping',
-      'received control frame from master node',
-      'reloaded proxy configuration for tunnels'
-    ];
-    
-    const interval = setInterval(() => {
-      const now = new Date();
-      const timeStr = `2026-05-28 ${now.toTimeString().split(' ')[0]}`;
-      const randomMsg = messages[Math.floor(Math.random() * messages.length)];
-      setLiveLogs(prev => [
-        ...prev,
-        {
-          id: String(Date.now() + Math.random()),
-          time: timeStr,
-          level: Math.random() > 0.85 ? 'WARN' : 'INFO',
-          msg: randomMsg
-        }
-      ]);
-    }, 3000);
-    
-    return () => clearInterval(interval);
+      logSocket.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          const now = new Date();
+          const timeStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${now.toTimeString().split(' ')[0]}`;
+          setLiveLogs(prev => [...prev, {
+            id: String(Date.now() + Math.random()),
+            time: timeStr,
+            level: 'INFO',
+            msg: typeof msg === 'string' ? msg : msg.data || msg.message || JSON.stringify(msg),
+          }]);
+        } catch {}
+      };
+
+      return () => { logSocket.close(); };
+    }
   }, [logModalOpen, logModalDevice]);
 
   // Scroll to bottom of terminal scroll area on log updates
