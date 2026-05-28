@@ -30,7 +30,7 @@ services:
       - frp-certs:/etc/nginx/certs:ro
 
   frps:
-    image: docker.1ms.run/snowdreamtech/frps:latest
+    image: snowdreamtech/frps:latest
     container_name: frps
     restart: always
     network_mode: host

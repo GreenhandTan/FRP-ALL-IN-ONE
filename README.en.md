@@ -26,7 +26,7 @@
 </div>
 
 > [!CAUTION]
-> **Upgrade Notice (v3.0+)**: Login has been migrated from username/password to **GitHub OAuth**. Existing deployments must run database migration, see [Upgrade Guide](#upgrade). Fresh deployments require no additional steps.
+> **Upgrade Notice (v3.0+)**: Major architectural upgrade (GitHub OAuth login + frontend UI redesign). **A fresh deployment is recommended** for existing users. See [Upgrade Guide](#upgrade).
 
 <a id="author"></a>
 
@@ -261,37 +261,22 @@ The current `compose.yml` has data persistence enabled by default:
 
 ## Upgrade Guide
 
-### Upgrading from Older Versions
+> [!CAUTION]
+> **v3.0 is a major architectural upgrade** (login migrated from password to GitHub OAuth, frontend UI fully redesigned). Database schema and frontend code have breaking changes. **A fresh deployment is recommended** — no manual database migration needed.
+
+### Fresh Deployment (Recommended)
 
 ```bash
 cd FRP-ALL-IN-ONE/deploy
 podman compose -f compose.yml down
+cd ..
+mv deploy/data deploy/data.bak   # Optional: backup old data
 git pull
-podman compose -f compose.yml up -d --build
+cd deploy
+sudo ./deploy.sh
 ```
 
-### ⚠️ Database Migration (Required)
-
-If upgrading from an older version (password-based login) to the GitHub OAuth version, run:
-
-```bash
-cd FRP-ALL-IN-ONE/deploy
-
-# Create admin_invites table
-sqlite3 data/frp_manager.db "CREATE TABLE IF NOT EXISTS admin_invites (id INTEGER PRIMARY KEY AUTOINCREMENT, github_username VARCHAR UNIQUE, added_by INTEGER, created_at DATETIME);"
-
-# Add new columns to admins table
-sqlite3 data/frp_manager.db "ALTER TABLE admins ADD COLUMN github_id INTEGER UNIQUE;"
-sqlite3 data/frp_manager.db "ALTER TABLE admins ADD COLUMN github_username VARCHAR;"
-sqlite3 data/frp_manager.db "ALTER TABLE admins ADD COLUMN avatar_url VARCHAR;"
-sqlite3 data/frp_manager.db "ALTER TABLE admins ADD COLUMN is_superadmin BOOLEAN DEFAULT 0;"
-sqlite3 data/frp_manager.db "ALTER TABLE admins ADD COLUMN created_at DATETIME;"
-
-# Set the first admin as superadmin
-sqlite3 data/frp_manager.db "UPDATE admins SET is_superadmin = 1 WHERE id = (SELECT MIN(id) FROM admins);"
-```
-
-> Old columns (`username`, `hashed_password`, etc.) will remain but be ignored. Fresh deployments do not need this.
+> To preserve old data, back up the `deploy/data` directory before redeploying. The first GitHub user to log in will automatically become superadmin.
 
 <a id="first-time-workflow"></a>
 

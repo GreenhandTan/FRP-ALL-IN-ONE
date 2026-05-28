@@ -26,7 +26,7 @@
 </div>
 
 > [!CAUTION]
-> **升級提示（v3.0+）**：登入方式已從帳號密碼遷移至 **GitHub OAuth**。舊版本升級需執行資料庫遷移，詳見 [升級指南](#upgrade)。全新部署無需任何額外操作。
+> **升級提示（v3.0+）**：本次為重大架構升級（GitHub OAuth 登入 + 前端 UI 全面重構），**建議舊版本用戶直接重新部署**，詳見 [升級指南](#upgrade)。
 
 <a id="author"></a>
 
@@ -261,37 +261,22 @@ sudo ./deploy.sh
 
 ## 升級指南
 
-### 從舊版本升級
+> [!CAUTION]
+> **v3.0 為重大架構升級**（登入方式從帳號密碼遷移至 GitHub OAuth，前端 UI 全面重構），資料庫結構和前端程式碼均有不相容變更。**建議直接重新部署**，無需手動執行資料庫遷移。
+
+### 重新部署（推薦）
 
 ```bash
 cd FRP-ALL-IN-ONE/deploy
 podman compose -f compose.yml down
+cd ..
+mv deploy/data deploy/data.bak   # 備份舊資料（可選）
 git pull
-podman compose -f compose.yml up -d --build
+cd deploy
+sudo ./deploy.sh
 ```
 
-### ⚠️ 資料庫遷移（必須）
-
-如果你從 **舊版本（使用密碼登入）** 升級到 GitHub OAuth 版本，需要執行以下資料庫遷移：
-
-```bash
-cd FRP-ALL-IN-ONE/deploy
-
-# 建立 admin_invites 表
-sqlite3 data/frp_manager.db "CREATE TABLE IF NOT EXISTS admin_invites (id INTEGER PRIMARY KEY AUTOINCREMENT, github_username VARCHAR UNIQUE, added_by INTEGER, created_at DATETIME);"
-
-# 添加新欄位到 admins 表
-sqlite3 data/frp_manager.db "ALTER TABLE admins ADD COLUMN github_id INTEGER UNIQUE;"
-sqlite3 data/frp_manager.db "ALTER TABLE admins ADD COLUMN github_username VARCHAR;"
-sqlite3 data/frp_manager.db "ALTER TABLE admins ADD COLUMN avatar_url VARCHAR;"
-sqlite3 data/frp_manager.db "ALTER TABLE admins ADD COLUMN is_superadmin BOOLEAN DEFAULT 0;"
-sqlite3 data/frp_manager.db "ALTER TABLE admins ADD COLUMN created_at DATETIME;"
-
-# 將第一個管理員設為超級管理員
-sqlite3 data/frp_manager.db "UPDATE admins SET is_superadmin = 1 WHERE id = (SELECT MIN(id) FROM admins);"
-```
-
-> **說明**：舊的 `username`、`hashed_password` 等欄位會保留但不再使用。全新部署無需此操作。
+> 如需保留舊資料，備份 `deploy/data` 目錄後重新部署即可。首個登入的 GitHub 用戶將自動成為超級管理員。
 
 <a id="first-time-workflow"></a>
 
