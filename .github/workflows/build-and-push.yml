@@ -1,0 +1,181 @@
+# ============================================================
+# FRP-ALL-IN-ONE - 构建并推送 Docker 镜像到腾讯云 TCR
+# ============================================================
+# 触发条件：
+#   1. 手动触发 (workflow_dispatch) — 可指定镜像 tag
+#   2. 推送 tag (v*) — 自动使用 tag 作为镜像版本
+#   3. 推送到 main 分支时，仅当前端或后端代码文件变动才触发
+#
+# 前端文件路径: src/**, index.html, vite.config.ts, tsconfig.json, package*.json, frontend.Dockerfile
+# 后端文件路径: server/**, agent/**
+#
+# 产出：
+#   - sgccr.ccs.tencentyun.com/frp-all-in-one/frp-backend:<tag>
+#   - sgccr.ccs.tencentyun.com/frp-all-in-one/frp-frontend:<tag>
+#
+# 所需 GitHub Secrets:
+#   TENCENT_SECRET_ID   — 腾讯云 API SecretId
+#   TENCENT_SECRET_KEY  — 腾讯云 API SecretKey
+# ============================================================
+
+name: Build and Push Docker Images
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '镜像标签 (如 v1.0.0 或 latest)'
+        required: false
+        default: 'latest'
+
+  push:
+    branches:
+      - main
+    paths:
+      # 后端文件
+      - 'server/**'
+      - 'agent/**'
+      - 'backend.Dockerfile'
+      # 前端文件
+      - 'src/**'
+      - 'index.html'
+      - 'vite.config.ts'
+      - 'tsconfig.json'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'frontend.Dockerfile'
+    tags:
+      - 'v*'
+
+env:
+  REGISTRY: sgccr.ccs.tencentyun.com
+  NAMESPACE: frp-all-in-one
+  BACKEND_IMAGE: sgccr.ccs.tencentyun.com/frp-all-in-one/frp-backend
+  FRONTEND_IMAGE: sgccr.ccs.tencentyun.com/frp-all-in-one/frp-frontend
+
+jobs:
+  # ===========================
+  # 检测变更范围，决定构建哪些镜像
+  # ===========================
+  detect-changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.changes.outputs.backend }}
+      frontend: ${{ steps.changes.outputs.frontend }}
+      tag: ${{ steps.tag.outputs.TAG }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect file changes
+        id: changes
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "backend=true" >> $GITHUB_OUTPUT
+            echo "frontend=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # 对比最近一次 push 的文件变更
+          BASE=${{ github.event.before }}
+          HEAD=${{ github.sha }}
+
+          BACKEND_CHANGED="false"
+          FRONTEND_CHANGED="false"
+
+          for file in $(git diff --name-only "$BASE" "$HEAD" 2>/dev/null); do
+            case "$file" in
+              server/*|agent/*|backend.Dockerfile)
+                BACKEND_CHANGED="true" ;;
+              src/*|index.html|vite.config.ts|tsconfig.json|package.json|package-lock.json|frontend.Dockerfile)
+                FRONTEND_CHANGED="true" ;;
+            esac
+          done
+
+          echo "backend=${BACKEND_CHANGED}" >> $GITHUB_OUTPUT
+          echo "frontend=${FRONTEND_CHANGED}" >> $GITHUB_OUTPUT
+          echo ">> Changes — backend: ${BACKEND_CHANGED}, frontend: ${FRONTEND_CHANGED}"
+
+      - name: Determine tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          elif [ "${{ github.ref_type }}" = "tag" ]; then
+            TAG="${{ github.ref_name }}"
+          else
+            TAG="latest"
+          fi
+          echo "TAG=${TAG}" >> $GITHUB_OUTPUT
+          echo ">> Image tag: ${TAG}"
+
+  # ===========================
+  # 构建并推送后端镜像
+  # ===========================
+  build-backend:
+    name: Build Backend Image
+    needs: detect-changes
+    if: needs.detect-changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Tencent TCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.TENCENT_SECRET_ID }}
+          password: ${{ secrets.TENCENT_SECRET_KEY }}
+
+      - name: Build and push backend
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: server/Dockerfile
+          push: true
+          tags: |
+            ${{ env.BACKEND_IMAGE }}:${{ needs.detect-changes.outputs.tag }}
+            ${{ env.BACKEND_IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ===========================
+  # 构建并推送前端镜像
+  # ===========================
+  build-frontend:
+    name: Build Frontend Image
+    needs: detect-changes
+    if: needs.detect-changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Tencent TCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.TENCENT_SECRET_ID }}
+          password: ${{ secrets.TENCENT_SECRET_KEY }}
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: frontend.Dockerfile
+          push: true
+          tags: |
+            ${{ env.FRONTEND_IMAGE }}:${{ needs.detect-changes.outputs.tag }}
+            ${{ env.FRONTEND_IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

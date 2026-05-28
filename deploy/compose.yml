@@ -1,8 +1,6 @@
 services:
   backend:
-    build:
-      context: ..
-      dockerfile: server/Dockerfile
+    image: sgccr.ccs.tencentyun.com/frp-all-in-one/frp-backend:latest
     container_name: frp-manager-backend
     restart: always
     user: root
@@ -22,7 +20,7 @@ services:
       - /run/podman/podman.sock:/run/podman/podman.sock
 
   frontend:
-    build: ../frontend
+    image: sgccr.ccs.tencentyun.com/frp-all-in-one/frp-frontend:latest
     container_name: frp-manager-web
     restart: always
     network_mode: host

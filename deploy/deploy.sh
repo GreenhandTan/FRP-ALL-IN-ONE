@@ -250,7 +250,11 @@ deploy_services() {
     fi
 
     run_compose down --remove-orphans >/dev/null 2>&1 || true
-    run_compose up -d --build
+
+    echo "[PULL] 拉取最新镜像..."
+    run_compose pull backend frontend || echo -e "${YELLOW}[WARN] 镜像拉取失败，将尝试使用本地缓存${NC}"
+
+    run_compose up -d
 
     echo -e "${GREEN}[OK] 服务启动成功${NC}"
 }

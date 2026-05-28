@@ -32,3 +32,14 @@ async def get_public_ip(
     if ip:
         return {"success": True, "ip": ip}
     return {"success": False, "ip": None}
+
+
+@router.get("/public-ip/open")
+async def get_public_ip_open():
+    """自动检测服务器公网 IP（无需认证，用于初始化流程）"""
+    import asyncio
+    details = await asyncio.to_thread(frp_deploy.get_public_ip_details)
+    ip = details.get("ip")
+    if ip:
+        return {"success": True, "ip": ip}
+    return {"success": False, "ip": None}
