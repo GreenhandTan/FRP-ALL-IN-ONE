@@ -538,9 +538,22 @@ export default function App() {
   };
 
   // Copy to clipboard helper
-  const handleCopyText = (text: string) => {
-    navigator.clipboard.writeText(text);
-    triggerToast('已成功复制至剪贴板!', 'success');
+  const handleCopyText = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      triggerToast(t('已成功复制至剪贴板!', 'Copied to clipboard!'), 'success');
+    } catch {
+      // 降级方案：使用 textarea 选中复制
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      triggerToast(t('已成功复制至剪贴板!', 'Copied to clipboard!'), 'success');
+    }
   };
 
   // Start or Stop a tunnel connection
@@ -787,7 +800,7 @@ export default function App() {
             initial={{ opacity: 0, y: -50, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-6 left-1/2 -translate-x-1/2 z-50 flex items-center px-4 py-3 rounded-lg border border-border-subtle shadow-lg"
+            className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] flex items-center px-4 py-3 rounded-lg border border-border-subtle shadow-lg"
             style={{
               backgroundColor: toast.type === 'success' ? '#ECFDF5' : toast.type === 'warning' ? '#FEF3C7' : '#F0F9FF',
               borderColor: toast.type === 'success' ? '#10B981' : toast.type === 'warning' ? '#F59E0B' : '#00ADD8',
@@ -2532,8 +2545,20 @@ export default function App() {
                                   <Copy className="w-3.5 h-3.5 shrink-0" />
                                   {t('一键复制', 'Copy Command')}
                                 </button>
-                                <button 
-                                  onClick={() => triggerToast(`已模拟触发下载 ${selectedOs}_deploy_installer_${selectedOs === 'windows' ? 'powershell.ps1' : 'agent.sh'} 部署文件!`, 'info')}
+                                <button
+                                  onClick={() => {
+                                    const script = installScript || getOSScript(selectedOs, serverConfig.ip, serverConfig.port, serverConfig.token, `dev-client-node`);
+                                    const ext = selectedOs === 'windows' ? 'ps1' : 'sh';
+                                    const filename = `install_agent.${ext}`;
+                                    const blob = new Blob([script], { type: 'text/plain;charset=utf-8' });
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = filename;
+                                    a.click();
+                                    URL.revokeObjectURL(url);
+                                    triggerToast(t(`已下载 ${filename}`, `Downloaded ${filename}`), 'success');
+                                  }}
                                   className="hidden sm:flex items-center gap-1 px-3 py-1.5 rounded bg-[#21262d] hover:bg-[#30363d] text-slate-300 border border-[#30363d] transition-colors cursor-pointer text-[#8b949e] font-sans"
                                 >
                                   <Download className="w-3.5 h-3.5 shrink-0" />
@@ -2557,7 +2582,7 @@ export default function App() {
                           <div className="p-4 rounded bg-surface-container-low border border-border-subtle flex gap-3 items-start">
                             <Info className="w-5 h-5 text-status-warning shrink-0 mt-0.5" />
                             <div className="font-body-md text-body-md text-on-surface text-left">
-                              <strong>{t('安全提示:', 'Security Alert:')}</strong> {t('该脚本包含您的设备注册令牌 (Token)。请勿在公开环境中分享此脚本。令牌有效期为 24 小时。', 'This execution script includes your registration token (Token). Do not expose it in public repositories. It expires in 24 hours.')}
+                              <strong>{t('安全提示:', 'Security Alert:')}</strong> {t('该脚本包含您的设备注册令牌 (Token)。请勿在公开环境中分享此脚本。', 'This script contains your device registration token. Do not share it publicly.')}
                             </div>
                           </div>
                         </div>
