@@ -55,6 +55,7 @@ import {
   defaultGlobalSettings,
   getOSScript
 } from './data';
+import { APP_VERSION_DISPLAY } from './version';
 import { authApi, clientsApi, tunnelsApi, frpApi, settingsApi, isLoggedIn, setToken, clearToken, ClientData } from './api';
 import { dashboardWs } from './ws';
 
@@ -776,7 +777,7 @@ export default function App() {
                 {/* Logo / Branding */}
                 <div className="flex flex-col items-center mb-10">
                   <h1 className="font-headline font-semibold text-2xl text-primary text-center tracking-tight">FRP-ALL-IN-ONE</h1>
-                  <p className="font-mono text-xs text-on-surface-variant mt-2 bg-surface-container-high px-2 py-0.5 rounded font-semibold">V2.4.0-Stable</p>
+                  <p className="font-mono text-xs text-on-surface-variant mt-2 bg-surface-container-high px-2 py-0.5 rounded font-semibold">{APP_VERSION_DISPLAY}</p>
                 </div>
                 
                 {/* Action Area */}
@@ -1139,7 +1140,7 @@ export default function App() {
                       <h1 className="font-headline font-black text-[#006782] text-sm tracking-tight leading-none">
                         FRP-ALL-IN-ONE
                       </h1>
-                      <p className="font-mono text-[9px] text-[#6d797f] font-semibold tracking-wider mt-1">V2.4.0-Stable</p>
+                      <p className="font-mono text-[9px] text-[#6d797f] font-semibold tracking-wider mt-1">{APP_VERSION_DISPLAY}</p>
                     </div>
                   </div>
 
@@ -2256,7 +2257,7 @@ export default function App() {
                               <div className="flex justify-between items-center pb-3 border-b border-white/10 select-none">
                                 <span className="text-slate-400">{t('版本', 'Version')}</span>
                                 <span className="text-cyan-400 bg-cyan-400/10 px-2 py-0.5 rounded text-[11px] font-bold">
-                                  {serverConfig.version || 'v2.4.0-Stable'}
+                                  {serverConfig.version || APP_VERSION_DISPLAY}
                                 </span>
                               </div>
                               
@@ -2278,7 +2279,7 @@ export default function App() {
                               
                               <button
                                 type="button"
-                                onClick={() => triggerToast(t('检测中... 已是最新运行版本 (V2.4.0-Stable)。', 'Scanning repository... Core package is already updated at V2.4.0-Stable.'), 'success')}
+                                onClick={() => triggerToast(t(`检测中... 已是最新运行版本 (${APP_VERSION_DISPLAY})。`, `Scanning repository... Core package is already updated at ${APP_VERSION_DISPLAY}.`), 'success')}
                                 className="w-full mt-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 rounded font-bold text-xs transition-colors flex items-center justify-center gap-2 border border-slate-700 cursor-pointer select-none"
                               >
                                 <RefreshCw className="w-3.5 h-3.5 text-slate-300" />

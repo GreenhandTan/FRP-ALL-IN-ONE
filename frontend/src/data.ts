@@ -1,4 +1,5 @@
 import { Device, Tunnel, ServerConfig, GlobalSettings, OS } from './types';
+import { APP_VERSION } from './version';
 
 export const initialDevices: Device[] = [
   {
@@ -104,7 +105,7 @@ export const defaultServerConfig: ServerConfig = {
   port: 7000,
   token: 'super_secret_frp_token_2026_xyz',
   mode: 'ip',
-  version: 'v2.4.0-Stable',
+  version: APP_VERSION,
 };
 
 export const defaultGlobalSettings: GlobalSettings = {
