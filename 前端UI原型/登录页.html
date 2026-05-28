@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html class="light" lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>Login - FRP-ALL-IN-ONE</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@600;700&amp;family=Inter:wght@400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap"
+        rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet">
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-surface-variant": "#3d484e",
+                        "surface-variant": "#e0e3e5",
+                        "inverse-surface": "#2d3133",
+                        "surface-dim": "#d8dadc",
+                        "inverse-on-surface": "#eff1f3",
+                        "on-background": "#191c1e",
+                        "on-error-container": "#93000a",
+                        "on-tertiary-fixed": "#340042",
+                        "tertiary-container": "#da79ef",
+                        "surface-container-lowest": "#ffffff",
+                        "primary-container": "#00add8",
+                        "on-secondary-fixed": "#00201c",
+                        "on-primary-fixed-variant": "#004d62",
+                        "background": "#f7f9fb",
+                        "surface-tint": "#006782",
+                        "status-warning": "#F59E0B",
+                        "tertiary-fixed-dim": "#f4aeff",
+                        "github-dark": "#24292F",
+                        "on-error": "#ffffff",
+                        "surface-bright": "#f7f9fb",
+                        "secondary": "#006a60",
+                        "on-primary-container": "#003c4d",
+                        "status-offline": "#EF4444",
+                        "primary-fixed-dim": "#5cd4ff",
+                        "inverse-primary": "#5cd4ff",
+                        "on-surface": "#191c1e",
+                        "error": "#ba1a1a",
+                        "border-subtle": "#E2E8F0",
+                        "tertiary-fixed": "#fdd6ff",
+                        "on-tertiary-container": "#5f0075",
+                        "on-primary": "#ffffff",
+                        "secondary-fixed-dim": "#67d9c9",
+                        "tertiary": "#9134a7",
+                        "on-tertiary-fixed-variant": "#75148d",
+                        "primary": "#006782",
+                        "on-primary-fixed": "#001f29",
+                        "error-container": "#ffdad6",
+                        "outline-variant": "#bcc8cf",
+                        "surface-container": "#eceef0",
+                        "secondary-container": "#85f6e5",
+                        "secondary-fixed": "#85f6e5",
+                        "status-online": "#10B981",
+                        "surface": "#f7f9fb",
+                        "on-secondary": "#ffffff",
+                        "surface-container-high": "#e6e8ea",
+                        "surface-container-highest": "#e0e3e5",
+                        "outline": "#6d797f",
+                        "on-secondary-container": "#007166",
+                        "on-tertiary": "#ffffff",
+                        "surface-container-low": "#f2f4f6",
+                        "on-secondary-fixed-variant": "#005048",
+                        "primary-fixed": "#baeaff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "margin-desktop": "32px",
+                        "gutter": "16px",
+                        "container-max": "1440px",
+                        "unit": "4px",
+                        "margin-mobile": "16px"
+                    },
+                    "fontFamily": {
+                        "body-md": ["Inter"],
+                        "code-block": ["JetBrains Mono"],
+                        "headline-sm": ["Hanken Grotesk"],
+                        "headline-lg": ["Hanken Grotesk"],
+                        "label-md": ["JetBrains Mono"],
+                        "headline-md": ["Hanken Grotesk"],
+                        "body-lg": ["Inter"],
+                        "label-sm": ["JetBrains Mono"]
+                    },
+                    "fontSize": {
+                        "body-md": ["14px", { "lineHeight": "1.5", "fontWeight": "400" }],
+                        "code-block": ["14px", { "lineHeight": "1.7", "fontWeight": "400" }],
+                        "headline-sm": ["20px", { "lineHeight": "1.4", "fontWeight": "600" }],
+                        "headline-lg": ["32px", { "lineHeight": "1.2", "fontWeight": "700" }],
+                        "label-md": ["13px", { "lineHeight": "1", "fontWeight": "500" }],
+                        "headline-md": ["24px", { "lineHeight": "1.3", "fontWeight": "600" }],
+                        "body-lg": ["16px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "label-sm": ["11px", { "lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "500" }]
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .grid-bg {
+            background-size: 40px 40px;
+            background-image:
+                linear-gradient(to right, #E2E8F0 1px, transparent 1px),
+                linear-gradient(to bottom, #E2E8F0 1px, transparent 1px);
+        }
+    </style>
+</head>
+
+<body
+    class="bg-background text-on-background font-body-md min-h-screen flex flex-col justify-center items-center relative overflow-hidden">
+    <!-- Subtle Grid Background for Technical Aesthetic -->
+    <div class="absolute inset-0 grid-bg opacity-40 z-0"></div>
+    <!-- Main Login Card -->
+    <main
+        class="w-full max-w-md bg-surface-container-lowest border border-border-subtle z-10 flex flex-col items-center p-12">
+        <!-- Logo / Branding -->
+        <div class="flex flex-col items-center mb-10">
+            <div class="w-16 h-16 bg-surface-container flex items-center justify-center mb-4">
+                <span class="material-symbols-outlined text-4xl text-primary font-headline-lg">ADMIN</span>
+            </div>
+            <h1 class="font-headline-lg text-headline-lg text-primary text-center">FRP-ALL-IN-ONE</h1>
+            <p class="font-label-md text-label-md text-on-surface-variant mt-2">V2.4.0-Stable</p>
+        </div>
+        <!-- Action Area -->
+        <div class="w-full flex flex-col gap-unit">
+            <button
+                class="w-full bg-github-dark text-on-primary flex items-center justify-center gap-3 py-3 px-4 hover:opacity-90 transition-opacity">
+                <!-- GitHub SVG Icon for precision -->
+                <svg aria-hidden="true" class="fill-current" data-view-component="true" height="24" version="1.1"
+                    viewBox="0 0 16 16" width="24">
+                    <path
+                        d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z">
+                    </path>
+                </svg>
+                <span class="font-label-md text-label-md">使用 GitHub 登录</span>
+            </button>
+            <p class="font-body-md text-body-md text-on-surface-variant text-center mt-4 opacity-70">通过 GitHub OAuth
+                安全访问</p>
+        </div>
+    </main>
+    <!-- Minimalist Footer -->
+    <footer class="absolute bottom-8 w-full flex justify-center gap-6 z-10">
+        <a class="flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors" href="#">
+            <span class="material-symbols-outlined text-sm">menu_book</span>
+            <span class="font-label-md text-label-md">项目文档</span>
+        </a>
+        <a class="flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors" href="#">
+            <span class="material-symbols-outlined text-sm">code</span>
+            <span class="font-label-md text-label-md">GitHub</span>
+        </a>
+    </footer>
+
+
+
+
+</body>
+
+</html>

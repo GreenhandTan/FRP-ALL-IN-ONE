@@ -9,168 +9,23 @@ import { STATE } from './state.js';
 
 export function initSettings() {
   $("btn-panel-settings").addEventListener("click", async () => {
-    hideAlert("panel-settings-error");
-    hideAlert("panel-settings-success");
-
-    $("cert-management-group").classList.add("hidden");
-    $("tls-enable-group").classList.add("hidden");
-    $("cert-status-text").textContent = t("loading");
-    $("cert-domain-text").textContent = "—";
-    $("cert-expire-text").textContent = "—";
-    $("cert-days-text").textContent = "—";
-    $("btn-renew-cert").disabled = true;
-
-    try {
-      const data = await api.get("/api/settings/panel-port");
-      $("inp-panel-access-port").value = data.port || "";
-    } catch (err) {
-      $("inp-panel-access-port").value = "";
-    }
-
-    try {
-      const domainData = await api.get("/api/settings/domain");
-      if (domainData.domain) {
-        $("inp-panel-domain").value = domainData.domain;
-      }
-
-      if (domainData.tls_enabled && domainData.tls_mode === "auto") {
-        $("cert-management-group").classList.remove("hidden");
-        $("tls-enable-group").classList.add("hidden");
-        const certInfo = domainData.cert_info;
-        if (certInfo) {
-          $("cert-status-text").textContent = t("settings.certValid");
-          $("cert-status-text").style.color = "var(--status-online)";
-          $("cert-domain-text").textContent = certInfo.domain;
-          $("cert-expire-text").textContent = new Date(certInfo.expires_at).toLocaleString();
-          const days = certInfo.days_until_expiry;
-          $("cert-days-text").textContent = t("settings.certDaysValue", { days });
-          $("cert-days-text").style.color = days <= 30 ? "var(--status-warning)" : "var(--on-surface)";
-          $("btn-renew-cert").disabled = false;
-        } else {
-          $("cert-status-text").textContent = t("settings.certNotFound");
-          $("cert-status-text").style.color = "var(--error)";
-          $("btn-renew-cert").disabled = false;
-        }
-      } else {
-        $("cert-management-group").classList.add("hidden");
-        $("tls-enable-group").classList.remove("hidden");
-      }
-    } catch (err) {
-      console.error(t("settings.loadFailed") + ":", err);
-    }
-
-    openModal("modal-panel-settings");
-  });
-
-  $("btn-check-dns").addEventListener("click", async () => {
-    const domainVal = $("inp-panel-domain").value.trim();
-    const resultDiv = $("dns-check-result");
-    if (!domainVal) {
-      resultDiv.textContent = t("settings.enterDomain");
-      return;
-    }
-
-    $("btn-check-dns").disabled = true;
-    $("btn-check-dns").textContent = t("settings.dnsChecking");
-    resultDiv.textContent = t("settings.dnsQuerying");
-
-    try {
-      const res = await api.post(`/api/settings/check-dns?domain=${encodeURIComponent(domainVal)}`);
-      if (res.success) {
-        resultDiv.textContent = "✅ " + res.message;
-        resultDiv.style.color = "var(--status-online)";
-      } else {
-        resultDiv.textContent = "❌ " + res.message;
-        resultDiv.style.color = "var(--error)";
-      }
-    } catch (err) {
-      resultDiv.textContent = "❌ " + t("settings.dnsCheckFailed") + ": " + err.message;
-      resultDiv.style.color = "var(--error)";
-    } finally {
-      $("btn-check-dns").disabled = false;
-      $("btn-check-dns").textContent = t("settings.checkDns");
-    }
-  });
-
-  $("btn-enable-tls").addEventListener("click", async () => {
-    const domainVal = $("inp-panel-domain").value.trim();
-    if (!domainVal) {
-      showAlert("panel-settings-error", t("settings.enterCertDomain"));
-      return;
-    }
-
-    const btn = $("btn-enable-tls");
-    btn.disabled = true;
-    btn.textContent = t("settings.tlsWaiting");
-    hideAlert("panel-settings-error");
-    hideAlert("panel-settings-success");
-
-    try {
-      const res = await api.post("/api/settings/enable-tls", { domain: domainVal, mode: "auto" });
-      if (res.success) {
-        showAlert("panel-settings-success", t("settings.tlsSuccess"));
-        setTimeout(() => { window.location.href = `https://${domainVal}`; }, 3000);
-      } else {
-        showAlert("panel-settings-error", res.message || t("settings.tlsFailed"));
-      }
-    } catch (err) {
-      showAlert("panel-settings-error", err.message || t("settings.tlsFailed"));
-    } finally {
-      btn.disabled = false;
-      btn.textContent = t("settings.enableTls");
-    }
-  });
-
-  $("btn-renew-cert").addEventListener("click", async () => {
-    const btn = $("btn-renew-cert");
-    btn.disabled = true;
-    btn.textContent = t("settings.renewing");
-    hideAlert("panel-settings-error");
-    hideAlert("panel-settings-success");
-
-    try {
-      const res = await api.post("/api/settings/renew-cert");
-      if (res.success) {
-        showAlert("panel-settings-success", res.message);
-        setTimeout(() => $("btn-panel-settings").click(), 2000);
-      } else {
-        showAlert("panel-settings-error", res.message || t("settings.renewFailed"));
-      }
-    } catch (err) {
-      showAlert("panel-settings-error", err.message || t("settings.renewFailed"));
-    } finally {
-      btn.disabled = false;
-      btn.textContent = t("settings.renewCert");
-    }
-  });
-
-  $("panel-settings-form").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    hideAlert("panel-settings-error");
-    hideAlert("panel-settings-success");
-    const portVal = $("inp-panel-access-port").value.trim();
-    const domainVal = $("inp-panel-domain").value.trim();
-    const btn = $("btn-panel-settings-submit");
-    btn.disabled = true;
-    btn.textContent = t("loading");
-    try {
-      await api.post("/api/settings/panel-port", { port: portVal });
-      if (domainVal) {
-        await api.post("/api/settings/domain", { domain: domainVal });
-      }
-      showAlert("panel-settings-success", t("settings.saveSuccess"));
-      setTimeout(() => closeModal("modal-panel-settings"), 1200);
-    } catch (err) {
-      showAlert("panel-settings-error", err.message || t("settings.saveFailed"));
-    } finally {
-      btn.disabled = false;
-      btn.textContent = t("save");
-    }
+    // Re-trigger settings page load
+    _settingsPageLoaded = false;
+    showPage("settings");
   });
 
   $("btn-dismiss-error").addEventListener("click", () => {
     hide("error-banner");
     STATE._lastDismissedConflictTime = STATE._lastShownConflictTime || null;
+  });
+}
+
+function showPage(pageId) {
+  document.querySelectorAll(".page-section").forEach((s) => s.classList.remove("active"));
+  const section = document.getElementById(`page-${pageId}`);
+  if (section) section.classList.add("active");
+  document.querySelectorAll(".sidebar-nav-link").forEach((link) => {
+    link.classList.toggle("active", link.dataset.page === pageId);
   });
 }
 
@@ -194,7 +49,39 @@ export async function initSettingsPage() {
     if (domainInput && domainData.domain) {
       domainInput.value = domainData.domain;
     }
-  } catch {}
+
+    // 自动 HTTPS 开关
+    const autoHttpsToggle = $("page-auto-https");
+    if (autoHttpsToggle) {
+      autoHttpsToggle.checked = domainData.tls_enabled && domainData.tls_mode === "auto";
+    }
+
+    // 证书管理区域
+    if (domainData.tls_enabled && domainData.tls_mode === "auto") {
+      show("cert-management-group");
+      hide("tls-enable-group");
+      const certInfo = domainData.cert_info;
+      if (certInfo) {
+        $("cert-status-text").textContent = "有效";
+        $("cert-status-text").style.color = "#10B981";
+        $("cert-domain-text").textContent = certInfo.domain;
+        $("cert-expire-text").textContent = new Date(certInfo.expires_at).toLocaleString();
+        const days = certInfo.days_until_expiry;
+        $("cert-days-text").textContent = `${days} 天`;
+        $("cert-days-text").style.color = days <= 30 ? "#F59E0B" : "#191c1e";
+        $("btn-renew-cert").disabled = false;
+      } else {
+        $("cert-status-text").textContent = "未找到";
+        $("cert-status-text").style.color = "#ba1a1a";
+        $("btn-renew-cert").disabled = false;
+      }
+    } else {
+      hide("cert-management-group");
+      show("tls-enable-group");
+    }
+  } catch (err) {
+    console.error("加载设置失败:", err);
+  }
 
   // DNS 检查按钮
   const dnsBtn = $("page-btn-check-dns");
@@ -205,22 +92,75 @@ export async function initSettingsPage() {
       if (!domainVal) return;
 
       dnsBtn.disabled = true;
+      dnsBtn.textContent = "检查中…";
       resultDiv.textContent = "查询中…";
 
       try {
         const res = await api.post(`/api/settings/check-dns?domain=${encodeURIComponent(domainVal)}`);
         if (res.success) {
           resultDiv.textContent = "✅ " + res.message;
-          resultDiv.style.color = "var(--status-online)";
+          resultDiv.style.color = "#10B981";
         } else {
           resultDiv.textContent = "❌ " + res.message;
-          resultDiv.style.color = "var(--error)";
+          resultDiv.style.color = "#ba1a1a";
         }
       } catch (err) {
         resultDiv.textContent = "❌ DNS 检查失败: " + err.message;
-        resultDiv.style.color = "var(--error)";
+        resultDiv.style.color = "#ba1a1a";
       } finally {
         dnsBtn.disabled = false;
+        dnsBtn.textContent = "重新检查 DNS";
+      }
+    });
+  }
+
+  // TLS 启用按钮
+  const tlsBtn = $("btn-enable-tls");
+  if (tlsBtn) {
+    tlsBtn.addEventListener("click", async () => {
+      const domainVal = $("page-inp-domain").value.trim();
+      if (!domainVal) return;
+
+      tlsBtn.disabled = true;
+      tlsBtn.innerHTML = '<span class="material-symbols-outlined text-[18px] animate-spin">sync</span> 正在申请证书…';
+
+      try {
+        const res = await api.post("/api/settings/enable-tls", { domain: domainVal, mode: "auto" });
+        if (res.success) {
+          setTimeout(() => { window.location.href = `https://${domainVal}`; }, 3000);
+        } else {
+          alert(res.message || "证书申请失败");
+        }
+      } catch (err) {
+        alert(err.message || "证书申请失败");
+      } finally {
+        tlsBtn.disabled = false;
+        tlsBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">lock</span> 一键申请 Let\'s Encrypt 证书并启用 HTTPS';
+      }
+    });
+  }
+
+  // 证书续期按钮
+  const renewBtn = $("btn-renew-cert");
+  if (renewBtn) {
+    renewBtn.addEventListener("click", async () => {
+      renewBtn.disabled = true;
+      renewBtn.textContent = "续期中…";
+
+      try {
+        const res = await api.post("/api/settings/renew-cert");
+        if (res.success) {
+          alert(res.message || "证书续期成功");
+          _settingsPageLoaded = false;
+          initSettingsPage();
+        } else {
+          alert(res.message || "证书续期失败");
+        }
+      } catch (err) {
+        alert(err.message || "证书续期失败");
+      } finally {
+        renewBtn.disabled = false;
+        renewBtn.textContent = "手动续期证书";
       }
     });
   }
@@ -230,7 +170,8 @@ export async function initSettingsPage() {
   if (saveBtn) {
     saveBtn.addEventListener("click", async () => {
       saveBtn.disabled = true;
-      saveBtn.textContent = "保存中…";
+      const originalHTML = saveBtn.innerHTML;
+      saveBtn.innerHTML = '<span class="material-symbols-outlined text-[18px] animate-spin">sync</span> 保存中…';
       try {
         const portVal = $("page-inp-panel-port").value.trim();
         const domainVal = $("page-inp-domain").value.trim();
@@ -238,15 +179,15 @@ export async function initSettingsPage() {
         if (domainVal) {
           await api.post("/api/settings/domain", { domain: domainVal });
         }
-        saveBtn.textContent = "✓ 已保存";
+        saveBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">check</span> 已保存';
         setTimeout(() => {
-          saveBtn.textContent = "保存配置";
+          saveBtn.innerHTML = originalHTML;
           saveBtn.disabled = false;
         }, 2000);
       } catch (err) {
         saveBtn.textContent = "保存失败";
         setTimeout(() => {
-          saveBtn.textContent = "保存配置";
+          saveBtn.innerHTML = originalHTML;
           saveBtn.disabled = false;
         }, 2000);
       }

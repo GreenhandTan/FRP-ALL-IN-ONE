@@ -6,10 +6,14 @@ import { getToken } from './api.js';
 import { t } from './i18n.js';
 
 function updateWsBadge(online) {
-  const badge = $("ws-badge");
-  if (!badge) return;
-  badge.textContent = online ? t("dashboard.clients.online") : t("dashboard.clients.offline");
-  badge.className = "badge " + (online ? "badge-success" : "badge-warning");
+  const badges = [$("ws-badge"), $("ws-badge-desktop")];
+  badges.forEach(badge => {
+    if (!badge) return;
+    badge.textContent = online ? t("dashboard.clients.online") : "Offline";
+    badge.className = online
+      ? "inline-flex items-center gap-1 px-2 py-1 rounded-full bg-status-online/10 text-status-online font-label-sm text-label-sm"
+      : "inline-flex items-center gap-1 px-2 py-1 rounded-full bg-status-warning/10 text-status-warning font-label-sm text-label-sm";
+  });
 }
 
 export const WS = {

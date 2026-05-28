@@ -69,28 +69,9 @@ function closeMobileSidebar() {
 /* ---- 语言切换 ---- */
 function applyTranslations() {
   setText("nav-title", t("dashboard.title"));
-  setText("stat-label-clients", t("dashboard.stats.totalClients"));
-  setText("stat-label-online", t("dashboard.stats.onlineClients"));
-  setText("stat-label-traffic-in", t("dashboard.stats.trafficIn"));
-  setText("stat-label-traffic-out", t("dashboard.stats.trafficOut"));
   setText("clients-section-title", t("dashboard.clients.title"));
   setText("clients-empty-text", t("dashboard.clients.empty"));
   setText("btn-github-login-text", t("login.submit"));
-
-  // Tunnel modal
-  setText("modal-tunnel-title", t("dashboard.tunnels.name"));
-  setText("lbl-tunnel-name", t("dashboard.tunnels.name"));
-  setText("lbl-tunnel-type", t("dashboard.tunnels.type"));
-  setText("lbl-remote-port", t("dashboard.tunnels.remotePort"));
-
-  // Settings modal
-  setText("modal-panel-settings-title", t("settings.title"));
-  setText("lbl-panel-access-port", t("settings.natPort"));
-  setText("lbl-panel-domain", t("settings.domain"));
-  const natPortInput = $("inp-panel-access-port");
-  if (natPortInput) natPortInput.placeholder = t("settings.natPortPlaceholder");
-  const domainInput = $("inp-panel-domain");
-  if (domainInput) domainInput.placeholder = t("settings.domainPlaceholder");
 
   // data-i18n attribute support
   document.querySelectorAll("[data-i18n]").forEach((el) => {
@@ -220,23 +201,29 @@ window.addEventListener("DOMContentLoaded", async () => {
   initLogControls();
   initDeviceSearch();
 
-  $("btn-lang").addEventListener("click", () => {
-    const newLang = lang === "zh" ? "en" : "zh";
-    setLang(newLang);
-    $("btn-lang").textContent = newLang === "zh" ? "EN" : "中";
-    applyTranslations();
-    renderStats();
-    renderClients();
+  // 语言切换按钮（桌面端和移动端）
+  const langBtns = [$("btn-lang"), $("btn-lang-mobile")];
+  langBtns.forEach(btn => {
+    if (btn) {
+      btn.addEventListener("click", () => {
+        const newLang = lang === "zh" ? "en" : "zh";
+        setLang(newLang);
+        langBtns.forEach(b => { if (b) b.textContent = newLang === "zh" ? "EN" : "中"; });
+        applyTranslations();
+        renderStats();
+        renderClients();
+      });
+      btn.textContent = lang === "zh" ? "EN" : "中";
+    }
   });
 
   applyTranslations();
-  $("btn-lang").textContent = lang === "zh" ? "EN" : "中";
 
   const hideLoading = () => {
     const ls = $("loading-screen");
     if (ls) {
-      ls.classList.add("fade-out");
-      setTimeout(() => ls.classList.add("hidden"), 310);
+      ls.style.opacity = "0";
+      setTimeout(() => { ls.style.display = "none"; }, 310);
     }
   };
 

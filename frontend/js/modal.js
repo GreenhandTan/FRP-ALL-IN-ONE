@@ -18,7 +18,10 @@ export function showConfirm(msg, options = {}) {
     setText("confirm-message", msg);
     const okBtn = $("btn-confirm-ok");
     okBtn.className =
-      "btn " + (options.tone === "danger" ? "btn-danger" : "btn-primary");
+      "px-4 py-2 rounded font-label-md text-label-md transition-colors " +
+      (options.tone === "danger"
+        ? "bg-error text-on-primary hover:bg-error/90"
+        : "bg-primary text-on-primary hover:bg-primary-container");
     setText("btn-confirm-ok", options.confirmText || t("confirm"));
     setText("btn-confirm-cancel", options.cancelText || t("cancel"));
     openModal("modal-confirm");

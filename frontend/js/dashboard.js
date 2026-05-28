@@ -12,13 +12,12 @@ import { openModal, closeModal, showConfirm, showGlobalError } from './modal.js'
 export function renderStats() {
   const { stats } = STATE;
   setText("stat-val-clients", stats.totalClients);
-  setText(
-    "stat-sub-clients",
-    t("dashboard.stats.proxyCount", { active: stats.activeProxies || 0, total: stats.totalProxies }),
-  );
   setText("stat-val-online", stats.onlineClients);
-  setText("stat-val-traffic-in", formatBytes(stats.machineTrafficIn));
+
+  const totalTraffic = (stats.machineTrafficIn || 0) + (stats.machineTrafficOut || 0);
+  setText("stat-val-traffic-in", formatBytes(totalTraffic));
   setText("stat-val-traffic-out", formatBytes(stats.machineTrafficOut));
+  setText("stat-val-traffic-down", formatBytes(stats.machineTrafficIn));
 
   const agentBadge = $("agents-badge");
   if (agentBadge) {
@@ -48,7 +47,7 @@ export function renderOverviewDevices() {
 
   const clients = STATE.registeredClients;
   if (clients.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:32px;color:var(--outline);">
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:32px;color:#6d797f;">
       ${t("dashboard.clients.empty")}
     </td></tr>`;
     return;
@@ -65,28 +64,31 @@ export function renderOverviewDevices() {
       const trafficOut = client.net_bytes_out || 0;
       const os = client.os || "Unknown";
       const arch = client.arch || "";
+      const netSpeedIn = client.net_speed_in || 0;
+      const netSpeedOut = client.net_speed_out || 0;
 
-      return `<tr>
-        <td>
-          <span class="table-status-dot ${online ? "online" : "offline"}">
-            <span class="dot"></span>
+      return `<tr class="table-row-hover">
+        <td class="py-3 px-4">
+          <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full ${online ? 'bg-surface-container text-status-online' : 'bg-error-container text-on-error-container'} font-label-sm text-label-sm">
+            <span class="w-1.5 h-1.5 rounded-full ${online ? 'bg-status-online' : 'bg-status-offline'}"></span>
             ${online ? "在线" : "离线"}
           </span>
         </td>
-        <td class="mono">${escapeHtml(client.name)}</td>
-        <td>${escapeHtml(os)}${arch ? "/" + escapeHtml(arch) : ""}</td>
-        <td>
-          <div class="table-traffic">
-            <span class="up">↑ ${formatBytes(trafficOut)}</span>
-            <span class="down">↓ ${formatBytes(trafficIn)}</span>
-          </div>
+        <td class="py-3 px-4 font-label-md text-label-md text-on-surface">${escapeHtml(client.name)}</td>
+        <td class="py-3 px-4 text-on-surface-variant hidden md:table-cell">${escapeHtml(os)}${arch ? "/" + escapeHtml(arch) : ""}</td>
+        <td class="py-3 px-4 text-right font-label-md text-label-md">
+          <span class="text-status-warning">${formatSpeed(netSpeedOut)}</span>
+          <span class="text-on-surface-variant"> / </span>
+          <span class="text-status-online">${formatSpeed(netSpeedIn)}</span>
         </td>
-        <td>
-          <button class="btn-view-log" title="${t("dashboard.clients.viewLogs")}"
-            data-action="view-logs" data-client-id="${escapeHtml(client.id)}" data-client-name="${escapeHtml(client.name)}"
-            ${online ? "" : "disabled"}>
-            <span class="material-icons material-icons-sm">terminal</span>
-          </button>
+        <td class="py-3 px-4 text-right">
+          <div class="table-actions">
+            <button title="${t("dashboard.clients.viewLogs")}"
+              data-action="view-logs" data-client-id="${escapeHtml(client.id)}" data-client-name="${escapeHtml(client.name)}"
+              ${online ? "" : "disabled"}>
+              <span class="material-symbols-outlined">list_alt</span>
+            </button>
+          </div>
         </td>
       </tr>`;
     })
@@ -192,9 +194,9 @@ function renderClientCard(client, proxiesByName, nowSec) {
   // OS 徽标
   let osBadge = "";
   if (online && client.os && client.arch) {
-    osBadge = `<span class="badge badge-os">${escapeHtml(client.os)}/${escapeHtml(client.arch)}</span>`;
+    osBadge = `<span class="inline-flex items-center px-2 py-0.5 rounded bg-surface-container text-on-surface-variant font-label-sm text-label-sm">${escapeHtml(client.os)}/${escapeHtml(client.arch)}</span>`;
   } else {
-    osBadge = `<span class="text-muted">${online ? "Unknown" : t("dashboard.clients.offline")}</span>`;
+    osBadge = `<span class="text-on-surface-variant text-sm">${online ? "Unknown" : t("dashboard.clients.offline")}</span>`;
   }
 
   // 隧道行
@@ -211,8 +213,8 @@ function renderClientCard(client, proxiesByName, nowSec) {
 
       return `<tr class="${enabled ? "" : "disabled-row"}" data-tunnel-id="${tunnel.id}" data-client-id="${escapeHtml(client.id)}">
       <td class="mono">${escapeHtml(proxyName)}</td>
-      <td><span class="badge-type">${escapeHtml(tunnel.type)}</span></td>
-      <td>${remotePort ? `<span class="port-chip">:${remotePort}</span>` : '<span class="text-muted">—</span>'}</td>
+      <td><span class="inline-flex items-center px-2 py-0.5 rounded bg-surface-container text-on-surface-variant font-label-sm text-label-sm font-semibold uppercase">${escapeHtml(tunnel.type)}</span></td>
+      <td>${remotePort ? `<span class="port-chip">:${remotePort}</span>` : '<span class="text-on-surface-variant">—</span>'}</td>
       <td class="text-right">
         <div class="traffic-cell">
           <span class="traffic-in">↓ ${formatBytes(trafficIn)}</span>
@@ -259,21 +261,21 @@ function renderClientCard(client, proxiesByName, nowSec) {
         <tbody>${tunnelRows}</tbody>
       </table>
     </div>`
-      : `<div style="padding:16px 22px;color:var(--outline);font-size:.85rem">${t("dashboard.clients.noTunnels")}</div>`;
+      : `<div class="py-4 px-6 text-on-surface-variant text-sm">${t("dashboard.clients.noTunnels")}</div>`;
 
   return `<div class="client-card" data-client-id="${escapeHtml(client.id)}">
     <div class="client-card-header">
       <div class="client-info">
         <div class="client-avatar ${online ? "online" : "offline"}">
-          <span class="material-icons">desktop_windows</span>
+          <span class="material-symbols-outlined">desktop_windows</span>
           <div class="client-status-dot ${online ? "online" : "offline"}"></div>
         </div>
         <div>
           <div class="client-name">${escapeHtml(client.name)}</div>
           <div class="client-meta">
             ${osBadge}
-            <span style="color:var(--slate-300)">|</span>
-            <span>ID: ${shortId}</span>
+            <span class="text-outline-variant">|</span>
+            <span class="text-on-surface-variant text-sm">ID: ${shortId}</span>
           </div>
           ${resBars}
         </div>
@@ -288,10 +290,10 @@ function renderClientCard(client, proxiesByName, nowSec) {
           <div class="client-stat-value speed-out">${formatSpeed(netSpeedOut)}</div>
         </div>
         <div class="client-actions">
-          <button class="btn-view-log" title="${t("dashboard.clients.viewLogs")}"
+          <button class="p-1.5 rounded-full hover:bg-primary-fixed text-on-surface-variant hover:text-primary transition-colors" title="${t("dashboard.clients.viewLogs")}"
             data-action="view-logs" data-client-id="${escapeHtml(client.id)}" data-client-name="${escapeHtml(client.name)}"
             ${online ? "" : "disabled"}>
-            <span class="material-icons material-icons-sm">terminal</span>
+            <span class="material-symbols-outlined text-[20px]">terminal</span>
           </button>
           <button class="btn-add-tunnel"
             data-action="open-add-tunnel" data-client-id="${escapeHtml(client.id)}">
@@ -432,8 +434,8 @@ function openLogTerminal(clientId, clientName) {
   $("log-lines").innerHTML = "";
   show("log-empty");
   $("log-status-badge").textContent = "OFFLINE";
-  $("log-status-badge").className = "badge badge-danger";
-  $("btn-log-pause").textContent = "⏸";
+  $("log-status-badge").className = "inline-flex items-center px-2 py-0.5 rounded-full bg-error-container text-on-error-container font-label-sm text-label-sm";
+  $("btn-log-pause").querySelector(".material-symbols-outlined").textContent = "pause";
   openModal("modal-log-terminal");
   connectLogWs(clientId);
 }
@@ -454,7 +456,7 @@ function connectLogWs(clientId) {
 
   ws.onopen = () => {
     $("log-status-badge").textContent = "LIVE";
-    $("log-status-badge").className = "badge badge-success";
+    $("log-status-badge").className = "inline-flex items-center px-2 py-0.5 rounded-full bg-status-online/10 text-status-online font-label-sm text-label-sm";
     hide("log-empty");
     appendLogLine("info", `Connected to log stream…`);
   };
@@ -471,7 +473,7 @@ function connectLogWs(clientId) {
 
   ws.onclose = (ev) => {
     $("log-status-badge").textContent = "OFFLINE";
-    $("log-status-badge").className = "badge badge-danger";
+    $("log-status-badge").className = "inline-flex items-center px-2 py-0.5 rounded-full bg-error-container text-on-error-container font-label-sm text-label-sm";
     appendLogLine("info", `Connection closed (${ev.code}).`);
   };
 
@@ -506,7 +508,8 @@ function appendLogLine(type, content) {
 export function initLogControls() {
   $("btn-log-pause").addEventListener("click", () => {
     STATE.logPaused = !STATE.logPaused;
-    $("btn-log-pause").textContent = STATE.logPaused ? "▶" : "⏸";
+    const icon = $("btn-log-pause").querySelector(".material-symbols-outlined");
+    icon.textContent = STATE.logPaused ? "play_arrow" : "pause";
   });
 
   $("btn-log-clear").addEventListener("click", () => {

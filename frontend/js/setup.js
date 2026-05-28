@@ -27,7 +27,7 @@ async function detectPublicIp() {
   const badge = $("ip-detect-status");
   if (badge) {
     badge.textContent = t("setup.detectingIp");
-    badge.className = "badge badge-info";
+    badge.className = "inline-block ml-2 px-2 py-0.5 rounded-full bg-primary-fixed text-on-primary-container font-label-sm text-label-sm";
   }
   try {
     const res = await api.get("/api/system/public-ip");
@@ -35,18 +35,18 @@ async function detectPublicIp() {
       $("inp-serverip").value = res.ip.trim();
       if (badge) {
         badge.textContent = t("setup.autoDetected");
-        badge.className = "badge badge-success";
+        badge.className = "inline-block ml-2 px-2 py-0.5 rounded-full bg-status-online/10 text-status-online font-label-sm text-label-sm";
       }
     } else {
       if (badge) {
         badge.textContent = t("setup.ipDetectFailed");
-        badge.className = "badge badge-warning";
+        badge.className = "inline-block ml-2 px-2 py-0.5 rounded-full bg-status-warning/10 text-status-warning font-label-sm text-label-sm";
       }
     }
   } catch {
     if (badge) {
       badge.textContent = t("setup.ipDetectFailed");
-      badge.className = "badge badge-warning";
+      badge.className = "inline-block ml-2 px-2 py-0.5 rounded-full bg-status-warning/10 text-status-warning font-label-sm text-label-sm";
     }
   }
 }
