@@ -66,19 +66,19 @@ jobs:
       - name: Detect file changes
         id: changes
         run: |
+          # workflow_dispatch / tag 推送：两个都构建
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.ref_type }}" = "tag" ]; then
             echo "backend=true" >> $GITHUB_OUTPUT
             echo "frontend=true" >> $GITHUB_OUTPUT
             exit 0
           fi
 
-          BASE=${{ github.event.before }}
-          HEAD=${{ github.sha }}
-
+          # paths 过滤器已保证只有 server/agent/frontend 的文件变动才会触发
+          # 直接用 git diff 比较最近两次提交来判断哪个目录有变更
           BACKEND_CHANGED="false"
           FRONTEND_CHANGED="false"
 
-          for file in $(git diff --name-only "$BASE" "$HEAD" 2>/dev/null); do
+          for file in $(git diff --name-only HEAD~1 HEAD 2>/dev/null); do
             case "$file" in
               server/*|agent/*)
                 BACKEND_CHANGED="true" ;;
