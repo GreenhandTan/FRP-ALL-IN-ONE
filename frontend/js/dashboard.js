@@ -14,7 +14,7 @@ export function renderStats() {
   setText("stat-val-clients", stats.totalClients);
   setText(
     "stat-sub-clients",
-    `代理: ${stats.activeProxies || 0} / ${stats.totalProxies}`,
+    t("dashboard.stats.proxyCount", { active: stats.activeProxies || 0, total: stats.totalProxies }),
   );
   setText("stat-val-online", stats.onlineClients);
   setText("stat-val-traffic-in", formatBytes(stats.machineTrafficIn));
@@ -163,13 +163,13 @@ function renderClientCard(client, proxiesByName, nowSec) {
         <tbody>${tunnelRows}</tbody>
       </table>
     </div>`
-      : `<div style="padding:16px 22px;color:var(--slate-400);font-size:.85rem">暂无隧道配置</div>`;
+      : `<div style="padding:16px 22px;color:var(--outline);font-size:.85rem">${t("dashboard.clients.noTunnels")}</div>`;
 
   return `<div class="client-card" data-client-id="${escapeHtml(client.id)}">
     <div class="client-card-header">
       <div class="client-info">
         <div class="client-avatar ${online ? "online" : "offline"}">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+          <span class="material-icons">desktop_windows</span>
           <div class="client-status-dot ${online ? "online" : "offline"}"></div>
         </div>
         <div>
@@ -195,7 +195,7 @@ function renderClientCard(client, proxiesByName, nowSec) {
           <button class="btn-view-log" title="${t("dashboard.clients.viewLogs")}"
             data-action="view-logs" data-client-id="${escapeHtml(client.id)}" data-client-name="${escapeHtml(client.name)}"
             ${online ? "" : "disabled"}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+            <span class="material-icons material-icons-sm">terminal</span>
           </button>
           <button class="btn-add-tunnel"
             data-action="open-add-tunnel" data-client-id="${escapeHtml(client.id)}">
@@ -292,15 +292,15 @@ export function initTunnelForm() {
     const custom_domains = $("inp-custom-domains").value.trim() || null;
 
     if (!name || !Number.isFinite(local_port)) {
-      showAlert("add-tunnel-error", "请填写隧道名称和本地端口");
+      showAlert("add-tunnel-error", t("dashboard.tunnels.validation.nameAndPort"));
       return;
     }
     if ((type === "tcp" || type === "udp") && !Number.isFinite(remote_port)) {
-      showAlert("add-tunnel-error", "请填写远程端口");
+      showAlert("add-tunnel-error", t("dashboard.tunnels.validation.remotePort"));
       return;
     }
     if ((type === "http" || type === "https") && !custom_domains) {
-      showAlert("add-tunnel-error", "请填写自定义域名");
+      showAlert("add-tunnel-error", t("dashboard.tunnels.validation.customDomain"));
       return;
     }
 
@@ -496,7 +496,7 @@ function handleFullSync(data) {
       STATE._lastShownConflictTime = latest.time;
       const banner = $("error-banner");
       if (banner) {
-        $("error-text").textContent = "⚠️ 设备冲突：" + latest.message;
+        $("error-text").textContent = "⚠️ " + t("dashboard.clients.conflictPrefix") + latest.message;
         banner.classList.remove("hidden");
       }
     }

@@ -1,21 +1,18 @@
 /**
- * FRP Manager — 应用入口
+ * FRP ALL IN ONE — 应用入口
  * ES Module 架构，零构建工具
  */
 import { $, $$, setText, show, hide } from './js/dom.js';
-import { api, getToken, setOn403Handler } from './js/api.js';
+import { api, getToken } from './js/api.js';
 import { t, lang, setLang } from './js/i18n.js';
 import { STATE } from './js/state.js';
 import { WS } from './js/ws.js';
 import { openModal, closeModal } from './js/modal.js';
 import { renderStats, renderClients, onDashboardMessage, initTunnelForm, initLogControls } from './js/dashboard.js';
-import { initAuth, openForcedPasswordChange } from './js/auth.js';
+import { initAuth, handleLogout, extractTokenFromHash, extractErrorFromQuery } from './js/auth.js';
 import { initSetup, goSetupStep } from './js/setup.js';
 import { initSettings } from './js/settings.js';
 import { initAgent, openAgentDeploy as _openAgentDeploy, confirmCleanupAgentClient, getAgentCreatedClientId } from './js/agent.js';
-
-/* ---- 暴露给 HTML onclick 的全局函数 ---- */
-window.openAgentDeploy = _openAgentDeploy;
 
 /* ---- 视图切换 ---- */
 function showView(viewId) {
@@ -26,29 +23,68 @@ function showView(viewId) {
 
 /* ---- 语言切换 ---- */
 function applyTranslations() {
+  // Navbar
   setText("nav-title", t("dashboard.title"));
+
+  // Stats
   setText("stat-label-clients", t("dashboard.stats.totalClients"));
   setText("stat-label-online", t("dashboard.stats.onlineClients"));
-  setText("stat-label-traffic-in", t("dashboard.stats.totalTraffic") + " (↓)");
-  setText("stat-label-traffic-out", t("dashboard.stats.totalTraffic") + " (↑)");
+  setText("stat-label-traffic-in", t("dashboard.stats.trafficIn"));
+  setText("stat-label-traffic-out", t("dashboard.stats.trafficOut"));
+
+  // Client list
   setText("clients-section-title", t("dashboard.clients.title"));
   setText("clients-empty-text", t("dashboard.clients.empty"));
-  setText("lbl-username", t("login.username"));
-  setText("lbl-password", t("login.password"));
-  setText("btn-login", t("login.submit"));
-  $("inp-username").placeholder = t("login.usernamePlaceholder");
+
+  // Login
+  setText("btn-github-login-text", t("login.submit"));
+  setText("login-hint", t("login.hint"));
+
+  // Setup
   setText("setup-title", t("setup.title"));
   setText("setup-subtitle", t("setup.subtitle"));
   setText("lbl-port", t("setup.portLabel"));
   setText("btn-deploy", t("setup.deployButton"));
+  setText("step-lbl-0", t("setup.mode"));
   setText("step-lbl-1", t("setup.step1"));
   setText("step-lbl-2", t("setup.step2"));
   setText("step-lbl-3", t("setup.step3"));
-  setText("modal-change-pwd-title", t("changePassword.title"));
-  setText("lbl-old-pwd", t("changePassword.oldPassword"));
-  setText("lbl-new-pwd", t("changePassword.newPassword"));
-  setText("lbl-confirm-pwd", t("changePassword.confirmPassword"));
-  setText("btn-pwd-submit", t("changePassword.submit"));
+
+  // Admin modal
+  setText("modal-admin-title", t("adminManage.title"));
+  setText("admin-list-title", t("adminManage.admins"));
+  setText("invite-title", t("adminManage.inviteButton"));
+  const inviteInput = $("inp-invite-username");
+  if (inviteInput) inviteInput.placeholder = t("adminManage.invitePlaceholder");
+  setText("invite-list-title", t("adminManage.invites"));
+
+  // Tunnel modal
+  setText("modal-tunnel-title", t("dashboard.tunnels.name"));
+  setText("lbl-tunnel-name", t("dashboard.tunnels.name"));
+  setText("lbl-tunnel-type", t("dashboard.tunnels.type"));
+  setText("lbl-remote-port", t("dashboard.tunnels.remotePort"));
+
+  // Settings modal
+  setText("modal-panel-settings-title", t("settings.title"));
+  setText("lbl-panel-access-port", t("settings.natPort"));
+  setText("lbl-panel-domain", t("settings.domain"));
+  const natPortInput = $("inp-panel-access-port");
+  if (natPortInput) natPortInput.placeholder = t("settings.natPortPlaceholder");
+  const domainInput = $("inp-panel-domain");
+  if (domainInput) domainInput.placeholder = t("settings.domainPlaceholder");
+
+  // data-i18n attribute support
+  document.querySelectorAll("[data-i18n]").forEach((el) => {
+    const key = el.getAttribute("data-i18n");
+    const translated = t(key);
+    if (translated !== key) el.textContent = translated;
+  });
+  // data-i18n-title attribute support
+  document.querySelectorAll("[data-i18n-title]").forEach((el) => {
+    const key = el.getAttribute("data-i18n-title");
+    const translated = t(key);
+    if (translated !== key) el.title = translated;
+  });
 }
 
 /* ---- 仪表盘入口 ---- */
@@ -63,15 +99,37 @@ function startDashboard() {
 
 /* ---- 路由检查 ---- */
 async function checkAuthAndRoute() {
-  const token = getToken();
-  if (!token) {
+  // 检查 GitHub OAuth 回调
+  const hashResult = extractTokenFromHash();
+  if (hashResult && typeof hashResult === 'object' && hashResult.error) {
     showView("view-login");
+    const errorEl = $("login-error");
+    if (hashResult.error === "not_invited") {
+      errorEl.textContent = t("login.errorNotInvited");
+    } else {
+      errorEl.textContent = t("login.error");
+    }
+    errorEl.classList.remove("hidden");
     return;
   }
 
-  if (localStorage.getItem("require_pwd_change") === "1") {
+  // 检查 URL 参数中的错误
+  const queryError = extractErrorFromQuery();
+  if (queryError) {
     showView("view-login");
-    openForcedPasswordChange();
+    const errorEl = $("login-error");
+    if (queryError === "not_invited") {
+      errorEl.textContent = t("login.errorNotInvited");
+    } else {
+      errorEl.textContent = t("login.error");
+    }
+    errorEl.classList.remove("hidden");
+    return;
+  }
+
+  const token = getToken();
+  if (!token) {
+    showView("view-login");
     return;
   }
 
@@ -93,12 +151,13 @@ async function checkAuthAndRoute() {
   }
 }
 
-/* ---- 弹窗全局关闭代理 ---- */
+/* ---- 弹窗全局关闭代理 + data-action 事件委托 ---- */
 document.addEventListener("click", (e) => {
+  // Modal close buttons
   const btn = e.target.closest(".btn-close-modal");
   if (btn) {
     const modalId = btn.dataset.modal;
-    if (modalId && !($(modalId) && $(modalId).dataset.forced === "1")) {
+    if (modalId) {
       if (modalId === "modal-agent-deploy" && getAgentCreatedClientId()) {
         confirmCleanupAgentClient();
         return;
@@ -106,14 +165,19 @@ document.addEventListener("click", (e) => {
       closeModal(modalId);
     }
   }
+
+  // data-action delegation
+  const actionEl = e.target.closest("[data-action]");
+  if (actionEl) {
+    const action = actionEl.dataset.action;
+    if (action === "open-agent-deploy") {
+      _openAgentDeploy();
+    }
+  }
 });
 
 /* ---- 初始化 ---- */
 window.addEventListener("DOMContentLoaded", async () => {
-  // 注入 403 回调（打破 api.js ↔ auth.js 循环依赖）
-  setOn403Handler(() => openForcedPasswordChange());
-
-  // 初始化各子模块
   initAuth(checkAuthAndRoute);
   initSetup(startDashboard);
   initSettings();
@@ -121,7 +185,6 @@ window.addEventListener("DOMContentLoaded", async () => {
   initTunnelForm();
   initLogControls();
 
-  // 语言切换
   $("btn-lang").addEventListener("click", () => {
     const newLang = lang === "zh" ? "en" : "zh";
     setLang(newLang);
@@ -134,7 +197,6 @@ window.addEventListener("DOMContentLoaded", async () => {
   applyTranslations();
   $("btn-lang").textContent = lang === "zh" ? "EN" : "中";
 
-  // 淡出加载屏幕
   const hideLoading = () => {
     const ls = $("loading-screen");
     if (ls) {

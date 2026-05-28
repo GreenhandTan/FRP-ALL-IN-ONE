@@ -26,11 +26,7 @@
 </div>
 
 > [!CAUTION]
-> **Upgrade Notice (v2.1+)**: This update adds a `token_version` field for automatic session invalidation after password changes. If upgrading from an older version, you must run a database migration:
-> ```sql
-> sqlite3 deploy/data/frp_manager.db "ALTER TABLE admins ADD COLUMN token_version INTEGER DEFAULT 1;"
-> ```
-> Fresh deployments require no additional steps.
+> **Upgrade Notice (v3.0+)**: Login has been migrated from username/password to **GitHub OAuth**. Existing deployments must run database migration, see [Upgrade Guide](#upgrade). Fresh deployments require no additional steps.
 
 <a id="author"></a>
 
@@ -105,7 +101,7 @@
 - **Hot reload**: Dynamically add/remove port mappings via FRPC Admin API; changes take effect immediately without restarting frpc
 - **Fully automated HTTPS**: One-click Let's Encrypt certificate issuance in domain mode with automatic renewal (30 days before expiry); custom certificate upload also supported
 - **Multi-arch Agent**: frp-agent written in Go supports x86_64 / ARM64 / ARMv7 / MIPS — covers Raspberry Pi, routers, and more
-- **Production-grade security**: JWT authentication (token version invalidation), API rate limiting, forced first-login password change, account settings (custom username/password), Nginx security headers
+- **Production-grade security**: GitHub OAuth authentication, JWT authorization, API rate limiting, invite-based access control, Nginx security headers
 
 ---
 
@@ -123,12 +119,12 @@
 
 ### Security Enhancements
 
-- **Account Settings**: Customize admin username and password; all sensitive operations require password verification
-- **Mandatory Password Change**: First login requires password change with strength validation (8+ chars, upper/lower case, numbers)
+- **GitHub OAuth Authentication**: Login with GitHub account; no bundled credentials — users provide their own OAuth App
+- **Invite-based Access Control**: First login user auto-becomes superadmin; subsequent users must be invited
+- **Admin Management**: Superadmin can invite/remove GitHub users and manage admin list from the console
 - **Advanced JWT Protection**: Stateless Ephemeral JWT Keys in memory (prevents DB leak), supports `SECRET_KEY` env var for multi-node
-- **Token Version Invalidation**: Password changes increment token version, instantly invalidating all old sessions (REST + WebSocket)
 - **Network Isolation**: Backend bound to 127.0.0.1, strict regex validation blocks Nginx config injection
-- **API Rate Limiting**: Login/password/username change: 5 req/min; certificate: 3 req/hour
+- **API Rate Limiting**: Login: 5 req/min; certificate: 3 req/hour
 - **Security Headers**: Nginx adds `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`
 - **Smart Certificate Management**: Auto-renew Let's Encrypt certs via async Python tasks, console shows expiry and manual renewal
 
@@ -161,7 +157,7 @@
 ```mermaid
 flowchart TB
     subgraph Server["Server Podman Compose"]
-        Web["Web<br/>Nginx Alpine + Native H5<br/>:80/TCP or :443/TCP"]
+        Web["Web<br/>Nginx Alpine + Native H5<br/>:8080/TCP or :443/TCP"]
         Backend["Backend<br/>FastAPI + SQLite<br/>WebSocket Real-time"]
         FRPS["FRPS<br/>FRP Server<br/>:7000 + :7500"]
         Web <--> Backend
@@ -186,11 +182,41 @@ flowchart TB
 
 - A server with public IP (**Linux recommended, minimum 1 vCPU + 1 GB RAM verified by real-world testing**)
 - Podman & Podman Compose (auto-installed by deploy script)
-- Port forwarding (minimum): 80/TCP, FRPS port (default 7000/TCP)
+- Port forwarding (minimum): 8080/TCP, FRPS port (default 7000/TCP)
 
 > **System Recommendation**: This project is deployed via Podman. The deployment script auto-detects Linux distributions (including Alpine, Debian/Ubuntu, and RHEL-family) and installs dependencies automatically. Windows and macOS can run as client machines; Linux is recommended for the server.
 
 > **Lightweight Note**: The frontend is pure native H5 static files — the Nginx container uses < 10 MB of memory. The FastAPI + SQLite backend means the entire system runs comfortably on a 1 vCPU + 1 GB server.
+
+### Create GitHub OAuth App (Required)
+
+This system uses GitHub OAuth for authentication. You need to create your own GitHub OAuth App:
+
+1. Go to https://github.com/settings/developers
+2. Click **New OAuth App**
+3. Fill in:
+   - **Application name**: `FRP Manager` (or any name)
+   - **Homepage URL**: `http://<your-server-ip>:8080` (or your domain)
+   - **Authorization callback URL**: `http://<your-server-ip>:8080/api/auth/github/callback`
+4. Click **Register application**
+5. Copy the **Client ID**
+6. Click **Generate a new client secret**, copy the **Client Secret**
+
+Then set environment variables before deploying:
+
+```bash
+export GITHUB_CLIENT_ID="your-client-id"
+export GITHUB_CLIENT_SECRET="your-client-secret"
+```
+
+Or create a `.env` file in the same directory as `compose.yml`:
+
+```env
+GITHUB_CLIENT_ID=your-client-id
+GITHUB_CLIENT_SECRET=your-client-secret
+```
+
+> **Security Note**: The system does not bundle any GitHub credentials. Each user must provide their own OAuth App information.
 
 ### One-click Deployment
 
@@ -202,13 +228,13 @@ chmod +x deploy.sh
 sudo ./deploy.sh
 ```
 
-### Default Credentials
+### First Login
 
-| Username | Password |
-| -------- | -------- |
-| admin    | 123456   |
+After deployment, visit `http://<your-server-ip>:8080` and click **Sign in with GitHub**.
 
-> **Note**: The system enforces password change on first login. Password must be at least 8 characters with uppercase, lowercase letters and numbers.
+**The first GitHub user to log in will automatically become the superadmin.** After that, only invited GitHub users can log in.
+
+The superadmin can invite other GitHub users from the "Admin Management" panel in the console.
 
 ### Low Memory Servers (512 MB or less)
 
@@ -246,13 +272,26 @@ podman compose -f compose.yml up -d --build
 
 ### ⚠️ Database Migration (Required)
 
-If upgrading from **v2.0 or earlier**, run:
+If upgrading from an older version (password-based login) to the GitHub OAuth version, run:
 
 ```bash
-sqlite3 deploy/data/frp_manager.db "ALTER TABLE admins ADD COLUMN token_version INTEGER DEFAULT 1;"
+cd FRP-ALL-IN-ONE/deploy
+
+# Create admin_invites table
+sqlite3 data/frp_manager.db "CREATE TABLE IF NOT EXISTS admin_invites (id INTEGER PRIMARY KEY AUTOINCREMENT, github_username VARCHAR UNIQUE, added_by INTEGER, created_at DATETIME);"
+
+# Add new columns to admins table
+sqlite3 data/frp_manager.db "ALTER TABLE admins ADD COLUMN github_id INTEGER UNIQUE;"
+sqlite3 data/frp_manager.db "ALTER TABLE admins ADD COLUMN github_username VARCHAR;"
+sqlite3 data/frp_manager.db "ALTER TABLE admins ADD COLUMN avatar_url VARCHAR;"
+sqlite3 data/frp_manager.db "ALTER TABLE admins ADD COLUMN is_superadmin BOOLEAN DEFAULT 0;"
+sqlite3 data/frp_manager.db "ALTER TABLE admins ADD COLUMN created_at DATETIME;"
+
+# Set the first admin as superadmin
+sqlite3 data/frp_manager.db "UPDATE admins SET is_superadmin = 1 WHERE id = (SELECT MIN(id) FROM admins);"
 ```
 
-> `token_version` enables automatic session invalidation after password changes. Skipping this will cause password change to fail. Fresh deployments do not need this.
+> Old columns (`username`, `hashed_password`, etc.) will remain but be ignored. Fresh deployments do not need this.
 
 <a id="first-time-workflow"></a>
 
@@ -260,9 +299,9 @@ sqlite3 deploy/data/frp_manager.db "ALTER TABLE admins ADD COLUMN token_version 
 
 ### 1) Login to Dashboard
 
-Visit: `http://<SERVER_PUBLIC_IP>`
+Visit `http://<SERVER_PUBLIC_IP>:8080` and click **Sign in with GitHub**.
 
-After logging in with default credentials, the system will **enforce password change**.
+**The first GitHub user to log in will automatically become the superadmin.** After that, only invited GitHub users can log in. The superadmin can invite other GitHub users from the "Admin Management" panel.
 
 ### 2) Configure FRPS (Wizard)
 
@@ -327,7 +366,7 @@ curl http://localhost:8000/api/settings/tls-status
 ## NAT Access Port Configuration (Optional)
 
 > **Use Case**: Your cloud server accesses the management panel through a NAT port mapping rather than a direct public IP, for example:
-> `Public 151.242.85.89:10967` → `Internal server:80` (panel accessed via NAT)
+> `Public 151.242.85.89:10967` → `Internal server:8080` (panel accessed via NAT)
 
 In this scenario, without extra configuration the generated client install scripts will lack the port number (defaulting to 80), causing Agents to fail connecting to the management panel.
 
@@ -389,7 +428,7 @@ Quick interpretation:
 
 | Port                      | Protocol | Purpose                          |
 | ------------------------- | -------- | -------------------------------- |
-| 80                        | TCP      | Web management (HTTP)            |
+| 8080                      | TCP      | Web management (HTTP)            |
 | 443                       | TCP      | Web management (HTTPS, optional) |
 | 7000 (or custom bindPort) | TCP      | frpc control connection          |
 | 49152-65535               | TCP/UDP  | Recommended private port range   |
@@ -496,7 +535,7 @@ Ensure Agent service is running properly and can connect to the management serve
 ### HTTPS Certificate Application Failed
 
 1. **Check DNS resolution**: Ensure domain A record points to server's public IP
-2. **Check port 80**: Let's Encrypt validation requires temporary use of port 80
+2. **Check port 8080**: Let's Encrypt validation requires use of port 8080
 3. **View logs**: `podman logs frp-manager-backend | grep -i "cert\|acme"`
 4. **Manual trigger renewal**: Click "Renew Certificate" button in Web UI
 
@@ -530,7 +569,7 @@ FRP-ALL-IN-ONE/
 │   │   ├── exceptions.py      # Unified exception handling
 │   │   └── rate_limit.py      # API rate limiting
 │   ├── routers/           # API routes
-│   │   ├── auth.py            # Authentication (login, password change, username change)
+│   │   ├── auth.py            # Authentication (GitHub OAuth, admin management)
 │   │   ├── clients.py         # Client, tunnel management
 │   │   ├── agents.py          # Agent management, metrics
 │   │   ├── frp_server.py      # FRPS management, install scripts
@@ -622,9 +661,7 @@ You must:
 
 ## Security Recommendations
 
-- Change default password immediately after first login (enforced by system)
-- Change the default username `admin` promptly to reduce brute-force risk
-- Use strong passwords (at least 8 characters with upper/lower case + numbers)
+- Promptly invite trusted GitHub users and remove admins who no longer need access
 - Configure `SECRET_KEY` environment variable in production (in `compose.yml`) to prevent sessions expiring on restart
 - Regularly update Podman images
 - Only open necessary ports in security groups

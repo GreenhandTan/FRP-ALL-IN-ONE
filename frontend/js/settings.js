@@ -1,5 +1,5 @@
 /**
- * 面板设置模块：NAT 端口 + SSL 证书管理
+ * Panel Settings: NAT port + SSL certificate management
  */
 import { $, setText, show, hide, showAlert, hideAlert } from './dom.js';
 import { api } from './api.js';
@@ -8,14 +8,13 @@ import { openModal, closeModal } from './modal.js';
 import { STATE } from './state.js';
 
 export function initSettings() {
-  // 打开面板设置
   $("btn-panel-settings").addEventListener("click", async () => {
     hideAlert("panel-settings-error");
     hideAlert("panel-settings-success");
-    
-    // 隐藏证书模块的默认状态
-    $("cert-management-group").style.display = "none";
-    $("cert-status-text").textContent = "加载中...";
+
+    $("cert-management-group").classList.add("hidden");
+    $("tls-enable-group").classList.add("hidden");
+    $("cert-status-text").textContent = t("loading");
     $("cert-domain-text").textContent = "—";
     $("cert-expire-text").textContent = "—";
     $("cert-days-text").textContent = "—";
@@ -28,143 +27,123 @@ export function initSettings() {
       $("inp-panel-access-port").value = "";
     }
 
-    // 获取证书与域名信息
     try {
       const domainData = await api.get("/api/settings/domain");
-      
-      // 回显域名
       if (domainData.domain) {
         $("inp-panel-domain").value = domainData.domain;
       }
-      
+
       if (domainData.tls_enabled && domainData.tls_mode === "auto") {
-        $("cert-management-group").style.display = "block";
-        $("tls-enable-group").style.display = "none";
+        $("cert-management-group").classList.remove("hidden");
+        $("tls-enable-group").classList.add("hidden");
         const certInfo = domainData.cert_info;
         if (certInfo) {
-          $("cert-status-text").textContent = "有效";
-          $("cert-status-text").style.color = "var(--green)";
+          $("cert-status-text").textContent = t("settings.certValid");
+          $("cert-status-text").style.color = "var(--status-online)";
           $("cert-domain-text").textContent = certInfo.domain;
-          
-          const expireDate = new Date(certInfo.expires_at);
-          $("cert-expire-text").textContent = expireDate.toLocaleString();
-          
+          $("cert-expire-text").textContent = new Date(certInfo.expires_at).toLocaleString();
           const days = certInfo.days_until_expiry;
-          $("cert-days-text").textContent = days + " 天";
-          if (days <= 30) {
-            $("cert-days-text").style.color = "var(--orange)";
-          } else {
-            $("cert-days-text").style.color = "var(--text-color)";
-          }
-          
+          $("cert-days-text").textContent = t("settings.certDaysValue", { days });
+          $("cert-days-text").style.color = days <= 30 ? "var(--status-warning)" : "var(--on-surface)";
           $("btn-renew-cert").disabled = false;
         } else {
-          $("cert-status-text").textContent = "未找到证书或已过期";
-          $("cert-status-text").style.color = "var(--red)";
+          $("cert-status-text").textContent = t("settings.certNotFound");
+          $("cert-status-text").style.color = "var(--error)";
           $("btn-renew-cert").disabled = false;
         }
       } else {
-        $("cert-management-group").style.display = "none";
-        $("tls-enable-group").style.display = "block";
+        $("cert-management-group").classList.add("hidden");
+        $("tls-enable-group").classList.remove("hidden");
       }
     } catch (err) {
-      console.error("获取域名与证书信息失败:", err);
+      console.error(t("settings.loadFailed") + ":", err);
     }
 
     openModal("modal-panel-settings");
   });
 
-  // 检测 DNS
   $("btn-check-dns").addEventListener("click", async () => {
     const domainVal = $("inp-panel-domain").value.trim();
     const resultDiv = $("dns-check-result");
     if (!domainVal) {
-      resultDiv.textContent = "请先输入域名";
+      resultDiv.textContent = t("settings.enterDomain");
       return;
     }
-    
+
     $("btn-check-dns").disabled = true;
-    $("btn-check-dns").textContent = "检测中...";
-    resultDiv.textContent = "正在查询 A 记录...";
-    
+    $("btn-check-dns").textContent = t("settings.dnsChecking");
+    resultDiv.textContent = t("settings.dnsQuerying");
+
     try {
-      // check-dns 在后端是接收 Query 参数: ?domain=xxx
       const res = await api.post(`/api/settings/check-dns?domain=${encodeURIComponent(domainVal)}`);
       if (res.success) {
-         resultDiv.textContent = "✅ " + res.message;
-         resultDiv.style.color = "var(--green)";
+        resultDiv.textContent = "✅ " + res.message;
+        resultDiv.style.color = "var(--status-online)";
       } else {
-         resultDiv.textContent = "❌ " + res.message;
-         resultDiv.style.color = "var(--red)";
+        resultDiv.textContent = "❌ " + res.message;
+        resultDiv.style.color = "var(--error)";
       }
     } catch (err) {
-      resultDiv.textContent = "❌ 检测异常: " + err.message;
-      resultDiv.style.color = "var(--red)";
+      resultDiv.textContent = "❌ " + t("settings.dnsCheckFailed") + ": " + err.message;
+      resultDiv.style.color = "var(--error)";
     } finally {
       $("btn-check-dns").disabled = false;
-      $("btn-check-dns").textContent = "检测 DNS";
+      $("btn-check-dns").textContent = t("settings.checkDns");
     }
   });
 
-  // 一键申请证书并启用 HTTPS
   $("btn-enable-tls").addEventListener("click", async () => {
     const domainVal = $("inp-panel-domain").value.trim();
     if (!domainVal) {
-      showAlert("panel-settings-error", "请先输入要申请证书的域名");
+      showAlert("panel-settings-error", t("settings.enterCertDomain"));
       return;
     }
-    
+
     const btn = $("btn-enable-tls");
     btn.disabled = true;
-    btn.textContent = "正在申请证书并配置 Nginx，请耐心等待 (约 1-2 分钟)...";
+    btn.textContent = t("settings.tlsWaiting");
     hideAlert("panel-settings-error");
     hideAlert("panel-settings-success");
-    
+
     try {
       const res = await api.post("/api/settings/enable-tls", { domain: domainVal, mode: "auto" });
       if (res.success) {
-        showAlert("panel-settings-success", "HTTPS 启用成功！页面即将刷新并跳转...");
-        setTimeout(() => {
-          // 跳转到 HTTPS 协议的新域名
-          window.location.href = `https://${domainVal}`;
-        }, 3000);
+        showAlert("panel-settings-success", t("settings.tlsSuccess"));
+        setTimeout(() => { window.location.href = `https://${domainVal}`; }, 3000);
       } else {
-        showAlert("panel-settings-error", res.message || "证书申请失败");
+        showAlert("panel-settings-error", res.message || t("settings.tlsFailed"));
       }
     } catch (err) {
-      showAlert("panel-settings-error", "请求异常：" + err.message);
+      showAlert("panel-settings-error", err.message || t("settings.tlsFailed"));
     } finally {
       btn.disabled = false;
-      btn.textContent = "一键申请 Let's Encrypt 证书并启用 HTTPS";
+      btn.textContent = t("settings.enableTls");
     }
   });
 
-  // 续期证书
   $("btn-renew-cert").addEventListener("click", async () => {
     const btn = $("btn-renew-cert");
-    const originalText = btn.textContent;
     btn.disabled = true;
-    btn.textContent = "续期中...";
+    btn.textContent = t("settings.renewing");
     hideAlert("panel-settings-error");
     hideAlert("panel-settings-success");
-    
+
     try {
       const res = await api.post("/api/settings/renew-cert");
       if (res.success) {
         showAlert("panel-settings-success", res.message);
         setTimeout(() => $("btn-panel-settings").click(), 2000);
       } else {
-        showAlert("panel-settings-error", res.message || "证书续期失败");
+        showAlert("panel-settings-error", res.message || t("settings.renewFailed"));
       }
     } catch (err) {
-      showAlert("panel-settings-error", "请求异常：" + err.message);
+      showAlert("panel-settings-error", err.message || t("settings.renewFailed"));
     } finally {
       btn.disabled = false;
-      btn.textContent = originalText;
+      btn.textContent = t("settings.renewCert");
     }
   });
 
-  // 面板设置保存
   $("panel-settings-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     hideAlert("panel-settings-error");
@@ -175,24 +154,20 @@ export function initSettings() {
     btn.disabled = true;
     btn.textContent = t("loading");
     try {
-      // 先保存端口
       await api.post("/api/settings/panel-port", { port: portVal });
-      // 如果输入了域名，则保存域名
       if (domainVal) {
         await api.post("/api/settings/domain", { domain: domainVal });
       }
-      
-      showAlert("panel-settings-success", "保存成功");
+      showAlert("panel-settings-success", t("settings.saveSuccess"));
       setTimeout(() => closeModal("modal-panel-settings"), 1200);
     } catch (err) {
-      showAlert("panel-settings-error", err.message || "保存失败");
+      showAlert("panel-settings-error", err.message || t("settings.saveFailed"));
     } finally {
       btn.disabled = false;
       btn.textContent = t("save");
     }
   });
 
-  // 错误横幅关闭
   $("btn-dismiss-error").addEventListener("click", () => {
     hide("error-banner");
     STATE._lastDismissedConflictTime = STATE._lastShownConflictTime || null;

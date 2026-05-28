@@ -26,11 +26,7 @@
 </div>
 
 > [!CAUTION]
-> **升級提示（v2.1+）**：本次更新新增了 `token_version` 欄位用於密碼修改後自動使舊會話失效。如果你從舊版本升級，需要手動執行資料庫遷移：
-> ```sql
-> sqlite3 deploy/data/frp_manager.db "ALTER TABLE admins ADD COLUMN token_version INTEGER DEFAULT 1;"
-> ```
-> 全新部署無需任何額外操作。
+> **升級提示（v3.0+）**：登入方式已從帳號密碼遷移至 **GitHub OAuth**。舊版本升級需執行資料庫遷移，詳見 [升級指南](#upgrade)。全新部署無需任何額外操作。
 
 <a id="author"></a>
 
@@ -105,7 +101,7 @@
 - **配置熱重載**：透過 FRPC Admin API 動態新剂端口映射，通道變更立即生效，無需重啟 frpc 處理程序
 - **HTTPS 全自動**：網域模式下一鍵申請 Let's Encrypt 憑證並自動續期（到期前 30 天），也支持上傳自定義憑證
 - **多架構 Agent**：Go 編寫的 frp-agent 支持 x86_64 / ARM64 / ARMv7 / MIPS，涉蓋樹莓派、路由器等各類設備
-- **完善的安全機制**：JWT 鑑權（Token 版本號失效機制）、API 限流、強制首次改密、帳號設定（自定義用戶名/密碼）、Nginx 安全響應頭，生產級別安全保障
+- **完善的安全機制**：GitHub OAuth 認證、JWT 鑑權、API 限流、邀請制訪問控制、Nginx 安全響應頭，生產級別安全保障
 
 ---
 
@@ -123,12 +119,12 @@
 
 ### 安全增強
 
-- **帳號設定**：支援自定義修改管理員用戶名和密碼，所有敏感操作均需密碼驗證身份
-- **強制修改密碼**：首次登入強制修改預設密碼，密碼強度校驗（8位+大小寫+數字）
+- **GitHub OAuth 認證**：使用 GitHub 帳號登入，系統不綁定任何憑據，用戶自行提供 OAuth App 資訊
+- **邀請制訪問控制**：首個登入用戶自動成為超級管理員，後續用戶需被邀請才能訪問
+- **管理員管理**：超級管理員可在控制台邀請/移除 GitHub 用戶，管理管理員列表
 - **高階 JWT 保護**：基於記憶體的無狀態 Ephemeral JWT Keys（防資料庫脫庫），支援環境變數 `SECRET_KEY` 注入多節點
-- **Token 版本號失效**：修改密碼後自動遞增 Token 版本號，所有舊會話（含 REST API 和 WebSocket 連接）立即失效
 - **網路隔離防禦**：將後端管理端口嚴格綁定至 127.0.0.1，防公網直連繞過 Nginx，並具備強正則校驗阻斷 Nginx 配置注入
-- **API 限流**：登入/改密/改名 5次/分鐘，證書申請 3次/小時，防止暴力破解
+- **API 限流**：登入 5次/分鐘，證書申請 3次/小時，防止暴力破解
 - **安全響應頭**：Nginx 配置 `X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy` 等安全頭
 - **證書智能化管理**：Let's Encrypt 證書自動續期（後台 Python 非同步守護任務），支援控制台查看證書剩餘時間與一鍵手動續期
 
@@ -161,7 +157,7 @@
 ```mermaid
 flowchart TB
     subgraph Server["伺服器端 Podman Compose"]
-        Web["Web<br/>Nginx Alpine + 原生 H5<br/>:80/TCP 或 :443/TCP"]
+        Web["Web<br/>Nginx Alpine + 原生 H5<br/>:8080/TCP 或 :443/TCP"]
         Backend["Backend<br/>FastAPI + SQLite<br/>WebSocket 實時推送"]
         FRPS["FRPS<br/>FRP Server<br/>:7000 + :7500"]
         Web <--> Backend
@@ -186,11 +182,41 @@ flowchart TB
 
 - 一台具備公網 IP 的伺服器（**建議 Linux 系統，最低 1栻1G 即可流畅運行**，實測驗證）
 - Podman & Podman Compose（可由部署腳本自動安裝）
-- 端口放行（至少）：80/TCP、FRPS 端口（預設 7000/TCP）
+- 端口放行（至少）：8080/TCP、FRPS 端口（預設 7000/TCP）
 
 > **系統建議**：本項目基於 Podman 部署，部署腳本會自動識別 Linux 發行版（含 Alpine、Debian/Ubuntu、RHEL 系）並安裝依賴。
 
 > **輕量提示**：前端為原生 H5 純靜態檔案，Nginx 容器記憶體占用 < 10 MB；後端 FastAPI + SQLite，整套系統在 1栻1G 機器上運行绰绰有餘。
+
+### 建立 GitHub OAuth App（必須）
+
+本系統使用 GitHub OAuth 進行登入驗證，你需要建立自己的 GitHub OAuth App：
+
+1. 開啟 https://github.com/settings/developers
+2. 點擊 **New OAuth App**
+3. 填寫資訊：
+   - **Application name**：`FRP Manager`（或任意名稱）
+   - **Homepage URL**：`http://<你的伺服器IP>:8080`（或你的網域）
+   - **Authorization callback URL**：`http://<你的伺服器IP>:8080/api/auth/github/callback`
+4. 點擊 **Register application**
+5. 複製 **Client ID**
+6. 點擊 **Generate a new client secret**，複製 **Client Secret**
+
+然後在部署前設定環境變數：
+
+```bash
+export GITHUB_CLIENT_ID="你的Client ID"
+export GITHUB_CLIENT_SECRET="你的Client Secret"
+```
+
+也可以在 `compose.yml` 同目錄下建立 `.env` 檔案：
+
+```env
+GITHUB_CLIENT_ID=你的Client ID
+GITHUB_CLIENT_SECRET=你的Client Secret
+```
+
+> **安全說明**：系統不內建任何 GitHub 憑據，每個使用者必須提供自己的 OAuth App 資訊。
 
 ### 一鍵部署
 
@@ -202,13 +228,13 @@ chmod +x deploy.sh
 sudo ./deploy.sh
 ```
 
-### 預設帳戶
+### 首次登入
 
-| 用戶名 | 密碼   |
-| ------ | ------ |
-| admin  | 123456 |
+部署完成後，訪問 `http://<伺服器IP>:8080`，點擊 **Sign in with GitHub** 按鈕。
 
-> **注意**：系統已強制要求首次登入後修改預設密碼，密碼須滿足：至少 8 位，包含大寫字母、小寫字母和數字。
+**首個登入的 GitHub 使用者將自動成為超級管理員**，之後只有被邀請的 GitHub 使用者才能登入。
+
+超級管理員可以在控制台的「管理員管理」中邀請其他 GitHub 使用者。
 
 ### 低記憶體伺服器（512MB 或更低）
 
@@ -246,13 +272,26 @@ podman compose -f compose.yml up -d --build
 
 ### ⚠️ 資料庫遷移（必須）
 
-如果你從 **v2.0 或更早版本** 升級，需要執行以下命令添加新的 `token_version` 欄位：
+如果你從 **舊版本（使用密碼登入）** 升級到 GitHub OAuth 版本，需要執行以下資料庫遷移：
 
 ```bash
-sqlite3 deploy/data/frp_manager.db "ALTER TABLE admins ADD COLUMN token_version INTEGER DEFAULT 1;"
+cd FRP-ALL-IN-ONE/deploy
+
+# 建立 admin_invites 表
+sqlite3 data/frp_manager.db "CREATE TABLE IF NOT EXISTS admin_invites (id INTEGER PRIMARY KEY AUTOINCREMENT, github_username VARCHAR UNIQUE, added_by INTEGER, created_at DATETIME);"
+
+# 添加新欄位到 admins 表
+sqlite3 data/frp_manager.db "ALTER TABLE admins ADD COLUMN github_id INTEGER UNIQUE;"
+sqlite3 data/frp_manager.db "ALTER TABLE admins ADD COLUMN github_username VARCHAR;"
+sqlite3 data/frp_manager.db "ALTER TABLE admins ADD COLUMN avatar_url VARCHAR;"
+sqlite3 data/frp_manager.db "ALTER TABLE admins ADD COLUMN is_superadmin BOOLEAN DEFAULT 0;"
+sqlite3 data/frp_manager.db "ALTER TABLE admins ADD COLUMN created_at DATETIME;"
+
+# 將第一個管理員設為超級管理員
+sqlite3 data/frp_manager.db "UPDATE admins SET is_superadmin = 1 WHERE id = (SELECT MIN(id) FROM admins);"
 ```
 
-> `token_version` 用於密碼修改後自動使所有舊會話失效。如果不執行此遷移，修改密碼功能將報錯。全新部署無需此操作。
+> **說明**：舊的 `username`、`hashed_password` 等欄位會保留但不再使用。全新部署無需此操作。
 
 <a id="first-time-workflow"></a>
 
@@ -260,9 +299,9 @@ sqlite3 deploy/data/frp_manager.db "ALTER TABLE admins ADD COLUMN token_version 
 
 ### 1) 登入管理台
 
-訪問：`http://<伺服器公網IP>`
+訪問：`http://<伺服器公網IP>:8080`，點擊 **Sign in with GitHub**，使用你的 GitHub 帳號登入。
 
-使用預設帳戶登入後，系統將**強制要求修改密碼**。
+**首個登入的 GitHub 用戶將自動成為超級管理員**，之後只有被邀請的 GitHub 用戶才能登入。超級管理員可在控制台的「管理員管理」中邀請其他 GitHub 用戶。
 
 ### 2) 配置 FRPS（嚮導）
 
@@ -327,7 +366,7 @@ curl http://localhost:8000/api/settings/tls-status
 ## NAT 訪問端口配置（可選）
 
 > **適用場景**：你的雲伺服器不是直接使用公網 IP 部署，而是透過 NAT 端口映射訪問，例如：
-> `公網 151.242.85.89:10967` → 內網 `伺服器:80`（管理面板走 NAT 映射）
+> `公網 151.242.85.89:10967` → 內網 `伺服器:8080`（管理面板走 NAT 映射）
 
 在這種場景下，如果不做額外配置，系統生成的客戶端安裝腳本中會缺少端口號（預設 80），導致 Agent 無法連接到管理面板。
 
@@ -389,7 +428,7 @@ test -w /opt || sudo test -w /opt
 
 | 端口                      | 協議    | 用途                        |
 | ------------------------- | ------- | --------------------------- |
-| 80                        | TCP     | Web 管理介面（HTTP）        |
+| 8080                      | TCP     | Web 管理介面（HTTP）        |
 | 443                       | TCP     | Web 管理介面（HTTPS，可選） |
 | 7000（或自定義 bindPort） | TCP     | frpc 控制連接               |
 | 49152-65535               | TCP/UDP | 推薦的私有端口範圍          |
@@ -496,7 +535,7 @@ cat /opt/frp/agent.json
 ### HTTPS 證書申請失敗
 
 1. **檢查 DNS 解析**：確保域名 A 記錄已正確指向伺服器公網 IP
-2. **檢查端口 80**：Let's Encrypt 驗證需要臨時使用 80 端口
+2. **檢查端口 8080**：Let's Encrypt 驗證需要使用 8080 端口
 3. **查看日誌**：`podman logs frp-manager-backend | grep -i "cert\|acme"`
 4. **手動觸發續期**：在 Web 介面點擊「續期證書」按鈕
 
@@ -530,7 +569,7 @@ FRP-ALL-IN-ONE/
 │   │   ├── exceptions.py      # 統一異常處理
 │   │   └── rate_limit.py      # API 限流
 │   ├── routers/           # API 路由
-│   │   ├── auth.py            # 認證（登入、修改密碼、修改用戶名）
+│   │   ├── auth.py            # 認證（GitHub OAuth、管理員管理）
 │   │   ├── clients.py         # 客戶端、隧道管理
 │   │   ├── agents.py          # Agent 管理、指標查詢
 │   │   ├── frp_server.py      # FRPS 管理、安裝腳本
@@ -622,9 +661,7 @@ python -m uvicorn main:app --reload
 
 ## 安全建議
 
-- 首次登入後立即修改預設密碼（系統已強制要求）
-- 及時修改預設用戶名 `admin`，降低被暴力破解的風險
-- 使用強密碼（至少 8 位，包含大小寫+數字）
+- 及時邀請可信的 GitHub 用戶，移除不再需要的管理員
 - 生產環境配置 `SECRET_KEY` 環境變數（在 `compose.yml` 中設置），避免重啟後所有會話失效
 - 定期更新 Podman 鏡像
 - 安全組僅開放必要端口

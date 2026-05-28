@@ -3,7 +3,7 @@
  */
 import { $, $$, setText, show, hide } from './dom.js';
 import { api } from './api.js';
-import { t, lang } from './i18n.js';
+import { t } from './i18n.js';
 import { openModal, closeModal, showConfirm } from './modal.js';
 import { escapeHtml, copyText } from './utils.js';
 
@@ -23,22 +23,20 @@ export function openAgentDeploy() {
     const infoEl = $("agent-server-info");
     if (info && infoEl) {
       infoEl.innerHTML = `
-        <div class="info-row"><span>服务器地址</span><code>${escapeHtml(info.server_ip || "—")}</code></div>
-        <div class="info-row"><span>FRPS 端口</span><code>${escapeHtml(String(info.frps_port || "—"))}</code></div>
-        <div class="info-row"><span>FRP 版本</span><code>v${escapeHtml(info.frps_version || "—")}</code></div>`;
+        <div class="info-row"><span>${t("agent.serverAddress")}</span><code>${escapeHtml(info.server_ip || "—")}</code></div>
+        <div class="info-row"><span>${t("agent.frpsPort")}</span><code>${escapeHtml(String(info.frps_port || "—"))}</code></div>
+        <div class="info-row"><span>${t("agent.frpVersion")}</span><code>v${escapeHtml(info.frps_version || "—")}</code></div>`;
     }
   }).catch(() => {});
 }
 
 async function confirmCleanupAgentClient() {
   const shouldDelete = await showConfirm(
-    lang === "en"
-      ? "A device record was created but the agent script has not been deployed. Delete this device?"
-      : "已为此设备创建记录但尚未完成部署。是否删除该设备？",
+    t("agent.cleanupMessage"),
     {
-      title: lang === "en" ? "Confirm" : "关闭确认",
-      confirmText: lang === "en" ? "Delete" : "删除设备",
-      cancelText: lang === "en" ? "Keep" : "保留",
+      title: t("agent.cleanupTitle"),
+      confirmText: t("agent.cleanupConfirm"),
+      cancelText: t("agent.cleanupCancel"),
       tone: "danger",
     },
   );
@@ -66,7 +64,7 @@ export function initAgent() {
       show("agent-script-area");
       show("btn-agent-done");
       $("agent-platform-label").textContent = agentScriptPlatform;
-      $("agent-script-content").textContent = "加载中…";
+      $("agent-script-content").textContent = t("agent.loading");
       try {
         let url = `/api/frp/agent/install-script/${agentScriptPlatform}`;
         if (agentCreatedClientId) url += `?client_id=${agentCreatedClientId}`;
@@ -79,7 +77,7 @@ export function initAgent() {
           if (m) agentCreatedClientId = m[1];
         }
       } catch (err) {
-        $("agent-script-content").textContent = `# 获取失败: ${err.message}`;
+        $("agent-script-content").textContent = `# ${t("agent.loadFailed")}: ${err.message}`;
       }
     });
   });

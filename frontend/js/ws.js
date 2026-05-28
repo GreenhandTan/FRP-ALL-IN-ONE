@@ -1,13 +1,14 @@
 /**
- * WebSocket 管理模块
+ * WebSocket management module
  */
 import { $ } from './dom.js';
 import { getToken } from './api.js';
+import { t } from './i18n.js';
 
 function updateWsBadge(online) {
   const badge = $("ws-badge");
   if (!badge) return;
-  badge.textContent = online ? "Live" : "Offline";
+  badge.textContent = online ? t("dashboard.clients.online") : t("dashboard.clients.offline");
   badge.className = "badge " + (online ? "badge-success" : "badge-warning");
 }
 

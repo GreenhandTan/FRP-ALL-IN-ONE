@@ -98,7 +98,7 @@ export function initSetup(startDashboard) {
           try {
             await api.post("/api/settings/domain", { domain: domain });
           } catch (err) {
-            console.warn("保存域名失败:", err);
+            console.warn("Failed to save domain:", err);
           }
         }
         
@@ -147,7 +147,7 @@ export function initSetup(startDashboard) {
     btn.addEventListener("click", async () => {
       selectedPlatform = btn.dataset.platform;
       $("script-platform-label").textContent = selectedPlatform;
-      $("script-content").textContent = "加载中…";
+      $("script-content").textContent = t("loading");
       show("script-area");
       $("btn-finish-setup").disabled = true;
       try {
@@ -163,7 +163,7 @@ export function initSetup(startDashboard) {
         }
         $("btn-finish-setup").disabled = false;
       } catch (err) {
-        $("script-content").textContent = `# 获取失败: ${err.message}`;
+        $("script-content").textContent = `# ${t("agent.loadFailed")}: ${err.message}`;
         $("btn-finish-setup").disabled = false;
       }
     });

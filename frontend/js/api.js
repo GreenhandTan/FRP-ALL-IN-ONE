@@ -2,12 +2,6 @@
  * HTTP API 请求模块
  */
 
-/** 403 回调：由 app.js 注入，避免循环依赖 */
-let _on403 = null;
-export function setOn403Handler(fn) {
-  _on403 = fn;
-}
-
 export function getToken() {
   return localStorage.getItem("token");
 }
@@ -36,11 +30,6 @@ async function request(method, url, body, opts = {}) {
       const d = await res.json();
       detail = d.detail || d.message || "";
     } catch {}
-    // 403: 未修改默认密码，强制弹出改密弹窗
-    if (res.status === 403) {
-      localStorage.setItem("require_pwd_change", "1");
-      if (_on403) _on403();
-    }
     const err = new Error(detail || `HTTP ${res.status}`);
     err.status = res.status;
     throw err;
