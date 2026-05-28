@@ -1786,7 +1786,7 @@ export default function App() {
                                   {t('操作系统 / 架构', 'Operating System / Arch')}
                                 </th>
                                 <th className="py-3 px-4 font-label-md text-[11px] text-on-surface-variant font-semibold uppercase tracking-wider hidden lg:table-cell">
-                                  {t('客户端版本', 'Client Version')}
+                                  {t('系统平台', 'Platform')}
                                 </th>
                                 <th className="py-3 px-4 font-label-md text-[11px] text-on-surface-variant font-semibold uppercase tracking-wider hidden sm:table-cell">
                                   {t('最后心跳时间', 'Last Seen Alive')}
@@ -1841,7 +1841,9 @@ export default function App() {
                                             <ChevronRight className={`w-3.5 h-3.5 text-outline group-hover:text-primary transition-all shrink-0 ${isExpanded ? 'rotate-90 text-primary' : ''}`} />
                                           </div>
                                           <div className="font-mono text-[10px] text-outline mt-0.5 md:hidden">
-                                            <span className="capitalize">{device.os}</span> / {device.arch || 'x86_64'}
+                                            {device.agentInfo?.platform
+                                              ? `${device.agentInfo.platform} ${device.agentInfo.platform_version || ''}`.trim()
+                                              : `${device.os} ${device.arch || ''}`.trim()}
                                           </div>
                                         </td>
                                         
@@ -1850,7 +1852,9 @@ export default function App() {
                                         </td>
                                         
                                         <td className="py-4 px-4 hidden lg:table-cell font-mono text-xs text-on-surface-variant">
-                                          {device.agentInfo?.agent_version || '-'}
+                                          {device.agentInfo?.platform
+                                            ? `${device.agentInfo.platform} ${device.agentInfo.platform_version || ''}`.trim()
+                                            : `${device.os} ${device.arch || ''}`.trim()}
                                         </td>
                                         
                                         <td className="py-4 px-4 hidden sm:table-cell text-on-surface-variant font-mono text-xs whitespace-nowrap">

@@ -30,14 +30,20 @@ export interface Device {
     hostname?: string;
     os?: string;
     arch?: string;
+    platform?: string;
+    platform_version?: string;
     agent_version?: string;
     cpu_percent?: number;
     memory_percent?: number;
     memory_used?: number;
     memory_total?: number;
     disk_percent?: number;
+    disk_used?: number;
+    disk_total?: number;
     net_speed_in?: number;
     net_speed_out?: number;
+    net_bytes_in?: number;
+    net_bytes_out?: number;
   };
 }
 
