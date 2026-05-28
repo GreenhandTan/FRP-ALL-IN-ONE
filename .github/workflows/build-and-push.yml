@@ -6,7 +6,7 @@
 #   2. 推送 tag (v*) — 自动使用 tag 作为镜像版本
 #   3. 推送到 main 分支时，仅当前端或后端代码文件变动才触发
 #
-# 前端文件路径: src/**, index.html, vite.config.ts, tsconfig.json, package*.json, frontend.Dockerfile
+# 前端文件路径: frontend/**
 # 后端文件路径: server/**, agent/**
 #
 # 产出：
@@ -35,15 +35,8 @@ on:
       # 后端文件
       - 'server/**'
       - 'agent/**'
-      - 'backend.Dockerfile'
       # 前端文件
-      - 'src/**'
-      - 'index.html'
-      - 'vite.config.ts'
-      - 'tsconfig.json'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'frontend.Dockerfile'
+      - 'frontend/**'
     tags:
       - 'v*'
 
@@ -79,7 +72,6 @@ jobs:
             exit 0
           fi
 
-          # 对比最近一次 push 的文件变更
           BASE=${{ github.event.before }}
           HEAD=${{ github.sha }}
 
@@ -88,9 +80,9 @@ jobs:
 
           for file in $(git diff --name-only "$BASE" "$HEAD" 2>/dev/null); do
             case "$file" in
-              server/*|agent/*|backend.Dockerfile)
+              server/*|agent/*)
                 BACKEND_CHANGED="true" ;;
-              src/*|index.html|vite.config.ts|tsconfig.json|package.json|package-lock.json|frontend.Dockerfile)
+              frontend/*)
                 FRONTEND_CHANGED="true" ;;
             esac
           done
@@ -171,8 +163,8 @@ jobs:
       - name: Build and push frontend
         uses: docker/build-push-action@v6
         with:
-          context: .
-          file: frontend.Dockerfile
+          context: frontend
+          file: frontend/frontend.Dockerfile
           push: true
           tags: |
             ${{ env.FRONTEND_IMAGE }}:${{ needs.detect-changes.outputs.tag }}
