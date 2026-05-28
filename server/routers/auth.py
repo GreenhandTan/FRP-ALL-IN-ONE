@@ -38,6 +38,7 @@ async def github_login(request: Request):
         )
 
     callback_url = _build_callback_url(request)
+    print(f"[OAuth] redirect_uri sent to GitHub: {callback_url}")
     state = auth.create_access_token(
         data={"state": secrets.token_urlsafe(32)},
         expires_delta=timedelta(minutes=10)
