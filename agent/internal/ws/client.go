@@ -8,6 +8,8 @@ import (
 	"os"
 	"runtime"
 	"sync"
+
+	"github.com/frp-manager/agent/internal/monitor"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -90,6 +92,7 @@ func (c *Client) connect() error {
 
 	// 获取系统信息
 	hostname, _ := os.Hostname()
+	hostInfo := monitor.GetHostInfo()
 
 	// 发送注册消息（包含系统信息）
 	c.Send("register", map[string]string{
@@ -98,6 +101,7 @@ func (c *Client) connect() error {
 		"hostname":  hostname,
 		"os":        runtime.GOOS,
 		"arch":      runtime.GOARCH,
+		"platform":  hostInfo["platform"],
 	})
 
 	if c.OnConnect != nil {

@@ -132,6 +132,11 @@ func main() {
 		wsClient.Send("system_info", metrics)
 	}
 
+	// 设置 FRPC 状态回调（frpc 启动/停止时通知服务端）
+	frpcManager.OnStatus = func(status string) {
+		wsClient.Send("frpc_status", status)
+	}
+
 	// 启动各模块
 	go wsClient.Connect()
 	go sysMonitor.Start(3) // 每 3 秒采集一次（平衡实时性与资源开销）
