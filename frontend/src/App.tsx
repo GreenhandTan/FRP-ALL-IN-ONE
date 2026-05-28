@@ -107,11 +107,12 @@ export default function App() {
   // Form values (controlled temporarily during steps or inputs)
   const [inputIp, setInputIp] = useState<string>('');
   const [inputPort, setInputPort] = useState<number>(7000);
-  const [inputDomain, setInputDomain] = useState<string>('frp.example.com');
+  const [inputDomain, setInputDomain] = useState<string>('');
+  const [serverPublicIp, setServerPublicIp] = useState<string>('');
   const [tokenVisible, setTokenVisible] = useState<boolean>(false);
   
   // Settings view states matching design mockup from HTML
-  const [tempDomain, setTempDomain] = useState<string>('frp.mydomain.com');
+  const [tempDomain, setTempDomain] = useState<string>('');
   const [enableAutoHttps, setEnableAutoHttps] = useState<boolean>(true);
   const [tempDashboardPort, setTempDashboardPort] = useState<number>(7500);
   const [dnsChecked, setDnsChecked] = useState<boolean>(true);
@@ -264,6 +265,14 @@ export default function App() {
     if (isLoggedIn()) {
       checkSystemAndNavigate();
     }
+
+    // 获取服务器公网 IP（用于初始化引导页提示和 IP 输入框默认值）
+    systemApi.getPublicIp().then(res => {
+      if (res.success && res.ip) {
+        setServerPublicIp(res.ip);
+        setInputIp(res.ip);
+      }
+    }).catch(() => {});
   }, []);
 
   // WebSocket 事件监听
@@ -942,7 +951,7 @@ export default function App() {
                           placeholder="e.g. frp.my-domain.com"
                         />
                       </div>
-                      <span className="text-xs text-outline font-sans">{t('确保您的 A/CNAME 记录已成功指向公网服务器 IP 47.86.83.205', 'Verify that your DNS A or CNAME entry successfully resolves to Server IP 47.86.83.205')}</span>
+                      <span className="text-xs text-outline font-sans">{t(`确保您的 A/CNAME 记录已成功指向公网服务器 IP ${serverPublicIp || '...'}`, `Verify that your DNS A or CNAME entry successfully resolves to Server IP ${serverPublicIp || '...'}`)}</span>
                     </motion.div>
                   )}
                 </div>

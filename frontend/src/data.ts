@@ -101,9 +101,9 @@ export const initialTunnels: Tunnel[] = [
 ];
 
 export const defaultServerConfig: ServerConfig = {
-  ip: '47.86.83.205',
+  ip: '',
   port: 7000,
-  token: 'super_secret_frp_token_2026_xyz',
+  token: '',
   mode: 'ip',
   version: APP_VERSION,
 };
