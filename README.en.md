@@ -26,7 +26,7 @@
 </div>
 
 > [!CAUTION]
-> **Upgrade Notice (v3.0+)**: Major architectural upgrade (GitHub OAuth login + frontend UI redesign). **A fresh deployment is recommended** for existing users. See [Upgrade Guide](#upgrade).
+> **Upgrade Notice (V2.5.0-beta)**: Major architectural upgrade + frontend UI redesign + security hardening. **A fresh deployment is recommended** for existing users. See [Upgrade Guide](#upgrade).
 
 <a id="author"></a>
 
@@ -262,7 +262,7 @@ The current `compose.yml` has data persistence enabled by default:
 ## Upgrade Guide
 
 > [!CAUTION]
-> **v3.0 is a major architectural upgrade** (login migrated from password to GitHub OAuth, frontend UI fully redesigned). Database schema and frontend code have breaking changes. **A fresh deployment is recommended** — no manual database migration needed.
+> **V2.5.0-beta is a major architectural upgrade** (GitHub OAuth login + frontend UI redesign + security hardening). Database schema and frontend code have breaking changes. **A fresh deployment is recommended** — no manual database migration needed.
 
 ### Fresh Deployment (Recommended)
 
@@ -647,8 +647,8 @@ You must:
 ## Security Recommendations
 
 - Promptly invite trusted GitHub users and remove admins who no longer need access
-- Configure `SECRET_KEY` environment variable in production (in `compose.yml`) to prevent sessions expiring on restart
-- Regularly update Podman images
+- Each redeployment automatically regenerates `SECRET_KEY`, invalidating all existing sessions
+- Regularly update Podman images (host Podman version must be >= 4.0, the deploy script checks automatically)
 - Only open necessary ports in security groups
 - FRPS Dashboard (7500) should only allow localhost access
 - Enable HTTPS to encrypt communications (recommended for production)
