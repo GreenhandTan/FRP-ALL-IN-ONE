@@ -24,7 +24,7 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # Nginx 配置：SPA 路由 + 反向代理 API/WebSocket 到后端
 RUN cat > /etc/nginx/conf.d/default.conf <<'EOF'
 server {
-    listen 80;
+    listen 8080;
     server_name _;
 
     root /usr/share/nginx/html;
