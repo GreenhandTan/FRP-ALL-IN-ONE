@@ -293,7 +293,13 @@ configure_env_vars() {
     echo "=========================================="
     echo ""
 
-    # 从 .env 文件读取（如果存在）
+    # 从系统级持久化文件读取（服务器重启/重新部署后仍有效）
+    SYSTEM_ENV="/etc/frp-all-in-one.env"
+    if [ -f "$SYSTEM_ENV" ]; then
+        . "$SYSTEM_ENV" 2>/dev/null || true
+    fi
+
+    # 从项目 .env 文件读取（如果存在）
     ENV_FILE="$SCRIPT_DIR/.env"
     if [ -f "$ENV_FILE" ]; then
         . "$ENV_FILE" 2>/dev/null || true
@@ -314,6 +320,8 @@ configure_env_vars() {
             fi
             echo -e "${RED}不能为空，请重新输入${NC}"
         done
+        # 写入系统级持久化文件，后续重新部署无需重复填写
+        _save_to_system_env "GITHUB_CLIENT_ID" "$GITHUB_CLIENT_ID"
     fi
 
     # ---- GITHUB_CLIENT_SECRET ----
@@ -326,33 +334,17 @@ configure_env_vars() {
             fi
             echo -e "${RED}不能为空，请重新输入${NC}"
         done
+        # 写入系统级持久化文件，后续重新部署无需重复填写
+        _save_to_system_env "GITHUB_CLIENT_SECRET" "$GITHUB_CLIENT_SECRET"
     fi
 
     # ---- SECRET_KEY ----
     if [ -z "${SECRET_KEY:-}" ]; then
-        echo ""
-        echo "SECRET_KEY 用于 JWT 签名，确保登录会话在重启后仍然有效。"
-        printf "是否自动生成 SECRET_KEY？(Y/n): "
-        read -r auto_key
-        case "$auto_key" in
-            n|N|no|NO)
-                while true; do
-                    printf "请输入 SECRET_KEY（建议 32 位以上随机字符串）: "
-                    read -r SECRET_KEY
-                    if [ -n "$SECRET_KEY" ]; then
-                        break
-                    fi
-                    echo -e "${RED}不能为空，请重新输入${NC}"
-                done
-                ;;
-            *)
-                SECRET_KEY=$(head -c 48 /dev/urandom | base64 | tr -d '\n/+=' | head -c 64)
-                echo -e "${GREEN}[OK] 已自动生成 SECRET_KEY${NC}"
-                ;;
-        esac
+        SECRET_KEY=$(head -c 48 /dev/urandom | base64 | tr -d '\n/+=' | head -c 64)
+        echo -e "${GREEN}[OK] 已自动生成 SECRET_KEY${NC}"
     fi
 
-    # 写入 .env 文件
+    # 写入项目 .env 文件（供 docker compose 使用）
     cat > "$ENV_FILE" <<ENVEOF
 GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
 GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
@@ -366,6 +358,24 @@ ENVEOF
 
     echo ""
     echo -e "${GREEN}[OK] 环境变量已保存到 .env 文件${NC}"
+}
+
+# 将环境变量追加到系统级持久化文件
+_save_to_system_env() {
+    local key="$1"
+    local value="$2"
+    local sys_env="/etc/frp-all-in-one.env"
+    # 如果文件不存在则创建
+    if [ ! -f "$sys_env" ]; then
+        touch "$sys_env"
+        chmod 600 "$sys_env"
+    fi
+    # 先删除旧值（如果有），再追加新值
+    if grep -q "^${key}=" "$sys_env" 2>/dev/null; then
+        sed -i "s|^${key}=.*|${key}=${value}|" "$sys_env"
+    else
+        echo "${key}=${value}" >> "$sys_env"
+    fi
 }
 
 main() {
