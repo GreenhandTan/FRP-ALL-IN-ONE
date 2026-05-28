@@ -219,29 +219,29 @@ code, pre { font-family: var(--font-mono); }
 .view.active.dashboard-view { display: flex; }
 
 /* ===========================
-   Auth Views (Login / Setup)
+   Auth Views (Login / Setup) — Light Theme
    =========================== */
 .auth-view {
   min-height: 100vh;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, var(--github-dark) 0%, #161b22 60%, #0d1117 100%);
+  background: var(--background);
   padding: 24px;
 }
 
 .auth-card {
-  background: #1c2333;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--surface-lowest);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 48px 40px;
   width: 100%;
   max-width: 440px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-  color: #e6edf3;
+  box-shadow: var(--shadow-md);
+  color: var(--on-surface);
   text-align: center;
 }
-.auth-card .text-muted { color: rgba(255, 255, 255, 0.55); }
-.auth-card small { color: rgba(255, 255, 255, 0.5); }
+.auth-card .text-muted { color: var(--on-surface-variant); }
+.auth-card small { color: var(--outline); }
 .auth-card .platform-btn small { color: var(--on-surface-variant); }
 
 .setup-card { max-width: 560px; text-align: left; }
@@ -252,11 +252,10 @@ code, pre { font-family: var(--font-mono); }
   gap: 12px;
   justify-content: center;
   margin-bottom: 8px;
-  color: #e6edf3;
+  color: var(--on-surface);
 }
 .auth-logo .material-icons {
   font-size: 40px;
-  opacity: 0.9;
   color: var(--primary-container);
 }
 .auth-logo h1 {
@@ -268,7 +267,7 @@ code, pre { font-family: var(--font-mono); }
 
 .admin-badge {
   display: inline-block;
-  background: var(--primary);
+  background: var(--primary-container);
   color: var(--on-primary);
   font-family: var(--font-mono);
   font-size: 11px;
@@ -284,10 +283,10 @@ code, pre { font-family: var(--font-mono); }
   display: inline-block;
   font-family: var(--font-mono);
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--outline);
   margin-bottom: 32px;
   padding: 2px 8px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--outline-variant);
   border-radius: var(--radius-sm);
 }
 
@@ -315,37 +314,37 @@ code, pre { font-family: var(--font-mono); }
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.5);
+  background: var(--surface-container);
+  color: var(--outline);
   font-weight: 600;
   font-size: 0.875rem;
   font-family: var(--font-mono);
-  border: 2px solid rgba(255, 255, 255, 0.15);
+  border: 2px solid var(--outline-variant);
   transition: all 0.3s;
 }
 .step.active span {
   background: var(--primary-container);
   color: var(--on-primary);
   border-color: var(--primary-container);
-  box-shadow: 0 0 0 4px rgba(0, 173, 216, 0.25);
+  box-shadow: 0 0 0 4px rgba(0, 173, 216, 0.2);
 }
 .step.done span {
-  background: rgba(0, 173, 216, 0.4);
-  color: #fff;
+  background: rgba(0, 173, 216, 0.3);
+  color: var(--on-primary);
   border-color: transparent;
 }
 .step small {
   font-size: 0.7rem;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--outline);
   white-space: nowrap;
 }
-.step.active small { color: #fff; }
+.step.active small { color: var(--on-surface); }
 .step-line {
   flex: 1;
   height: 2px;
   min-width: 32px;
   max-width: 60px;
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--outline-variant);
   margin: 0 8px;
   margin-bottom: 16px;
 }
@@ -362,17 +361,17 @@ code, pre { font-family: var(--font-mono); }
 .form-group label {
   font-size: 0.875rem;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--on-surface-variant);
   display: flex;
   align-items: center;
   gap: 8px;
 }
 .form-group input,
 .form-group select {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--surface-lowest);
+  border: 1px solid var(--outline-variant);
   border-radius: var(--radius-sm);
-  color: #fff;
+  color: var(--on-surface);
   padding: 10px 14px;
   font-size: 0.9rem;
   font-family: var(--font-body);
@@ -380,36 +379,15 @@ code, pre { font-family: var(--font-mono); }
   transition: border-color 0.2s, box-shadow 0.2s;
   width: 100%;
 }
-.form-group input::placeholder { color: rgba(255, 255, 255, 0.3); }
+.form-group input::placeholder { color: var(--outline); }
 .form-group input:focus,
 .form-group select:focus {
   border-color: var(--primary-container);
-  box-shadow: 0 0 0 2px rgba(0, 173, 216, 0.2);
+  box-shadow: 0 0 0 2px rgba(0, 173, 216, 0.12);
 }
 .form-group select option {
-  background: var(--inverse-surface);
-  color: var(--inverse-on-surface);
-}
-
-/* Modal / Dashboard forms (light) */
-.modal .form-group label,
-.dashboard-view .form-group label { color: var(--on-surface-variant); }
-.modal .form-group input,
-.modal .form-group select,
-.dashboard-view .form-group input,
-.dashboard-view .form-group select {
   background: var(--surface-lowest);
-  border-color: var(--outline-variant);
   color: var(--on-surface);
-}
-.modal .form-group input::placeholder,
-.dashboard-view .form-group input::placeholder { color: var(--outline); }
-.modal .form-group input:focus,
-.modal .form-group select:focus,
-.dashboard-view .form-group input:focus,
-.dashboard-view .form-group select:focus {
-  border-color: var(--primary-container);
-  box-shadow: 0 0 0 2px rgba(0, 173, 216, 0.12);
 }
 
 .form-grid {
@@ -1184,9 +1162,9 @@ td .tunnel-actions {
   gap: 10px;
   padding: 24px 16px;
   border-radius: var(--radius);
-  border: 2px solid rgba(255, 255, 255, 0.15);
-  background: rgba(255, 255, 255, 0.05);
-  color: #fff;
+  border: 2px solid var(--outline-variant);
+  background: var(--surface-low);
+  color: var(--on-surface);
   cursor: pointer;
   transition: all 0.18s;
   text-align: center;
@@ -1194,9 +1172,9 @@ td .tunnel-actions {
 }
 .mode-card:hover {
   border-color: var(--primary-container);
-  background: rgba(0, 173, 216, 0.1);
+  background: var(--primary-fixed);
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-md);
 }
 .mode-icon {
   width: 48px;
@@ -1216,7 +1194,7 @@ td .tunnel-actions {
 .mode-card p {
   margin: 0;
   font-size: 0.78rem;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--on-surface-variant);
   line-height: 1.4;
 }
 
@@ -1305,19 +1283,16 @@ td .tunnel-actions {
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--surface-low);
   border-radius: var(--radius-sm);
   font-size: 0.875rem;
 }
-.info-row span { color: rgba(255, 255, 255, 0.6); }
+.info-row span { color: var(--on-surface-variant); }
 .info-row code {
-  color: #fff;
+  color: var(--on-surface);
   font-family: var(--font-mono);
   font-size: 0.85rem;
 }
-.modal .info-row { background: var(--surface-low); }
-.modal .info-row span { color: var(--on-surface-variant); }
-.modal .info-row code { color: var(--on-surface); }
 
 .token-wrap {
   display: flex;

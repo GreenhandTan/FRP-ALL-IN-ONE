@@ -37,7 +37,7 @@
             <span id="btn-github-login-text">Sign in with GitHub</span>
           </button>
           <p class="text-muted login-hint-text">
-            <span id="login-hint">首个登录的用户将自动成为管理员</span>
+            <span id="login-hint" data-i18n="login.hint">首个登录的用户将自动成为管理员</span>
           </p>
         </div>
         <div class="footer-links">
@@ -55,15 +55,13 @@
     <div id="view-setup" class="view auth-view">
       <div class="auth-card setup-card">
 
-        <!-- Step Indicator -->
+        <!-- Step Indicator (3 steps) -->
         <div class="steps-indicator">
-          <div class="step active" id="step-dot-0"><span>1</span><small id="step-lbl-0">模式</small></div>
+          <div class="step active" id="step-dot-0"><span>1</span><small id="step-lbl-0" data-i18n="setup.mode">模式</small></div>
           <div class="step-line"></div>
-          <div class="step" id="step-dot-1"><span>2</span><small id="step-lbl-1">配置</small></div>
+          <div class="step" id="step-dot-1"><span>2</span><small id="step-lbl-1" data-i18n="setup.step1">配置</small></div>
           <div class="step-line"></div>
-          <div class="step" id="step-dot-2"><span>3</span><small id="step-lbl-2">部署</small></div>
-          <div class="step-line"></div>
-          <div class="step" id="step-dot-3"><span>4</span><small id="step-lbl-3">脚本</small></div>
+          <div class="step" id="step-dot-2"><span>3</span><small id="step-lbl-2" data-i18n="setup.step2">部署</small></div>
         </div>
 
         <!-- Step 0: Mode Selection -->
@@ -86,15 +84,15 @@
 
         <!-- Step 1: Configuration -->
         <div id="setup-step-1" class="hidden">
-          <h2 id="setup-title">FRPS 服务端配置</h2>
-          <p id="setup-subtitle" class="text-muted">系统将自动生成配置并启动 FRPS 容器</p>
+          <h2 id="setup-title" data-i18n="setup.title">FRPS 服务端配置</h2>
+          <p id="setup-subtitle" class="text-muted" data-i18n="setup.subtitle">系统将自动生成配置并启动 FRPS 容器</p>
           <div id="setup-error" class="alert alert-danger hidden"></div>
           <div class="form-group">
-            <label id="lbl-port" for="inp-port">监听端口</label>
+            <label id="lbl-port" for="inp-port" data-i18n="setup.portLabel">监听端口</label>
             <input id="inp-port" type="number" value="7000" min="1" max="65535">
           </div>
           <div class="form-group">
-            <label id="lbl-serverip" for="inp-serverip">公网 IP <span id="ip-detect-status" class="badge badge-info">检测中…</span></label>
+            <label id="lbl-serverip" for="inp-serverip"><span data-i18n="setup.serverIpLabel">公网 IP</span> <span id="ip-detect-status" class="badge badge-info" data-i18n="setup.detectingIp">检测中…</span></label>
             <input id="inp-serverip" type="text" placeholder="x.x.x.x">
             <small id="ip-hint" class="text-muted" data-i18n="setup.ipHint">留空将自动检测，检测失败请手动输入</small>
           </div>
@@ -103,7 +101,7 @@
             <input id="inp-domain" type="text" placeholder="example.com">
             <small class="text-muted" data-i18n="setup.domainHint">frpc 将使用此域名连接服务端，需提前将域名解析至本机 IP</small>
           </div>
-          <button id="btn-deploy" class="btn btn-primary btn-block">开始部署</button>
+          <button id="btn-deploy" class="btn btn-primary btn-block" data-i18n="setup.deployButton">开始部署</button>
         </div>
 
         <!-- Step 2: Deploy Success -->
@@ -123,46 +121,7 @@
             </div>
           </div>
           <div id="frps-restart-notice" class="alert alert-success hidden"></div>
-          <button id="btn-step3" type="button" class="btn btn-primary btn-block" data-i18n="setup.nextStep">下一步：获取客户端脚本 →</button>
-        </div>
-
-        <!-- Step 3: Client Script -->
-        <div id="setup-step-3" class="hidden">
-          <h2 id="setup-script-title" data-i18n="setup.clientScriptTitle">客户端部署脚本</h2>
-          <p id="setup-script-hint" class="text-muted" data-i18n="setup.clientScriptHint">在内网机器上以 root 权限执行</p>
-          <div class="alert alert-warning">
-            <span class="material-icons material-icons-inline">warning</span>
-            <span data-i18n="setup.scriptWarning">重要：每台设备必须单独生成专属脚本！</span>
-          </div>
-          <div id="setup-platform-grid" class="platform-grid">
-            <button type="button" class="platform-btn" data-platform="linux">
-              <span class="platform-icon"><span class="material-icons">code</span></span>
-              <strong data-i18n="setup.linux">Linux</strong>
-              <small data-i18n="setup.linuxDesc">Ubuntu / CentOS / Debian</small>
-            </button>
-            <button type="button" class="platform-btn" data-platform="darwin">
-              <span class="platform-icon"><span class="material-icons">desktop_mac</span></span>
-              <strong data-i18n="setup.macos">macOS</strong>
-              <small data-i18n="setup.macosDesc">Intel / Apple Silicon</small>
-            </button>
-            <button type="button" class="platform-btn" data-platform="windows">
-              <span class="platform-icon"><span class="material-icons">grid_view</span></span>
-              <strong data-i18n="setup.windows">Windows</strong>
-              <small data-i18n="setup.windowsDesc">Windows 10/11 x64</small>
-            </button>
-          </div>
-          <!-- Script Display Area -->
-          <div id="script-area" class="hidden">
-            <div class="code-toolbar">
-              <span id="script-platform-label" class="badge badge-info"></span>
-              <div>
-                <button id="btn-copy-script" type="button" class="btn btn-xs btn-outline" data-i18n="copy">复制</button>
-                <button id="btn-download-script" type="button" class="btn btn-xs btn-outline" data-i18n="download">下载</button>
-              </div>
-            </div>
-            <pre id="script-content" class="code-block"></pre>
-          </div>
-          <button id="btn-finish-setup" type="button" class="btn btn-primary btn-block" disabled data-i18n="setup.finish">完成配置，进入控制面板 →</button>
+          <button id="btn-finish-setup" type="button" class="btn btn-primary btn-block" data-i18n="setup.finish">完成配置，进入控制面板 →</button>
         </div>
 
       </div>
@@ -186,9 +145,6 @@
             <button id="btn-lang" class="btn btn-sm btn-ghost">EN</button>
             <button id="btn-panel-settings" class="btn btn-sm btn-ghost" data-i18n-title="settings.title">
               <span class="material-icons material-icons-md">settings</span>
-            </button>
-            <button id="btn-manage-admins" class="btn btn-sm btn-ghost" data-i18n-title="adminManage.title">
-              <span class="material-icons material-icons-md">group</span>
             </button>
             <button id="btn-logout" class="btn btn-sm btn-danger-ghost" data-i18n-title="logout">
               <span class="material-icons material-icons-md">logout</span>
@@ -271,31 +227,6 @@
   </div>
 
   <!-- Modals -->
-
-  <!-- Admin Management Modal -->
-  <div id="modal-admin-manage" class="modal-overlay hidden">
-    <div class="modal">
-      <div class="modal-header">
-        <h3 id="modal-admin-title">管理员管理</h3>
-        <button type="button" class="modal-close btn-close-modal" data-modal="modal-admin-manage">&times;</button>
-      </div>
-      <div class="modal-body">
-        <h4 id="admin-list-title" class="modal-section-title">管理员列表</h4>
-        <div id="admin-list-container"></div>
-        <hr class="modal-divider">
-        <h4 id="invite-title" class="modal-section-title">邀请 GitHub 用户</h4>
-        <form id="invite-form" class="invite-form">
-          <input id="inp-invite-username" type="text" placeholder="GitHub 用户名" required>
-          <button type="submit" id="btn-invite" class="btn btn-primary" data-i18n="adminManage.inviteButton">邀请</button>
-        </form>
-        <div id="invite-error" class="alert alert-danger hidden"></div>
-        <div id="invite-success" class="alert alert-success hidden"></div>
-        <hr class="modal-divider">
-        <h4 id="invite-list-title" class="modal-section-title">已邀请用户</h4>
-        <div id="admin-invite-list"></div>
-      </div>
-    </div>
-  </div>
 
   <!-- Add Tunnel Modal -->
   <div id="modal-add-tunnel" class="modal-overlay hidden">

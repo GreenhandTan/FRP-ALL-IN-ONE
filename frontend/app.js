@@ -23,40 +23,14 @@ function showView(viewId) {
 
 /* ---- 语言切换 ---- */
 function applyTranslations() {
-  // Navbar
   setText("nav-title", t("dashboard.title"));
-
-  // Stats
   setText("stat-label-clients", t("dashboard.stats.totalClients"));
   setText("stat-label-online", t("dashboard.stats.onlineClients"));
   setText("stat-label-traffic-in", t("dashboard.stats.trafficIn"));
   setText("stat-label-traffic-out", t("dashboard.stats.trafficOut"));
-
-  // Client list
   setText("clients-section-title", t("dashboard.clients.title"));
   setText("clients-empty-text", t("dashboard.clients.empty"));
-
-  // Login
   setText("btn-github-login-text", t("login.submit"));
-  setText("login-hint", t("login.hint"));
-
-  // Setup
-  setText("setup-title", t("setup.title"));
-  setText("setup-subtitle", t("setup.subtitle"));
-  setText("lbl-port", t("setup.portLabel"));
-  setText("btn-deploy", t("setup.deployButton"));
-  setText("step-lbl-0", t("setup.mode"));
-  setText("step-lbl-1", t("setup.step1"));
-  setText("step-lbl-2", t("setup.step2"));
-  setText("step-lbl-3", t("setup.step3"));
-
-  // Admin modal
-  setText("modal-admin-title", t("adminManage.title"));
-  setText("admin-list-title", t("adminManage.admins"));
-  setText("invite-title", t("adminManage.inviteButton"));
-  const inviteInput = $("inp-invite-username");
-  if (inviteInput) inviteInput.placeholder = t("adminManage.invitePlaceholder");
-  setText("invite-list-title", t("adminManage.invites"));
 
   // Tunnel modal
   setText("modal-tunnel-title", t("dashboard.tunnels.name"));
@@ -79,7 +53,6 @@ function applyTranslations() {
     const translated = t(key);
     if (translated !== key) el.textContent = translated;
   });
-  // data-i18n-title attribute support
   document.querySelectorAll("[data-i18n-title]").forEach((el) => {
     const key = el.getAttribute("data-i18n-title");
     const translated = t(key);
@@ -99,13 +72,12 @@ function startDashboard() {
 
 /* ---- 路由检查 ---- */
 async function checkAuthAndRoute() {
-  // 检查 GitHub OAuth 回调
   const hashResult = extractTokenFromHash();
   if (hashResult && typeof hashResult === 'object' && hashResult.error) {
     showView("view-login");
     const errorEl = $("login-error");
-    if (hashResult.error === "not_invited") {
-      errorEl.textContent = t("login.errorNotInvited");
+    if (hashResult.error === "not_authorized") {
+      errorEl.textContent = t("login.errorNotAuthorized");
     } else {
       errorEl.textContent = t("login.error");
     }
@@ -113,13 +85,12 @@ async function checkAuthAndRoute() {
     return;
   }
 
-  // 检查 URL 参数中的错误
   const queryError = extractErrorFromQuery();
   if (queryError) {
     showView("view-login");
     const errorEl = $("login-error");
-    if (queryError === "not_invited") {
-      errorEl.textContent = t("login.errorNotInvited");
+    if (queryError === "not_authorized") {
+      errorEl.textContent = t("login.errorNotAuthorized");
     } else {
       errorEl.textContent = t("login.error");
     }
@@ -153,7 +124,6 @@ async function checkAuthAndRoute() {
 
 /* ---- 弹窗全局关闭代理 + data-action 事件委托 ---- */
 document.addEventListener("click", (e) => {
-  // Modal close buttons
   const btn = e.target.closest(".btn-close-modal");
   if (btn) {
     const modalId = btn.dataset.modal;
@@ -166,7 +136,6 @@ document.addEventListener("click", (e) => {
     }
   }
 
-  // data-action delegation
   const actionEl = e.target.closest("[data-action]");
   if (actionEl) {
     const action = actionEl.dataset.action;

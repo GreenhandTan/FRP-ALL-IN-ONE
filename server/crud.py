@@ -67,40 +67,6 @@ def count_admins(db: Session) -> int:
     return db.query(models.Admin).count()
 
 
-# ===========================
-# AdminInvite CRUD
-# ===========================
-
-def is_github_user_invited(db: Session, github_username: str) -> bool:
-    """检查 GitHub 用户是否在邀请列表中（首个部署时任何人都可以成为管理员）"""
-    count = db.query(models.Admin).count()
-    if count == 0:
-        return True
-    invite = db.query(models.AdminInvite).filter(
-        models.AdminInvite.github_username == github_username.lower()
-    ).first()
-    return invite is not None
-
-def add_invite(db: Session, github_username: str, added_by: int) -> models.AdminInvite:
-    invite = models.AdminInvite(github_username=github_username.lower(), added_by=added_by)
-    db.add(invite)
-    db.commit()
-    db.refresh(invite)
-    return invite
-
-def remove_invite(db: Session, github_username: str) -> bool:
-    invite = db.query(models.AdminInvite).filter(
-        models.AdminInvite.github_username == github_username.lower()
-    ).first()
-    if invite:
-        db.delete(invite)
-        db.commit()
-        return True
-    return False
-
-def get_all_invites(db: Session) -> List[models.AdminInvite]:
-    return db.query(models.AdminInvite).all()
-
 
 # ===========================
 # Client CRUD

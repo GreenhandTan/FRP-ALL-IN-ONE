@@ -52,6 +52,3 @@ class AdminInfo(BaseModel):
 
     class Config:
         from_attributes = True
-
-class InviteCreate(BaseModel):
-    github_username: str
