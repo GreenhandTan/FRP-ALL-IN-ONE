@@ -130,20 +130,59 @@
     <!-- Dashboard View -->
     <div id="view-dashboard" class="view dashboard-view">
 
-      <!-- Navbar -->
-      <nav id="navbar">
-        <div class="nav-inner">
-          <div class="nav-brand">
-            <div class="nav-logo">
-              <span class="material-icons">desktop_windows</span>
-            </div>
-            <span id="nav-title" class="nav-title">FRP 管理控制台</span>
-            <span id="ws-badge" class="badge badge-warning">Offline</span>
-            <span id="agents-badge" class="badge badge-info hidden"></span>
+      <!-- Mobile Sidebar Overlay -->
+      <div class="sidebar-overlay"></div>
+
+      <!-- Mobile Topbar -->
+      <div class="mobile-topbar">
+        <span class="material-icons mobile-hamburger">menu</span>
+        <span class="mobile-topbar-title">FRP 管理控制台</span>
+      </div>
+
+      <!-- Sidebar -->
+      <aside id="sidebar">
+        <div class="sidebar-brand">
+          <div class="sidebar-logo">
+            <span class="material-icons">desktop_windows</span>
           </div>
-          <div class="nav-actions">
+          <div class="sidebar-brand-text">
+            <span id="nav-title" class="sidebar-title">FRP 管理控制台</span>
+            <span class="sidebar-version">V3.0</span>
+          </div>
+        </div>
+
+        <div class="sidebar-status">
+          <span id="ws-badge" class="badge badge-warning">Offline</span>
+          <span id="agents-badge" class="badge badge-info hidden"></span>
+        </div>
+
+        <nav class="sidebar-nav">
+          <a href="#" class="sidebar-nav-link active" data-page="overview">
+            <span class="material-icons">dashboard</span>
+            <span data-i18n="dashboard.nav.overview">概览</span>
+          </a>
+          <a href="#" class="sidebar-nav-link" data-page="devices">
+            <span class="material-icons">devices</span>
+            <span data-i18n="dashboard.nav.devices">设备管理</span>
+          </a>
+          <a href="#" class="sidebar-nav-link" data-page="settings">
+            <span class="material-icons">settings</span>
+            <span data-i18n="dashboard.nav.settings">系统设置</span>
+          </a>
+        </nav>
+
+        <div class="sidebar-footer">
+          <a href="https://github.com/GreenhandTan/FRP-ALL-IN-ONE" target="_blank" rel="noopener" class="sidebar-footer-link">
+            <span class="material-icons">menu_book</span>
+            <span data-i18n="login.docs">项目文档</span>
+          </a>
+          <a href="https://github.com/GreenhandTan/FRP-ALL-IN-ONE" target="_blank" rel="noopener" class="sidebar-footer-link">
+            <span class="material-icons">code</span>
+            <span data-i18n="login.github">GitHub</span>
+          </a>
+          <div class="sidebar-actions">
             <button id="btn-lang" class="btn btn-sm btn-ghost">EN</button>
-            <button id="btn-panel-settings" class="btn btn-sm btn-ghost" data-i18n-title="settings.title">
+            <button id="btn-panel-settings" class="btn btn-sm btn-ghost hidden" data-i18n-title="settings.title">
               <span class="material-icons material-icons-md">settings</span>
             </button>
             <button id="btn-logout" class="btn btn-sm btn-danger-ghost" data-i18n-title="logout">
@@ -151,77 +190,264 @@
             </button>
           </div>
         </div>
-      </nav>
+      </aside>
 
-      <!-- Main Content -->
-      <main id="dashboard-main" class="container">
+      <!-- Main Content Area -->
+      <div id="dashboard-content">
+        <main id="dashboard-main" class="container">
 
-        <!-- Error Banner -->
-        <div id="error-banner" class="alert alert-danger hidden">
-          <span id="error-text"></span>
-          <button id="btn-dismiss-error" class="alert-close">×</button>
-        </div>
+          <!-- Error Banner (global) -->
+          <div id="error-banner" class="alert alert-danger hidden">
+            <span id="error-text"></span>
+            <button id="btn-dismiss-error" class="alert-close">×</button>
+          </div>
 
-        <!-- Stats Grid -->
-        <div class="stats-grid">
-          <div class="stat-card">
-            <div class="stat-icon-wrap stat-icon-green">
-              <span class="material-icons">desktop_windows</span>
+          <!-- ====== Page: Overview ====== -->
+          <div id="page-overview" class="page-section active">
+            <div class="page-header">
+              <div>
+                <h2 class="page-title" data-i18n="dashboard.nav.overview">概览</h2>
+                <p class="page-subtitle">系统运行状态一览</p>
+              </div>
             </div>
-            <div class="stat-body">
-              <div id="stat-label-clients" class="stat-label">已连接客户端</div>
-              <div id="stat-val-clients" class="stat-value">0</div>
-              <div id="stat-sub-clients" class="stat-sub"></div>
+
+            <!-- Overview Stats (4 cards) -->
+            <div class="stats-grid">
+              <div class="stat-card">
+                <div class="stat-icon-wrap stat-icon-blue">
+                  <span class="material-icons">devices</span>
+                </div>
+                <div class="stat-body">
+                  <div id="stat-label-clients" class="stat-label">已连接客户端</div>
+                  <div id="stat-val-clients" class="stat-value">0</div>
+                  <div id="stat-sub-clients" class="stat-sub"></div>
+                </div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-icon-wrap stat-icon-green">
+                  <span class="material-icons">wifi</span>
+                </div>
+                <div class="stat-body">
+                  <div id="stat-label-online" class="stat-label">在线客户端</div>
+                  <div id="stat-val-online" class="stat-value">0</div>
+                </div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-icon-wrap stat-icon-orange">
+                  <span class="material-icons">arrow_downward</span>
+                </div>
+                <div class="stat-body">
+                  <div id="stat-label-traffic-in" class="stat-label">总流量 (↓ 入)</div>
+                  <div id="stat-val-traffic-in" class="stat-value">0 B</div>
+                  <div class="stat-sub" data-i18n="dashboard.stats.trafficSub">所有客户端累计</div>
+                </div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-icon-wrap stat-icon-pink">
+                  <span class="material-icons">arrow_upward</span>
+                </div>
+                <div class="stat-body">
+                  <div id="stat-label-traffic-out" class="stat-label">总流量 (↑ 出)</div>
+                  <div id="stat-val-traffic-out" class="stat-value">0 B</div>
+                  <div class="stat-sub" data-i18n="dashboard.stats.trafficSub">所有客户端累计</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Overview Device Table -->
+            <div class="section-header">
+              <h2 id="clients-section-title">设备列表</h2>
+            </div>
+            <div id="overview-device-table" class="table-card">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th data-i18n="dashboard.tunnels.status">状态</th>
+                    <th data-i18n="dashboard.clients.hostname">主机名</th>
+                    <th data-i18n="dashboard.clients.os">操作系统 / 架构</th>
+                    <th data-i18n="dashboard.tunnels.traffic">流量 (上传/下载)</th>
+                    <th data-i18n="dashboard.tunnels.actions">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="overview-devices-tbody">
+                </tbody>
+              </table>
+            </div>
+            <div id="clients-empty" class="empty-state hidden">
+              <div class="empty-icon">
+                <span class="material-icons material-icons-xl">desktop_windows</span>
+              </div>
+              <p id="clients-empty-text">暂无客户端，请等待 Agent 自动注册</p>
             </div>
           </div>
-          <div class="stat-card">
-            <div class="stat-icon-wrap stat-icon-blue">
-              <span class="material-icons">wifi</span>
-            </div>
-            <div class="stat-body">
-              <div id="stat-label-online" class="stat-label">在线客户端</div>
-              <div id="stat-val-online" class="stat-value">0</div>
-            </div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-icon-wrap stat-icon-orange">
-              <span class="material-icons">arrow_upward</span>
-            </div>
-            <div class="stat-body">
-              <div id="stat-label-traffic-in" class="stat-label">总流量 (↓ 入)</div>
-              <div id="stat-val-traffic-in" class="stat-value">0 B</div>
-              <div class="stat-sub" data-i18n="dashboard.stats.trafficSub">所有客户端累计</div>
-            </div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-icon-wrap stat-icon-pink">
-              <span class="material-icons">arrow_downward</span>
-            </div>
-            <div class="stat-body">
-              <div id="stat-label-traffic-out" class="stat-label">总流量 (↑ 出)</div>
-              <div id="stat-val-traffic-out" class="stat-value">0 B</div>
-              <div class="stat-sub" data-i18n="dashboard.stats.trafficSub">所有客户端累计</div>
-            </div>
-          </div>
-        </div>
 
-        <!-- Client List -->
-        <div class="section-header">
-          <h2 id="clients-section-title">客户端列表</h2>
-          <button id="btn-add-device" type="button" class="btn btn-sm btn-primary" data-action="open-agent-deploy">
-            <span class="material-icons material-icons-sm">add</span>
-            <span data-i18n="dashboard.clients.addDevice">添加新设备</span>
-          </button>
-        </div>
-        <div id="clients-list"></div>
-        <div id="clients-empty" class="empty-state hidden">
-          <div class="empty-icon">
-            <span class="material-icons material-icons-xl">desktop_windows</span>
-          </div>
-          <p id="clients-empty-text">暂无客户端，请等待 Agent 自动注册</p>
-        </div>
+          <!-- ====== Page: Device Management ====== -->
+          <div id="page-devices" class="page-section">
+            <div class="page-header">
+              <div>
+                <h2 class="page-title" data-i18n="dashboard.nav.devices">设备管理</h2>
+                <p class="page-subtitle">管理连接的节点、监控状态并配置隧道</p>
+              </div>
+              <button id="btn-add-device" type="button" class="btn btn-sm btn-primary" data-action="open-agent-deploy">
+                <span class="material-icons material-icons-sm">add</span>
+                <span data-i18n="dashboard.clients.addDevice">添加新设备</span>
+              </button>
+            </div>
 
-      </main>
+            <!-- Device Management Stats (4 cards) -->
+            <div class="stats-grid">
+              <div class="stat-card">
+                <div class="stat-icon-wrap stat-icon-green">
+                  <span class="material-icons">desktop_windows</span>
+                </div>
+                <div class="stat-body">
+                  <div class="stat-label">活跃设备</div>
+                  <div id="dm-stat-active" class="stat-value">0</div>
+                </div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-icon-wrap stat-icon-pink">
+                  <span class="material-icons">error_outline</span>
+                </div>
+                <div class="stat-body">
+                  <div class="stat-label">离线设备</div>
+                  <div id="dm-stat-offline" class="stat-value">0</div>
+                </div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-icon-wrap stat-icon-blue">
+                  <span class="material-icons">route</span>
+                </div>
+                <div class="stat-body">
+                  <div class="stat-label">隧道总数</div>
+                  <div id="dm-stat-tunnels" class="stat-value">0</div>
+                </div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-icon-wrap stat-icon-orange">
+                  <span class="material-icons">swap_vert</span>
+                </div>
+                <div class="stat-body">
+                  <div class="stat-label">活跃连接</div>
+                  <div id="dm-stat-connections" class="stat-value">0</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Search Bar -->
+            <div class="search-bar">
+              <span class="material-icons">search</span>
+              <input id="device-search" type="text" placeholder="搜索主机名、IP 或操作系统…">
+            </div>
+
+            <!-- Client List (rendered by dashboard.js) -->
+            <div id="clients-list"></div>
+          </div>
+
+          <!-- ====== Page: System Settings ====== -->
+          <div id="page-settings" class="page-section">
+            <div class="page-header">
+              <div>
+                <h2 class="page-title" data-i18n="dashboard.nav.settings">系统设置</h2>
+                <p class="page-subtitle">配置 FRP 核心、网络路由和安全参数</p>
+              </div>
+              <div class="page-header-actions">
+                <button id="btn-settings-discard" type="button" class="btn btn-secondary">放弃修改</button>
+                <button id="btn-settings-save" type="button" class="btn btn-primary">
+                  <span class="material-icons material-icons-sm">save</span>
+                  保存配置
+                </button>
+              </div>
+            </div>
+
+            <!-- Settings: Domain & HTTPS -->
+            <div class="settings-card">
+              <div class="settings-card-header">
+                <span class="material-icons">public</span>
+                域名与 HTTPS 路由
+              </div>
+              <p class="settings-card-desc">配置主泛域名并管理 SSL/TLS 证书以实现安全的外部访问</p>
+              <div class="form-group">
+                <label>基础域名</label>
+                <input id="page-inp-domain" type="text" placeholder="frp.mydomain.com">
+                <small class="text-muted">请确保您的 DNS 提供商具有指向此服务器 IP 的 A 记录</small>
+              </div>
+              <hr class="modal-divider">
+              <div class="form-group">
+                <label>启用自动 HTTPS (Let's Encrypt)</label>
+                <p class="text-muted">自动为映射的子域名申请和续签 SSL 证书</p>
+                <div id="page-dns-check-result" class="dns-check-result"></div>
+                <button id="page-btn-check-dns" type="button" class="btn btn-outline btn-sm" style="margin-top:8px;">重新检查</button>
+              </div>
+              <hr class="modal-divider">
+              <div class="form-group">
+                <label>手动证书上传</label>
+                <div class="upload-area">
+                  <span class="material-icons" style="font-size:32px;color:var(--outline);">upload_file</span>
+                  <p>上传文件 或拖放至此处</p>
+                  <small class="text-muted">PEM、CRT、KEY 文件，最大 10MB</small>
+                </div>
+              </div>
+            </div>
+
+            <!-- Settings: NAT -->
+            <div class="settings-card">
+              <div class="settings-card-header">
+                <span class="material-icons">route</span>
+                NAT 配置
+              </div>
+              <p class="settings-card-desc">如果在严格的 NAT 或防火墙后面运行，请管理外部端口映射</p>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>管理面板公网端口</label>
+                  <input id="page-inp-panel-port" type="number" min="1" max="65535" placeholder="用于访问此面板的外部端口">
+                </div>
+                <div class="form-group">
+                  <label>FRP 绑定端口 (TCP)</label>
+                  <input type="number" disabled placeholder="7000">
+                  <small class="text-muted">服务运行时无法更改核心端口</small>
+                </div>
+              </div>
+            </div>
+
+            <!-- Settings: Account Security -->
+            <div class="settings-card">
+              <div class="settings-card-header">
+                <span class="material-icons">shield</span>
+                账户安全
+              </div>
+              <p class="settings-card-desc">系统使用 GitHub OAuth 进行安全访问。要更改授权管理员，请在下方关联不同的 GitHub 账号。</p>
+              <hr class="modal-divider">
+              <div class="settings-account-info">
+                <span class="material-icons">person</span>
+                <strong id="page-admin-name">admin</strong>
+                <span class="material-icons" style="color:var(--status-online);font-size:18px;">verified</span>
+                <span class="badge badge-success">已授权访问</span>
+              </div>
+              <hr class="modal-divider">
+              <button type="button" class="btn btn-outline">关联其他 GitHub 账号</button>
+            </div>
+
+            <!-- Settings: System Info -->
+            <div class="settings-card">
+              <div class="settings-card-header">
+                <span class="material-icons">info</span>
+                系统信息
+              </div>
+              <div class="info-table">
+                <div class="info-row"><span>版本</span><code id="page-sys-version">V3.0</code></div>
+                <div class="info-row"><span>数据库路径</span><code id="page-sys-dbpath">—</code></div>
+                <div class="info-row"><span>运行时间</span><code id="page-sys-uptime">—</code></div>
+              </div>
+              <button type="button" class="btn btn-outline btn-sm" style="margin-top:12px;">
+                <span class="material-icons material-icons-sm">sync</span>
+                检查更新
+              </button>
+            </div>
+          </div>
+
+        </main>
+      </div>
     </div>
 
   </div>
@@ -364,7 +590,7 @@
     </div>
   </div>
 
-  <!-- Panel Settings Modal -->
+  <!-- Panel Settings Modal (kept for backward compat) -->
   <div id="modal-panel-settings" class="modal-overlay hidden">
     <div class="modal">
       <div class="modal-header">

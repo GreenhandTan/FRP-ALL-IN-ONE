@@ -173,3 +173,92 @@ export function initSettings() {
     STATE._lastDismissedConflictTime = STATE._lastShownConflictTime || null;
   });
 }
+
+/* ---- 全页面设置 ---- */
+let _settingsPageLoaded = false;
+
+export async function initSettingsPage() {
+  if (_settingsPageLoaded) return;
+  _settingsPageLoaded = true;
+
+  // 加载当前设置值
+  try {
+    const data = await api.get("/api/settings/panel-port");
+    const portInput = $("page-inp-panel-port");
+    if (portInput) portInput.value = data.port || "";
+  } catch {}
+
+  try {
+    const domainData = await api.get("/api/settings/domain");
+    const domainInput = $("page-inp-domain");
+    if (domainInput && domainData.domain) {
+      domainInput.value = domainData.domain;
+    }
+  } catch {}
+
+  // DNS 检查按钮
+  const dnsBtn = $("page-btn-check-dns");
+  if (dnsBtn) {
+    dnsBtn.addEventListener("click", async () => {
+      const domainVal = $("page-inp-domain").value.trim();
+      const resultDiv = $("page-dns-check-result");
+      if (!domainVal) return;
+
+      dnsBtn.disabled = true;
+      resultDiv.textContent = "查询中…";
+
+      try {
+        const res = await api.post(`/api/settings/check-dns?domain=${encodeURIComponent(domainVal)}`);
+        if (res.success) {
+          resultDiv.textContent = "✅ " + res.message;
+          resultDiv.style.color = "var(--status-online)";
+        } else {
+          resultDiv.textContent = "❌ " + res.message;
+          resultDiv.style.color = "var(--error)";
+        }
+      } catch (err) {
+        resultDiv.textContent = "❌ DNS 检查失败: " + err.message;
+        resultDiv.style.color = "var(--error)";
+      } finally {
+        dnsBtn.disabled = false;
+      }
+    });
+  }
+
+  // 保存按钮
+  const saveBtn = $("btn-settings-save");
+  if (saveBtn) {
+    saveBtn.addEventListener("click", async () => {
+      saveBtn.disabled = true;
+      saveBtn.textContent = "保存中…";
+      try {
+        const portVal = $("page-inp-panel-port").value.trim();
+        const domainVal = $("page-inp-domain").value.trim();
+        await api.post("/api/settings/panel-port", { port: portVal });
+        if (domainVal) {
+          await api.post("/api/settings/domain", { domain: domainVal });
+        }
+        saveBtn.textContent = "✓ 已保存";
+        setTimeout(() => {
+          saveBtn.textContent = "保存配置";
+          saveBtn.disabled = false;
+        }, 2000);
+      } catch (err) {
+        saveBtn.textContent = "保存失败";
+        setTimeout(() => {
+          saveBtn.textContent = "保存配置";
+          saveBtn.disabled = false;
+        }, 2000);
+      }
+    });
+  }
+
+  // 放弃修改按钮
+  const discardBtn = $("btn-settings-discard");
+  if (discardBtn) {
+    discardBtn.addEventListener("click", () => {
+      _settingsPageLoaded = false;
+      initSettingsPage();
+    });
+  }
+}

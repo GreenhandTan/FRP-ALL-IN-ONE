@@ -31,12 +31,108 @@ export function renderStats() {
   }
 }
 
+/* ---- 设备管理页统计卡片渲染 ---- */
+export function renderDeviceStats() {
+  const { stats } = STATE;
+  const offlineDevices = stats.totalClients - stats.onlineClients;
+  setText("dm-stat-active", stats.onlineClients);
+  setText("dm-stat-offline", offlineDevices);
+  setText("dm-stat-tunnels", stats.totalProxies);
+  setText("dm-stat-connections", stats.activeProxies);
+}
+
+/* ---- 概览页设备表格渲染 ---- */
+export function renderOverviewDevices() {
+  const tbody = $("overview-devices-tbody");
+  if (!tbody) return;
+
+  const clients = STATE.registeredClients;
+  if (clients.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:32px;color:var(--outline);">
+      ${t("dashboard.clients.empty")}
+    </td></tr>`;
+    return;
+  }
+
+  const nowSec = Math.floor(Date.now() / 1000);
+  tbody.innerHTML = clients
+    .map((client) => {
+      const online =
+        client.is_online !== undefined
+          ? client.is_online
+          : client.last_seen && nowSec - client.last_seen < 30;
+      const trafficIn = client.net_bytes_in || 0;
+      const trafficOut = client.net_bytes_out || 0;
+      const os = client.os || "Unknown";
+      const arch = client.arch || "";
+
+      return `<tr>
+        <td>
+          <span class="table-status-dot ${online ? "online" : "offline"}">
+            <span class="dot"></span>
+            ${online ? "在线" : "离线"}
+          </span>
+        </td>
+        <td class="mono">${escapeHtml(client.name)}</td>
+        <td>${escapeHtml(os)}${arch ? "/" + escapeHtml(arch) : ""}</td>
+        <td>
+          <div class="table-traffic">
+            <span class="up">↑ ${formatBytes(trafficOut)}</span>
+            <span class="down">↓ ${formatBytes(trafficIn)}</span>
+          </div>
+        </td>
+        <td>
+          <button class="btn-view-log" title="${t("dashboard.clients.viewLogs")}"
+            data-action="view-logs" data-client-id="${escapeHtml(client.id)}" data-client-name="${escapeHtml(client.name)}"
+            ${online ? "" : "disabled"}>
+            <span class="material-icons material-icons-sm">terminal</span>
+          </button>
+        </td>
+      </tr>`;
+    })
+    .join("");
+
+  // 绑定日志按钮事件
+  tbody.querySelectorAll("[data-action]").forEach((btn) => {
+    btn.addEventListener("click", handleClientAction);
+  });
+}
+
+/* ---- 设备搜索 ---- */
+let _searchQuery = "";
+
+export function initDeviceSearch() {
+  const searchInput = $("device-search");
+  if (!searchInput) return;
+  searchInput.addEventListener("input", (e) => {
+    _searchQuery = e.target.value.trim().toLowerCase();
+    renderClients();
+  });
+}
+
+export function clearDeviceSearch() {
+  _searchQuery = "";
+  const searchInput = $("device-search");
+  if (searchInput) searchInput.value = "";
+}
+
+function _filterClients(clients) {
+  if (!_searchQuery) return clients;
+  return clients.filter((c) => {
+    const name = (c.name || "").toLowerCase();
+    const os = (c.os || "").toLowerCase();
+    const arch = (c.arch || "").toLowerCase();
+    const ip = (c.ip || c.remote_addr || "").toLowerCase();
+    return name.includes(_searchQuery) || os.includes(_searchQuery) || arch.includes(_searchQuery) || ip.includes(_searchQuery);
+  });
+}
+
 /* ---- 客户端卡片渲染 ---- */
 export function renderClients() {
   const list = $("clients-list");
   if (!list) return;
 
-  const clients = STATE.registeredClients;
+  const clients = _filterClients(STATE.registeredClients);
   if (clients.length === 0) {
     list.innerHTML = "";
     show("clients-empty");
@@ -504,7 +600,9 @@ function handleFullSync(data) {
 
   _recalcStats();
   renderStats();
+  renderOverviewDevices();
   renderClients();
+  renderDeviceStats();
 }
 
 function handleMetricsUpdate(clientId, data) {

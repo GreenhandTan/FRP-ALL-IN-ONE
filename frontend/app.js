@@ -8,10 +8,10 @@ import { t, lang, setLang } from './js/i18n.js';
 import { STATE } from './js/state.js';
 import { WS } from './js/ws.js';
 import { openModal, closeModal } from './js/modal.js';
-import { renderStats, renderClients, onDashboardMessage, initTunnelForm, initLogControls } from './js/dashboard.js';
+import { renderStats, renderClients, renderOverviewDevices, renderDeviceStats, initDeviceSearch, clearDeviceSearch, onDashboardMessage, initTunnelForm, initLogControls } from './js/dashboard.js';
 import { initAuth, handleLogout, extractTokenFromHash, extractErrorFromQuery } from './js/auth.js';
 import { initSetup, goSetupStep } from './js/setup.js';
-import { initSettings } from './js/settings.js';
+import { initSettings, initSettingsPage } from './js/settings.js';
 import { initAgent, openAgentDeploy as _openAgentDeploy, confirmCleanupAgentClient, getAgentCreatedClientId } from './js/agent.js';
 
 /* ---- 视图切换 ---- */
@@ -19,6 +19,51 @@ function showView(viewId) {
   $$(".view").forEach((v) => v.classList.remove("active"));
   const el = $(viewId);
   if (el) el.classList.add("active");
+}
+
+/* ---- 页面切换 (侧边栏导航) ---- */
+let currentPage = "overview";
+
+export function showPage(pageId) {
+  currentPage = pageId;
+  // 切换页面分区
+  $$(".page-section").forEach((s) => s.classList.remove("active"));
+  const section = $(`page-${pageId}`);
+  if (section) section.classList.add("active");
+
+  // 切换侧边栏 active 状态
+  $$(".sidebar-nav-link").forEach((link) => {
+    link.classList.toggle("active", link.dataset.page === pageId);
+  });
+
+  // 页面特定初始化
+  if (pageId === "overview") {
+    renderOverviewDevices();
+  } else if (pageId === "devices") {
+    clearDeviceSearch();
+    renderDeviceStats();
+    renderClients();
+  } else if (pageId === "settings") {
+    initSettingsPage();
+  }
+
+  // 移动端关闭侧边栏
+  closeMobileSidebar();
+}
+
+/* ---- 移动端侧边栏 ---- */
+function openMobileSidebar() {
+  const sidebar = $("sidebar");
+  const overlay = $(".sidebar-overlay");
+  if (sidebar) sidebar.classList.add("open");
+  if (overlay) overlay.classList.add("active");
+}
+
+function closeMobileSidebar() {
+  const sidebar = $("sidebar");
+  const overlay = $(".sidebar-overlay");
+  if (sidebar) sidebar.classList.remove("open");
+  if (overlay) overlay.classList.remove("active");
 }
 
 /* ---- 语言切换 ---- */
@@ -64,9 +109,9 @@ function applyTranslations() {
 function startDashboard() {
   showView("view-dashboard");
   applyTranslations();
+  // 默认显示概览页
+  showPage("overview");
   renderStats();
-  hide("clients-empty");
-  $("clients-list").innerHTML = "";
   WS.connect("/ws/dashboard", onDashboardMessage);
 }
 
@@ -143,6 +188,26 @@ document.addEventListener("click", (e) => {
       _openAgentDeploy();
     }
   }
+
+  // 侧边栏导航
+  const navLink = e.target.closest(".sidebar-nav-link");
+  if (navLink) {
+    e.preventDefault();
+    const page = navLink.dataset.page;
+    if (page) showPage(page);
+  }
+
+  // 移动端汉堡菜单
+  const hamburger = e.target.closest(".mobile-hamburger");
+  if (hamburger) {
+    openMobileSidebar();
+  }
+
+  // 移动端侧边栏遮罩
+  const overlay = e.target.closest(".sidebar-overlay");
+  if (overlay) {
+    closeMobileSidebar();
+  }
 });
 
 /* ---- 初始化 ---- */
@@ -153,6 +218,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   initAgent();
   initTunnelForm();
   initLogControls();
+  initDeviceSearch();
 
   $("btn-lang").addEventListener("click", () => {
     const newLang = lang === "zh" ? "en" : "zh";
