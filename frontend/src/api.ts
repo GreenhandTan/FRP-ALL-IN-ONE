@@ -70,7 +70,12 @@ export const authApi = {
 
   /** 获取当前用户信息 */
   getProfile() {
-    return request<any>('GET', '/api/auth/profile');
+    return request<{ github_username: string; avatar_url: string; is_superadmin: boolean }>('GET', '/api/auth/profile');
+  },
+
+  /** 换绑 GitHub 账号 */
+  rebindGithub() {
+    window.location.href = `${API_BASE}/api/auth/github/rebind`;
   },
 };
 

@@ -4,6 +4,7 @@ GitHub OAuth 登录（单管理员模式）
 """
 import os
 import secrets
+import time
 from datetime import timedelta
 
 import httpx
@@ -18,6 +19,9 @@ from core import get_db, get_current_user
 from core.rate_limit import limiter
 
 router = APIRouter(prefix="/auth", tags=["认证"])
+
+# 换绑 token 缓存：{token: {"admin_id": int, "expires": float}}
+_rebind_tokens: dict = {}
 
 
 def _build_callback_url(request: Request) -> str:
@@ -53,6 +57,41 @@ async def github_login(request: Request):
     return RedirectResponse(url=f"{auth.GITHUB_AUTHORIZE_URL}?{params}")
 
 
+@router.get("/github/rebind")
+@limiter.limit("3/minute")
+async def github_rebind(
+    request: Request,
+    current_user: models.Admin = Depends(get_current_user)
+):
+    """换绑 GitHub 账号：生成短期 token 并跳转 GitHub OAuth"""
+    if not auth.GITHUB_CLIENT_ID or not auth.GITHUB_CLIENT_SECRET:
+        raise HTTPException(status_code=500, detail="GitHub OAuth 未配置")
+
+    # 生成换绑 token（5 分钟有效）
+    rebind_token = secrets.token_urlsafe(32)
+    _rebind_tokens[rebind_token] = {
+        "admin_id": current_user.id,
+        "expires": time.time() + 300,
+    }
+
+    # 清理过期 token
+    now = time.time()
+    expired = [k for k, v in _rebind_tokens.items() if v["expires"] < now]
+    for k in expired:
+        _rebind_tokens.pop(k, None)
+
+    callback_url = _build_callback_url(request)
+    state = f"rebind:{rebind_token}"
+
+    params = (
+        f"client_id={auth.GITHUB_CLIENT_ID}"
+        f"&redirect_uri={callback_url}"
+        f"&scope=read:user"
+        f"&state={state}"
+    )
+    return RedirectResponse(url=f"{auth.GITHUB_AUTHORIZE_URL}?{params}")
+
+
 @router.get("/github/callback")
 async def github_callback(
     request: Request,
@@ -64,7 +103,17 @@ async def github_callback(
     if not code:
         raise HTTPException(status_code=400, detail="缺少授权码")
 
-    if state:
+    # 检查是否为换绑流程
+    is_rebind = False
+    rebind_admin_id = None
+    if state and state.startswith("rebind:"):
+        rebind_token = state.split("rebind:", 1)[1]
+        rebind_data = _rebind_tokens.pop(rebind_token, None)
+        if not rebind_data or rebind_data["expires"] < time.time():
+            raise HTTPException(status_code=400, detail="换绑 token 已过期或无效")
+        is_rebind = True
+        rebind_admin_id = rebind_data["admin_id"]
+    elif state:
         try:
             auth.jwt.decode(state, auth.get_secret_key(), algorithms=[auth.ALGORITHM])
         except auth.JWTError:
@@ -111,6 +160,23 @@ async def github_callback(
     frontend_base = f"{scheme}://{host}"
 
     admin = crud.get_admin_by_github_id(db, github_id)
+
+    # 换绑流程：更新当前管理员的 github_id
+    if is_rebind:
+        admin = db.query(models.Admin).filter(models.Admin.id == rebind_admin_id).first()
+        if not admin:
+            return RedirectResponse(url=f"{frontend_base}/?error=admin_not_found")
+        # 检查新账号是否已被其他管理员使用
+        existing = crud.get_admin_by_github_id(db, github_id)
+        if existing and existing.id != admin.id:
+            return RedirectResponse(url=f"{frontend_base}/?error=account_in_use")
+        crud.update_admin_github_id(db, admin.id, github_id, github_username, avatar_url)
+        # 生成新 token 返回
+        access_token = auth.create_access_token(
+            data={"sub": str(github_id)},
+            expires_delta=timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
+        )
+        return RedirectResponse(url=f"{frontend_base}/#access_token={access_token}")
 
     if not admin:
         admin_count = crud.count_admins(db)

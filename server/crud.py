@@ -52,6 +52,17 @@ def update_admin_github_info(db: Session, admin_id: int, github_username: str, a
         admin.avatar_url = avatar_url
         db.commit()
 
+def update_admin_github_id(db: Session, admin_id: int, new_github_id: int, github_username: str, avatar_url: str):
+    """换绑 GitHub 账号：更新 github_id、username 和 avatar"""
+    admin = db.query(models.Admin).filter(models.Admin.id == admin_id).first()
+    if admin:
+        admin.github_id = new_github_id
+        admin.github_username = github_username
+        admin.avatar_url = avatar_url
+        db.commit()
+        db.refresh(admin)
+    return admin
+
 def get_all_admins(db: Session) -> List[models.Admin]:
     return db.query(models.Admin).all()
 

@@ -100,6 +100,8 @@ export default function App() {
   const [tunnels, setTunnels] = useState<Tunnel[]>([]);
   const [serverConfig, setServerConfig] = useState<ServerConfig>({ ...defaultServerConfig, ip: '', port: 7000, token: '' });
   const [globalSettings, setGlobalSettings] = useState<GlobalSettings>(defaultGlobalSettings);
+  const [frpsInfo, setFrpsInfo] = useState<any>(null);
+  const [userProfile, setUserProfile] = useState<{ github_username: string; avatar_url: string; is_superadmin: boolean } | null>(null);
 
   // Script / OS selection wizard
   const [selectedOs, setSelectedOs] = useState<OS>('linux');
@@ -113,7 +115,7 @@ export default function App() {
   
   // Settings view states matching design mockup from HTML
   const [tempDomain, setTempDomain] = useState<string>('');
-  const [enableAutoHttps, setEnableAutoHttps] = useState<boolean>(true);
+  const [enableAutoHttps, setEnableAutoHttps] = useState<boolean>(false);
   const [tempDashboardPort, setTempDashboardPort] = useState<number>(7500);
   const [dnsChecked, setDnsChecked] = useState<boolean>(true);
   const [dnsCheckLoading, setDnsCheckLoading] = useState<boolean>(false);
@@ -137,6 +139,8 @@ export default function App() {
   
   // Device management search/filtering states matching mockup requirements
   const [deviceSearchQuery, setDeviceSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
   const [osFilter, setOsFilter] = useState({ linux: true, windows: true, macos: true });
   const [archFilter, setArchFilter] = useState({ x86_64: true, arm64: true });
@@ -215,6 +219,17 @@ export default function App() {
       return true;
     });
   }, [devices, deviceSearchQuery, osFilter, archFilter, statusFilter]);
+
+  // 搜索/过滤变化时重置页码
+  useEffect(() => { setCurrentPage(1); }, [deviceSearchQuery, osFilter, archFilter, statusFilter]);
+
+  // 分页计算
+  const totalPages = Math.max(1, Math.ceil(filteredDevices.length / ITEMS_PER_PAGE));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const pagedDevices = filteredDevices.slice(
+    (safeCurrentPage - 1) * ITEMS_PER_PAGE,
+    safeCurrentPage * ITEMS_PER_PAGE
+  );
 
   const [newTunnelData, setNewTunnelData] = useState({
     name: 'web-service',
@@ -401,13 +416,16 @@ export default function App() {
       // 加载 FRPS 状态
       try {
         const frps = await frpApi.getServerStatus();
-        if (frps.success && frps.server_info) {
-          setServerConfig(prev => ({
-            ...prev,
-            ip: frps.server_info?.bindAddr || prev.ip,
-            port: frps.server_info?.bindPort || prev.port,
-            version: frps.server_info?.version ? `v${frps.server_info.version}-Stable` : prev.version,
-          }));
+        if (frps.success) {
+          setFrpsInfo(frps);
+          if (frps.server_info) {
+            setServerConfig(prev => ({
+              ...prev,
+              ip: frps.server_info?.bindAddr || prev.ip,
+              port: frps.server_info?.bindPort || prev.port,
+              version: frps.server_info?.version ? `v${frps.server_info.version}-Stable` : prev.version,
+            }));
+          }
         }
       } catch {}
 
@@ -419,6 +437,12 @@ export default function App() {
           setTempDomain(domainCfg.domain);
           setEnableAutoHttps(domainCfg.tls_enabled);
         }
+      } catch {}
+
+      // 加载用户信息
+      try {
+        const profile = await authApi.getProfile();
+        setUserProfile(profile);
       } catch {}
     } catch (err: any) {
       if (err.status === 401 || err.status === 403) {
@@ -1661,7 +1685,7 @@ export default function App() {
                             <Activity className="text-[#00add5] w-5 h-5 shrink-0" />
                           </div>
                           <div className="font-headline-md text-headline-md text-on-surface font-black text-left">
-                            {tunnels.filter(t => t.status === 'online').length * 12 + 2}/1,245
+                            {tunnels.filter(t => t.status === 'online').length}/{tunnels.length}
                           </div>
                         </div>
                       </div>
@@ -1745,7 +1769,7 @@ export default function App() {
                                   </td>
                                 </tr>
                               ) : (
-                                filteredDevices.map((device) => {
+                                pagedDevices.map((device) => {
                                   const isDeviceOnline = device.status === 'online';
                                   const isExpanded = !!expandedDeviceIds[device.id];
                                   const deviceTunnels = tunnels.filter(t => t.deviceId === device.id);
@@ -1782,7 +1806,7 @@ export default function App() {
                                         </td>
                                         
                                         <td className="py-4 px-4 hidden lg:table-cell font-mono text-xs text-on-surface-variant">
-                                          v0.51.3
+                                          {device.agentInfo?.agent_version || '-'}
                                         </td>
                                         
                                         <td className="py-4 px-4 hidden sm:table-cell text-on-surface-variant font-mono text-xs whitespace-nowrap">
@@ -1961,43 +1985,45 @@ export default function App() {
                         </div>
 
                         {/* Pagination Footer */}
+                        {filteredDevices.length > 0 && (
                         <div className="p-4 border-t border-[#E2E8F0] bg-white flex flex-col sm:flex-row justify-between items-center gap-3 text-xs font-semibold select-none">
                           <span className="text-on-surface-variant font-sans">
                             {t(
-                              `显示第 1 至 ${filteredDevices.length} 项，共 ${devices.length} 个设备`, 
-                              `Displaying 1 to ${filteredDevices.length} of ${devices.length} registered terminal nodes`
+                              `显示第 ${(safeCurrentPage - 1) * ITEMS_PER_PAGE + 1} 至 ${Math.min(safeCurrentPage * ITEMS_PER_PAGE, filteredDevices.length)} 项，共 ${filteredDevices.length} 个设备`,
+                              `Displaying ${(safeCurrentPage - 1) * ITEMS_PER_PAGE + 1} to ${Math.min(safeCurrentPage * ITEMS_PER_PAGE, filteredDevices.length)} of ${filteredDevices.length} registered terminal nodes`
                             )}
                           </span>
                           <div className="flex gap-1">
                             <button
-                              disabled={true}
-                              className="px-3 py-1.5 border border-[#E2E8F0] rounded text-outline bg-[#f2f4f6]/50 cursor-not-allowed disabled:opacity-40 transition-colors font-sans"
+                              disabled={safeCurrentPage <= 1}
+                              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                              className="px-3 py-1.5 border border-[#E2E8F0] rounded text-on-surface hover:bg-slate-50 transition-colors cursor-pointer font-sans disabled:opacity-40 disabled:cursor-not-allowed bg-white"
                             >
                               {t('上一页', 'Prev')}
                             </button>
-                            <button className="px-3.5 py-1.5 border border-[#006782] rounded bg-[#006782] text-white font-bold cursor-pointer font-sans">
-                              1
-                            </button>
-                            <button 
-                              onClick={() => triggerToast(t('当前仅第1页有设备记录数据', 'This is a single page mock demonstration.'), 'info')}
-                              className="px-3.5 py-1.5 border border-[#E2E8F0] rounded text-on-surface hover:bg-slate-50 transition-colors cursor-pointer font-sans bg-white"
-                            >
-                              2
-                            </button>
-                            <button 
-                              onClick={() => triggerToast(t('当前仅第1页有设备记录数据', 'This is a single page mock demonstration.'), 'info')}
-                              className="px-3.5 py-1.5 border border-[#E2E8F0] rounded text-on-surface hover:bg-slate-50 transition-colors cursor-pointer font-sans bg-white"
-                            >
-                              3
-                            </button>
+                            {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                              <button
+                                key={page}
+                                onClick={() => setCurrentPage(page)}
+                                className={`px-3.5 py-1.5 border rounded font-sans transition-colors cursor-pointer ${
+                                  page === safeCurrentPage
+                                    ? 'border-[#006782] bg-[#006782] text-white font-bold'
+                                    : 'border-[#E2E8F0] text-on-surface hover:bg-slate-50 bg-white'
+                                }`}
+                              >
+                                {page}
+                              </button>
+                            ))}
                             <button
-                              onClick={() => triggerToast(t('当前仅第1页有设备记录数据', 'This is a single page mock demonstration.'), 'info')}
-                              className="px-3 py-1.5 border border-[#E2E8F0] rounded text-on-surface hover:bg-slate-50 transition-colors cursor-pointer font-sans bg-white"
+                              disabled={safeCurrentPage >= totalPages}
+                              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                              className="px-3 py-1.5 border border-[#E2E8F0] rounded text-on-surface hover:bg-slate-50 transition-colors cursor-pointer font-sans disabled:opacity-40 disabled:cursor-not-allowed bg-white"
                             >
                               {t('下一页', 'Next')}
                             </button>
                           </div>
                         </div>
+                        )}
                       </div>
                     </motion.div>
                   )}
@@ -2241,11 +2267,15 @@ export default function App() {
                                   {t('当前关联的 GITHUB 账号', 'CURRENT ASSOCIATED GITHUB ID')}
                                 </label>
                                 <div className="flex items-center gap-3">
-                                  <div className="w-10 h-10 rounded-full bg-[#24292F] flex items-center justify-center text-white shrink-0 select-none">
-                                    <span className="font-bold text-sm">Git</span>
-                                  </div>
+                                  {userProfile?.avatar_url ? (
+                                    <img src={userProfile.avatar_url} alt="avatar" className="w-10 h-10 rounded-full shrink-0" />
+                                  ) : (
+                                    <div className="w-10 h-10 rounded-full bg-[#24292F] flex items-center justify-center text-white shrink-0 select-none">
+                                      <span className="font-bold text-sm">Git</span>
+                                    </div>
+                                  )}
                                   <div>
-                                    <p className="font-bold text-sm text-on-surface leading-none">admin</p>
+                                    <p className="font-bold text-sm text-on-surface leading-none">{userProfile?.github_username || '...'}</p>
                                     <p className="text-xs text-status-online flex items-center gap-1 mt-1 font-semibold select-none">
                                       <Check className="w-3.5 h-3.5" />
                                       {t('已授权全部控制链', 'Verified access token')}
@@ -2253,10 +2283,10 @@ export default function App() {
                                   </div>
                                 </div>
                               </div>
-                              
+
                               <button
                                 type="button"
-                                onClick={() => triggerToast(t('准备跳转至 GitHub 安全验证中心与 OAuth 接口授权页...', 'Redirecting to GitHub client accounts passport protocol portal...'), 'info')}
+                                onClick={() => authApi.rebindGithub()}
                                 className="w-full mt-2 px-4 py-2.5 bg-[#24292F] hover:bg-black text-white rounded font-semibold text-xs transition-colors flex items-center justify-center gap-2 shadow-sm cursor-pointer"
                               >
                                 <Code className="w-4 h-4 text-white" />
@@ -2395,7 +2425,7 @@ export default function App() {
                             <div className="bg-slate-50 border border-slate-100 p-4 rounded-lg flex justify-between flex-wrap gap-4 text-xs font-mono text-on-surface">
                               <div className="flex flex-col gap-0.5">
                                 <span className="text-[10px] text-outline uppercase">{t('当前服务器地址', 'Server Bind IP')}</span>
-                                <span className="font-bold">{serverConfig.ip}</span>
+                                <span className="font-bold">{serverConfig.ip || '-'}</span>
                               </div>
                               <div className="flex flex-col gap-0.5">
                                 <span className="text-[10px] text-outline uppercase">{t('当前 FRPS 端口', 'FRPS Daemon Port')}</span>
@@ -2403,7 +2433,15 @@ export default function App() {
                               </div>
                               <div className="flex flex-col gap-0.5">
                                 <span className="text-[10px] text-outline uppercase">{t('FRP 版本', 'FRP Core Release')}</span>
-                                <span className="font-bold">v0.51.3</span>
+                                <span className="font-bold">{frpsInfo?.server_info?.version ? `v${frpsInfo.server_info.version}` : '-'}</span>
+                              </div>
+                              <div className="flex flex-col gap-0.5">
+                                <span className="text-[10px] text-outline uppercase">{t('在线客户端', 'Online Clients')}</span>
+                                <span className="font-bold">{frpsInfo?.total_clients ?? '-'}</span>
+                              </div>
+                              <div className="flex flex-col gap-0.5">
+                                <span className="text-[10px] text-outline uppercase">{t('总隧道数', 'Total Proxies')}</span>
+                                <span className="font-bold">{frpsInfo?.total_proxies ?? '-'}</span>
                               </div>
                             </div>
                           </div>
