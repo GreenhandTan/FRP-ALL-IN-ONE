@@ -4,7 +4,7 @@
 """
 import re
 import asyncio
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
@@ -219,25 +219,6 @@ async def disable_tls(
         "success": True,
         "message": "HTTPS 已禁用，恢复 HTTP 访问"
     }
-
-
-@router.post("/upload-cert")
-async def upload_custom_cert(
-    domain: str = Form(...),
-    cert_file: UploadFile = File(...),
-    key_file: UploadFile = File(...),
-    db: Session = Depends(get_db),
-    current_user: models.Admin = Depends(get_current_user)
-):
-    """上传自定义证书"""
-    try:
-        cert_content = (await cert_file.read()).decode("utf-8")
-        key_content = (await key_file.read()).decode("utf-8")
-        
-        result = tls_manager.save_custom_cert(domain, cert_content, key_content)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"上传证书失败：{str(e)}")
 
 
 @router.get("/tls-status")

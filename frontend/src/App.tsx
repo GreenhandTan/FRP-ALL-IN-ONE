@@ -115,7 +115,6 @@ export default function App() {
   const [tempDashboardPort, setTempDashboardPort] = useState<number>(7500);
   const [dnsChecked, setDnsChecked] = useState<boolean>(true);
   const [dnsCheckLoading, setDnsCheckLoading] = useState<boolean>(false);
-  const [certFileName, setCertFileName] = useState<string>('');
   
   // 日志流 — 由 WebSocket 实时推送填充
   const [logs, setLogs] = useState<string[]>([]);
@@ -697,7 +696,6 @@ export default function App() {
   const handleDiscardSettings = () => {
     setTempDomain(serverConfig.domain || 'frp.mydomain.com');
     setTempDashboardPort(globalSettings.dashboardPort || 7500);
-    setCertFileName('');
     triggerToast(t('放弃未保存修改并返回控制面板概览', 'Discarded unsaved change logs, redirected back to Overview'), 'info');
     changeScreen(Screen.DASHBOARD, 'none');
   };
@@ -719,38 +717,6 @@ export default function App() {
       setDnsCheckLoading(false);
       setDnsChecked(false);
       triggerToast(`DNS 检查失败: ${err.message}`, 'warning');
-    }
-  };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    const file = files[0];
-    setCertFileName(file.name);
-
-    // 上传证书到后端
-    try {
-      const formData = new FormData();
-      formData.append('domain', tempDomain || serverConfig.domain || '');
-      formData.append('cert_file', file);
-      // 如果是 .key 文件也作为 key_file 上传
-      if (file.name.endsWith('.key')) {
-        formData.append('key_file', file);
-      }
-      const token = localStorage.getItem('token');
-      const res = await fetch('/api/settings/upload-cert', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: formData,
-      });
-      if (res.ok) {
-        triggerToast(t(`证书 '${file.name}' 上传成功`, `Certificate '${file.name}' uploaded successfully`), 'success');
-      } else {
-        const detail = await res.json().catch(() => ({}));
-        triggerToast(`上传失败: ${detail.detail || res.statusText}`, 'warning');
-      }
-    } catch (err: any) {
-      triggerToast(`上传失败: ${err.message}`, 'warning');
     }
   };
 
@@ -2135,32 +2101,38 @@ export default function App() {
                                 </button>
                               </div>
                               
-                              {/* Manual Cert Upload */}
+                              {/* One-click Let's Encrypt */}
                               <div>
                                 <label className="block font-label-md text-xs text-on-surface mb-2 font-semibold">
-                                  {t('手动证书上传', 'Manual SSL Certificate Upload')}
+                                  {t('一键申请 Let\'s Encrypt 证书', 'One-click Let\'s Encrypt Certificate')}
                                 </label>
-                                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-300 border-dashed rounded bg-slate-50 hover:bg-slate-100/50 transition-colors cursor-pointer group relative">
-                                  <input
-                                    type="file"
-                                    id="manual-cert-file"
-                                    onChange={handleFileChange}
-                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                                    accept=".pem,.crt,.key"
-                                  />
-                                  <div className="space-y-1 text-center select-none pointer-events-none">
-                                    <Download className="w-8 h-8 text-slate-400 group-hover:text-[#006782] mx-auto mb-2 transition-colors" />
-                                    <div className="flex text-xs text-on-surface-variant justify-center font-sans font-medium">
-                                      <span className="text-[#006782] hover:underline font-bold">
-                                        {certFileName ? t(`已选: ${certFileName}`, `Selected: ${certFileName}`) : t('上传文件', 'Drag and drop files to upload')}
-                                      </span>
-                                      {!certFileName && <p className="pl-1">{t('或拖放至此处', 'or choose from disk')}</p>}
-                                    </div>
-                                    <p className="text-[11px] text-slate-400 font-sans mt-1">
-                                      {t('支持 PEM、CRT、KEY 证书文件，最大 10MB', 'Supports PEM, CRT, KEY format files, up to 10MB')}
-                                    </p>
-                                  </div>
-                                </div>
+                                <button
+                                  onClick={async () => {
+                                    if (!tempDomain) {
+                                      triggerToast(t('请先填写域名', 'Please enter a domain first'), 'warning');
+                                      return;
+                                    }
+                                    try {
+                                      triggerToast(t('正在申请证书，请稍候...', 'Requesting certificate, please wait...'), 'info');
+                                      const result = await settingsApi.enableTls(tempDomain, 'auto');
+                                      if ((result as any).success) {
+                                        setEnableAutoHttps(true);
+                                        triggerToast(t('证书申请成功，HTTPS 已启用！', 'Certificate issued successfully, HTTPS enabled!'), 'success');
+                                      } else {
+                                        triggerToast(`申请失败: ${(result as any).message}`, 'warning');
+                                      }
+                                    } catch (err: any) {
+                                      triggerToast(`申请失败: ${err.message}`, 'warning');
+                                    }
+                                  }}
+                                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#006782] hover:bg-[#005a6e] text-white rounded-lg font-sans text-sm font-semibold transition-colors cursor-pointer"
+                                >
+                                  <Shield className="w-4 h-4 shrink-0" />
+                                  {t('一键申请 SSL 证书', 'Issue SSL Certificate')}
+                                </button>
+                                <p className="text-[11px] text-slate-400 font-sans mt-2">
+                                  {t('需先配置域名并确保 DNS 已解析到本服务器', 'Domain must be configured and DNS must resolve to this server')}
+                                </p>
                               </div>
                             </div>
                           </section>
