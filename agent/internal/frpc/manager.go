@@ -106,9 +106,9 @@ func (m *Manager) Start() error {
 // Stop 停止 FRPC 进程
 func (m *Manager) Stop() error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 
 	if !m.isRunning || m.process == nil {
+		m.mu.Unlock()
 		return nil
 	}
 
@@ -116,19 +116,19 @@ func (m *Manager) Stop() error {
 
 	// 发送终止信号
 	if err := m.process.Process.Signal(os.Interrupt); err != nil {
-		// 如果 Interrupt 失败，强制杀死
 		m.process.Process.Kill()
 	}
 
-	// 等待进程退出（通过 check watchProcess 的 doneCh）
+	proc := m.process
+	m.mu.Unlock()
+
+	// 在锁外等待进程退出，避免死锁（watchProcess 也需要锁）
 	select {
 	case <-m.doneCh:
 		log.Printf("[FRPC] 进程已停止")
 	case <-time.After(3 * time.Second):
 		log.Println("[FRPC] 等待超时，强制杀死进程")
-		m.process.Process.Kill()
-
-		// 再次等待
+		proc.Process.Kill()
 		select {
 		case <-m.doneCh:
 			log.Printf("[FRPC] 进程已停止 (Killed)")
@@ -137,8 +137,10 @@ func (m *Manager) Stop() error {
 		}
 	}
 
+	m.mu.Lock()
 	m.process = nil
 	m.isRunning = false
+	m.mu.Unlock()
 
 	// 等待端口释放
 	time.Sleep(500 * time.Millisecond)
@@ -154,14 +156,39 @@ func (m *Manager) Stop() error {
 func (m *Manager) Restart() error {
 	log.Println("[FRPC] 重启中...")
 
-	// 先解锁以便 Stop 可以获取锁
-	if err := m.Stop(); err != nil {
-		log.Printf("[FRPC] 停止失败: %v", err)
+	// 直接内联停止逻辑，避免 Stop→Lock 死锁
+	m.mu.Lock()
+	if m.isRunning && m.process != nil {
+		if err := m.process.Process.Signal(os.Interrupt); err != nil {
+			m.process.Process.Kill()
+		}
+		proc := m.process
+		m.mu.Unlock()
+
+		select {
+		case <-m.doneCh:
+		case <-time.After(3 * time.Second):
+			proc.Process.Kill()
+			select {
+			case <-m.doneCh:
+			case <-time.After(1 * time.Second):
+			}
+		}
+
+		m.mu.Lock()
+		m.process = nil
+		m.isRunning = false
+		m.mu.Unlock()
+
+		time.Sleep(500 * time.Millisecond)
+		if m.OnStatus != nil {
+			m.OnStatus("stopped")
+		}
+	} else {
+		m.mu.Unlock()
 	}
 
-	// 额外等待确保端口完全释放
 	time.Sleep(1 * time.Second)
-
 	return m.Start()
 }
 
