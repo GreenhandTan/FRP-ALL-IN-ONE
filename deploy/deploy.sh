@@ -282,47 +282,86 @@ show_info() {
     echo ""
 }
 
-check_github_oauth() {
+configure_env_vars() {
     echo ""
-    echo "[CHECK] 检查 GitHub OAuth 配置..."
+    echo "=========================================="
+    echo "  环境变量配置"
+    echo "=========================================="
+    echo ""
 
     # 从 .env 文件读取（如果存在）
-    if [ -f "$SCRIPT_DIR/.env" ]; then
-        . "$SCRIPT_DIR/.env" 2>/dev/null || true
+    ENV_FILE="$SCRIPT_DIR/.env"
+    if [ -f "$ENV_FILE" ]; then
+        . "$ENV_FILE" 2>/dev/null || true
     fi
 
-    if [ -z "${GITHUB_CLIENT_ID:-}" ] || [ -z "${GITHUB_CLIENT_SECRET:-}" ]; then
-        echo -e "${YELLOW}[WARN] 未检测到 GITHUB_CLIENT_ID 或 GITHUB_CLIENT_SECRET${NC}"
+    # ---- GITHUB_CLIENT_ID ----
+    if [ -z "${GITHUB_CLIENT_ID:-}" ]; then
+        echo -e "${YELLOW}本系统使用 GitHub OAuth 登录。${NC}"
+        echo "请先创建 GitHub OAuth App: https://github.com/settings/developers"
+        echo "  - Homepage URL:            http://<你的服务器IP>:8080"
+        echo "  - Authorization callback:  http://<你的服务器IP>:8080/api/auth/github/callback"
         echo ""
-        echo "  本系统使用 GitHub OAuth 登录，你需要："
-        echo "  1. 创建 GitHub OAuth App: https://github.com/settings/developers"
-        echo "  2. 设置环境变量或创建 .env 文件："
-        echo ""
-        echo "     export GITHUB_CLIENT_ID=\"你的Client ID\""
-        echo "     export GITHUB_CLIENT_SECRET=\"你的Client Secret\""
-        echo ""
-        echo "  或在 deploy/ 目录下创建 .env 文件："
-        echo "     GITHUB_CLIENT_ID=你的Client ID"
-        echo "     GITHUB_CLIENT_SECRET=你的Client Secret"
-        echo ""
-
-        if [ -t 0 ]; then
-            printf "是否仍继续部署？(y/N): "
-            read -r continue_deploy
-            case "$continue_deploy" in
-                y|Y|yes|YES)
-                    ;;
-                *)
-                    echo -e "${RED}[ERROR] 已取消部署。请先配置 GitHub OAuth 环境变量。${NC}"
-                    exit 1
-                    ;;
-            esac
-        else
-            echo -e "${YELLOW}[WARN] 非交互环境，继续部署（请稍后配置环境变量并重启服务）${NC}"
-        fi
-    else
-        echo -e "${GREEN}[OK] GitHub OAuth 配置已就绪${NC}"
+        while true; do
+            printf "请输入 GITHUB_CLIENT_ID: "
+            read -r GITHUB_CLIENT_ID
+            if [ -n "$GITHUB_CLIENT_ID" ]; then
+                break
+            fi
+            echo -e "${RED}不能为空，请重新输入${NC}"
+        done
     fi
+
+    # ---- GITHUB_CLIENT_SECRET ----
+    if [ -z "${GITHUB_CLIENT_SECRET:-}" ]; then
+        while true; do
+            printf "请输入 GITHUB_CLIENT_SECRET: "
+            read -r GITHUB_CLIENT_SECRET
+            if [ -n "$GITHUB_CLIENT_SECRET" ]; then
+                break
+            fi
+            echo -e "${RED}不能为空，请重新输入${NC}"
+        done
+    fi
+
+    # ---- SECRET_KEY ----
+    if [ -z "${SECRET_KEY:-}" ]; then
+        echo ""
+        echo "SECRET_KEY 用于 JWT 签名，确保登录会话在重启后仍然有效。"
+        printf "是否自动生成 SECRET_KEY？(Y/n): "
+        read -r auto_key
+        case "$auto_key" in
+            n|N|no|NO)
+                while true; do
+                    printf "请输入 SECRET_KEY（建议 32 位以上随机字符串）: "
+                    read -r SECRET_KEY
+                    if [ -n "$SECRET_KEY" ]; then
+                        break
+                    fi
+                    echo -e "${RED}不能为空，请重新输入${NC}"
+                done
+                ;;
+            *)
+                SECRET_KEY=$(head -c 48 /dev/urandom | base64 | tr -d '\n/+=' | head -c 64)
+                echo -e "${GREEN}[OK] 已自动生成 SECRET_KEY${NC}"
+                ;;
+        esac
+    fi
+
+    # 写入 .env 文件
+    cat > "$ENV_FILE" <<ENVEOF
+GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
+GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
+SECRET_KEY=${SECRET_KEY}
+ENVEOF
+
+    # 导出到当前 shell（供 docker compose 使用）
+    export GITHUB_CLIENT_ID
+    export GITHUB_CLIENT_SECRET
+    export SECRET_KEY
+
+    echo ""
+    echo -e "${GREEN}[OK] 环境变量已保存到 .env 文件${NC}"
 }
 
 main() {
@@ -334,7 +373,7 @@ main() {
     check_memory
     cleanup_existing_project_containers
     check_ports
-    check_github_oauth
+    configure_env_vars
     deploy_services
     show_info
 }
