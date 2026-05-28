@@ -228,27 +228,33 @@ export default function App() {
   // ===========================
   // OAuth 回调处理 & 初始化数据加载
   // ===========================
-  // 检查系统状态并跳转到对应页面
+  // 检查系统状态并跳转到对应页面，同时预加载公网 IP
   const checkSystemAndNavigate = async () => {
-    try {
-      const status = await systemApi.getStatus();
-      if (!status.frps_deployed) {
-        // FRPS 未部署，进入初始化引导
-        changeScreen(Screen.INIT_CHOOSE_MODE, 'push');
-      } else {
-        // FRPS 已部署，进入控制面板
-        changeScreen(Screen.DASHBOARD, 'push');
-        loadDashboardData();
-        dashboardWs.connect();
-      }
-    } catch {
-      // 接口异常时默认进入初始化引导
+    // 并行获取系统状态和公网 IP
+    const [status, ipResult] = await Promise.allSettled([
+      systemApi.getStatus(),
+      systemApi.getPublicIp(),
+    ]);
+
+    // 处理公网 IP 结果
+    if (ipResult.status === 'fulfilled' && ipResult.value.success && ipResult.value.ip) {
+      setServerPublicIp(ipResult.value.ip);
+      setInputIp(ipResult.value.ip);
+    }
+
+    // 处理系统状态结果
+    const deployed = status.status === 'fulfilled' && status.value.frps_deployed;
+    if (!deployed) {
       changeScreen(Screen.INIT_CHOOSE_MODE, 'push');
+    } else {
+      changeScreen(Screen.DASHBOARD, 'push');
+      loadDashboardData();
+      dashboardWs.connect();
     }
   };
 
+  // 页面初始化：处理 OAuth 回调或已登录状态
   useEffect(() => {
-    // 处理 GitHub OAuth 回调中的 token
     const hash = window.location.hash;
     if (hash && hash.includes('access_token=')) {
       const token = hash.split('access_token=')[1]?.split('&')[0];
@@ -260,19 +266,9 @@ export default function App() {
         return;
       }
     }
-
-    // 如果已登录（页面刷新等场景），检查系统状态并跳转
     if (isLoggedIn()) {
       checkSystemAndNavigate();
     }
-
-    // 获取服务器公网 IP（用于初始化引导页提示和 IP 输入框默认值）
-    systemApi.getPublicIp().then(res => {
-      if (res.success && res.ip) {
-        setServerPublicIp(res.ip);
-        setInputIp(res.ip);
-      }
-    }).catch(() => {});
   }, []);
 
   // WebSocket 事件监听
