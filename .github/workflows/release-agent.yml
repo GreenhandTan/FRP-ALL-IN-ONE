@@ -2,8 +2,9 @@
 # FRP Manager Agent - GitHub Actions 自动编译发布
 # ============================================================
 # 触发条件：
-#   1. 手动触发 (workflow_dispatch)
-#   2. 推送 tag (v*)
+#   1. 手动触发 (workflow_dispatch) — 可指定版本号
+#   2. 推送 tag (v*) — 自动使用 tag 作为版本号
+#   3. 推送到 main 分支时，agent/ 目录文件变动自动触发
 #
 # 产出：
 #   - frp-agent-linux-amd64
@@ -23,17 +24,184 @@ on:
         description: '发布版本号 (如 v1.0.0)'
         required: true
         default: 'v1.0.0'
-  
+
   # 推送 tag 触发
   push:
     tags:
       - 'v*'
+    paths:
+      - 'agent/**'
 
 env:
   GO_VERSION: '1.21'
 
 jobs:
+  # 确定版本号
+  resolve-version:
+    name: Resolve Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.VERSION }}
+      should_release: ${{ steps.version.outputs.SHOULD_RELEASE }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+            SHOULD_RELEASE="true"
+          elif [ "${{ github.ref_type }}" = "tag" ]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+            SHOULD_RELEASE="true"
+          else
+            # agent/ 代码变动，自动生成版本号
+            VERSION="v$(date +'%Y.%m.%d')-$(git rev-parse --short HEAD)"
+            SHOULD_RELEASE="false"
+          fi
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+          echo "SHOULD_RELEASE=${SHOULD_RELEASE}" >> $GITHUB_OUTPUT
+          echo ">> Version: ${VERSION}, release: ${SHOULD_RELEASE}"
+
   build:
+    name: Build Agent Binaries
+    needs: resolve-version
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: agent/go.sum
+
+      - name: Run tests
+        working-directory: ./agent
+        run: |
+          set -euo pipefail
+          go test ./...
+
+      - name: Build binaries
+        working-directory: ./agent
+        run: |
+          set -euo pipefail
+          VERSION=${{ needs.resolve-version.outputs.VERSION }}
+          BUILD_TIME=$(date +%Y-%m-%d_%H:%M:%S)
+          LDFLAGS="-s -w -X main.version=${VERSION} -X main.buildTime=${BUILD_TIME}"
+
+          echo "Building version: $VERSION"
+          mkdir -p dist
+
+          # Linux AMD64
+          echo "Building linux-amd64..."
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -buildvcs=false -ldflags "$LDFLAGS" -o dist/frp-agent-linux-amd64 ./cmd/frp-agent
+
+          # Linux ARM64
+          echo "Building linux-arm64..."
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -buildvcs=false -ldflags "$LDFLAGS" -o dist/frp-agent-linux-arm64 ./cmd/frp-agent
+
+          # macOS AMD64
+          echo "Building darwin-amd64..."
+          CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -trimpath -buildvcs=false -ldflags "$LDFLAGS" -o dist/frp-agent-darwin-amd64 ./cmd/frp-agent
+
+          # macOS ARM64 (Apple Silicon)
+          echo "Building darwin-arm64..."
+          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -buildvcs=false -ldflags "$LDFLAGS" -o dist/frp-agent-darwin-arm64 ./cmd/frp-agent
+
+          # Windows AMD64
+          echo "Building windows-amd64..."
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -buildvcs=false -ldflags "$LDFLAGS" -o dist/frp-agent-windows-amd64.exe ./cmd/frp-agent
+
+          # 显示产物
+          ls -la dist/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-binaries
+          path: agent/dist/
+          retention-days: 30
+
+  release:
+    name: Create GitHub Release
+    needs: [resolve-version, build]
+    runs-on: ubuntu-latest
+    if: needs.resolve-version.outputs.should_release == 'true'
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: agent-binaries
+          path: dist/
+
+      - name: Generate checksums
+        run: |
+          set -euo pipefail
+          (cd dist && sha256sum frp-agent-* > SHA256SUMS)
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.resolve-version.outputs.VERSION }}
+          target_commitish: ${{ github.sha }}
+          name: FRP Manager Agent ${{ needs.resolve-version.outputs.VERSION }}
+          body: |
+            ## FRP Manager Agent ${{ needs.resolve-version.outputs.VERSION }}
+
+            ### 下载说明
+
+            根据您的操作系统选择对应版本：
+
+            | 文件 | 平台 |
+            |------|------|
+            | `frp-agent-linux-amd64` | Linux x64 |
+            | `frp-agent-linux-arm64` | Linux ARM64 (树莓派等) |
+            | `frp-agent-darwin-amd64` | macOS Intel |
+            | `frp-agent-darwin-arm64` | macOS Apple Silicon (M1/M2/M3) |
+            | `frp-agent-windows-amd64.exe` | Windows x64 |
+
+            ### 安装方式
+
+            **Linux/macOS:**
+            ```bash
+            chmod +x frp-agent-*
+            ./frp-agent-* -server ws://YOUR_SERVER/ws/agent/CLIENT_ID -id CLIENT_ID -token TOKEN
+            ```
+
+            **Windows (PowerShell):**
+            ```powershell
+            .\frp-agent-windows-amd64.exe -server ws://YOUR_SERVER/ws/agent/CLIENT_ID -id CLIENT_ID -token TOKEN
+            ```
+
+            校验文件完整性：
+            ```bash
+            sha256sum -c SHA256SUMS
+            ```
+
+            详细文档请参考项目 README。
+          files: |
+            dist/frp-agent-linux-amd64
+            dist/frp-agent-linux-arm64
+            dist/frp-agent-darwin-amd64
+            dist/frp-agent-darwin-arm64
+            dist/frp-agent-windows-amd64.exe
+            dist/SHA256SUMS
+          fail_on_unmatched_files: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     name: Build Agent Binaries
     runs-on: ubuntu-latest
     
