@@ -301,10 +301,13 @@ export default function App() {
         setFrpsInfo(data.frps_status);
         setServerConfig(prev => ({
           ...prev,
-          ip: data.frps_status.server_info?.bindAddr || prev.ip,
           port: data.frps_status.server_info?.bindPort || prev.port,
           version: data.frps_status.server_info?.version ? `v${data.frps_status.server_info.version}-Stable` : prev.version,
         }));
+      }
+      // 使用数据库中存储的公网 IP（而非 FRPS 的 bindAddr）
+      if (data.server_public_ip) {
+        setServerConfig(prev => ({ ...prev, ip: data.server_public_ip }));
       }
     };
 
@@ -430,7 +433,6 @@ export default function App() {
           if (frps.server_info) {
             setServerConfig(prev => ({
               ...prev,
-              ip: frps.server_info?.bindAddr || prev.ip,
               port: frps.server_info?.bindPort || prev.port,
               version: frps.server_info?.version ? `v${frps.server_info.version}-Stable` : prev.version,
             }));
@@ -438,13 +440,20 @@ export default function App() {
         }
       } catch {}
 
-      // 加载域名设置
+      // 加载域名设置（同时获取数据库中存储的公网 IP）
       try {
         const domainCfg = await settingsApi.getDomain();
+        const patch: any = {};
         if (domainCfg.domain) {
-          setServerConfig(prev => ({ ...prev, domain: domainCfg.domain }));
+          patch.domain = domainCfg.domain;
           setTempDomain(domainCfg.domain);
           setEnableAutoHttps(domainCfg.tls_enabled);
+        }
+        if (domainCfg.public_ip) {
+          patch.ip = domainCfg.public_ip;
+        }
+        if (Object.keys(patch).length > 0) {
+          setServerConfig(prev => ({ ...prev, ...patch }));
         }
       } catch {}
 

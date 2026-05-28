@@ -77,4 +77,5 @@ def build_full_sync_data(db) -> dict:
         "disabled_ports": disabled_ports,
         "frps_status": _frps_cache["data"],
         "conflict_events": ws_manager.get_recent_conflicts(),
+        "server_public_ip": crud.get_config(db, models.ConfigKeys.SERVER_PUBLIC_IP) or "",
     }

@@ -58,7 +58,7 @@ async def get_domain_config(
         "domain": domain,
         "tls_enabled": tls_enabled,
         "tls_mode": tls_mode,
-        "public_ip": await asyncio.to_thread(get_public_ip),
+        "public_ip": crud.get_config(db, models.ConfigKeys.SERVER_PUBLIC_IP) or "",
         "cert_info": cert_info
     }
 
