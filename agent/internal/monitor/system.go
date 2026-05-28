@@ -3,6 +3,7 @@ package monitor
 
 import (
 	"log"
+	"sync/atomic"
 	"time"
 
 	"github.com/shirou/gopsutil/v3/cpu"
@@ -35,9 +36,9 @@ type SystemInfo struct {
 
 // Monitor 系统监控器
 type Monitor struct {
-	isRunning bool
+	isRunning atomic.Bool
 	OnMetrics func(SystemInfo)
-	
+
 	// 用于计算网络速率
 	lastNetIn   uint64
 	lastNetOut  uint64
@@ -52,9 +53,9 @@ func NewMonitor() *Monitor {
 
 // Start 开始监控
 func (m *Monitor) Start(intervalSeconds int) {
-	m.isRunning = true
+	m.isRunning.Store(true)
 
-	for m.isRunning {
+	for m.isRunning.Load() {
 		info, err := m.Collect()
 		if err != nil {
 			log.Printf("[Monitor] 采集失败: %v", err)
@@ -68,7 +69,7 @@ func (m *Monitor) Start(intervalSeconds int) {
 
 // Stop 停止监控
 func (m *Monitor) Stop() {
-	m.isRunning = false
+	m.isRunning.Store(false)
 }
 
 // Collect 采集一次系统信息

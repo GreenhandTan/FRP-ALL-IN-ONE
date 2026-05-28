@@ -223,10 +223,11 @@ async def disable_tls(
 
 @router.get("/tls-status")
 async def get_tls_status(
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.Admin = Depends(get_current_user)
 ):
     """
-    获取 TLS 状态（公开访问，用于 Agent 和前端检测协议）
+    获取 TLS 状态
     """
     domain = crud.get_config(db, models.ConfigKeys.SERVER_DOMAIN) or ""
     tls_enabled = crud.get_config(db, models.ConfigKeys.TLS_ENABLED) == "true"

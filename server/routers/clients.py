@@ -46,13 +46,15 @@ def _render_frpc_toml(db: Session, client: models.Client) -> str | None:
         lines.append("[[proxies]]")
         lines.append(f'name = "{proxy_name}"')
         lines.append(f'type = "{proxy_type}"')
-        lines.append(f'localIP = "{t.local_ip}"')
+        # 防御性清洗：防止 TOML 注入
+        safe_local_ip = (t.local_ip or "127.0.0.1").replace('"', '').replace('\n', '').replace('\r', '').strip()
+        lines.append(f'localIP = "{safe_local_ip}"')
         lines.append(f"localPort = {int(t.local_port or 0)}")
 
         if t.remote_port:
             lines.append(f"remotePort = {int(t.remote_port)}")
         if t.custom_domains:
-            domains = [d.strip() for d in (t.custom_domains or "").split(",") if d.strip()]
+            domains = [d.strip().replace('"', '').replace('\n', '') for d in (t.custom_domains or "").split(",") if d.strip()]
             if domains:
                 items = '", "'.join(domains)
                 lines.append(f'customDomains = ["{items}"]')

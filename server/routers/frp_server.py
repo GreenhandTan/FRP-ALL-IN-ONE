@@ -203,9 +203,11 @@ async def get_frps_status(
         }
         
     except Exception as e:
+        import logging
+        logging.exception("获取 FRPS 状态失败")
         return {
             "success": False,
-            "message": str(e),
+            "message": "获取 FRPS 状态失败，请检查服务端日志",
             "clients": [],
             "proxies": []
         }
@@ -680,20 +682,28 @@ echo "服务器: $SERVER_IP:$FRPS_PORT"
 
 
 @router.get("/agent/install-script-info")
-async def get_install_script_info(db: Session = Depends(get_db)):
+async def get_install_script_info(
+    db: Session = Depends(get_db),
+    current_user: models.Admin = Depends(get_current_user)
+):
     """获取安装脚本信息"""
     server_ip = crud.get_config(db, models.ConfigKeys.SERVER_PUBLIC_IP) or "YOUR_SERVER_IP"
     frps_port = crud.get_config(db, models.ConfigKeys.FRPS_PORT) or "7000"
     frps_version = crud.get_config(db, models.ConfigKeys.FRPS_VERSION) or "0.61.1"
+
+    tls_enabled = crud.get_config(db, models.ConfigKeys.TLS_ENABLED) == "true"
+    scheme = "https" if tls_enabled else "http"
+    server_domain = (crud.get_config(db, models.ConfigKeys.SERVER_DOMAIN) or "").strip()
+    host = server_domain if (tls_enabled and server_domain) else server_ip
 
     return {
         "server_ip": server_ip,
         "frps_port": frps_port,
         "frps_version": frps_version,
         "scripts": {
-            "linux": f"http://{server_ip}/api/frp/agent/install-script/linux",
-            "darwin": f"http://{server_ip}/api/frp/agent/install-script/darwin",
-            "windows": f"http://{server_ip}/api/frp/agent/install-script/windows"
+            "linux": f"{scheme}://{host}/api/frp/agent/install-script/linux",
+            "darwin": f"{scheme}://{host}/api/frp/agent/install-script/darwin",
+            "windows": f"{scheme}://{host}/api/frp/agent/install-script/windows"
         }
     }
 

@@ -1,4 +1,5 @@
-from pydantic import BaseModel
+import re
+from pydantic import BaseModel, field_validator
 from typing import List, Optional
 from enum import Enum
 
@@ -16,6 +17,40 @@ class TunnelBase(BaseModel):
     local_port: int
     remote_port: Optional[int] = None
     custom_domains: Optional[str] = None
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        if not re.match(r'^[a-zA-Z0-9_\-. ]+$', v):
+            raise ValueError("名称只能包含字母、数字、下划线、连字符、点和空格")
+        if len(v) > 64:
+            raise ValueError("名称长度不能超过 64 个字符")
+        return v
+
+    @field_validator("local_ip")
+    @classmethod
+    def validate_local_ip(cls, v: str) -> str:
+        # 允许 IPv4、IPv6、localhost 等合法地址，禁止换行和引号等 TOML 注入字符
+        if any(c in v for c in '"\n\r\t[]{}'):
+            raise ValueError("local_ip 包含非法字符")
+        if len(v) > 256:
+            raise ValueError("local_ip 长度过长")
+        return v
+
+    @field_validator("custom_domains")
+    @classmethod
+    def validate_custom_domains(cls, v: Optional[str]) -> Optional[str]:
+        if not v:
+            return v
+        for domain in v.split(","):
+            domain = domain.strip()
+            if not domain:
+                continue
+            if not re.match(r'^[a-zA-Z0-9\-.]+$', domain):
+                raise ValueError(f"域名 '{domain}' 包含非法字符（仅允许字母、数字、连字符和点）")
+            if len(domain) > 253:
+                raise ValueError(f"域名 '{domain}' 长度超过 253 个字符")
+        return v
 
 class TunnelCreate(TunnelBase):
     pass

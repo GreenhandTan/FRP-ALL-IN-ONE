@@ -172,6 +172,30 @@ app.include_router(settings_router.router, prefix="/api")
 # WebSocket 端点
 # ===========================
 
+def _validate_ws_origin(websocket: WebSocket) -> bool:
+    """校验 WebSocket Origin 头，防止跨站 WebSocket 劫持"""
+    origin = websocket.headers.get("origin", "")
+    if not origin:
+        # 允许无 Origin（非浏览器客户端，如 Agent）
+        return True
+    from urllib.parse import urlparse
+    parsed = urlparse(origin)
+    origin_host = parsed.hostname or ""
+    # 允许 localhost 和 127.0.0.1（开发环境）
+    if origin_host in ("localhost", "127.0.0.1", "::1"):
+        return True
+    # 从数据库校验是否为本服务器的域名或 IP
+    db = SessionLocal()
+    try:
+        server_ip = crud.get_config(db, models.ConfigKeys.SERVER_PUBLIC_IP) or ""
+        server_domain = (crud.get_config(db, models.ConfigKeys.SERVER_DOMAIN) or "").strip()
+        if origin_host == server_ip or (server_domain and origin_host == server_domain):
+            return True
+    finally:
+        db.close()
+    return False
+
+
 def _get_admin_from_token(db: Session, token: str):
     """从 Token 解析管理员信息"""
     if not token:
@@ -196,6 +220,10 @@ async def websocket_dashboard(websocket: WebSocket):
     - 后续由 Agent 上报、上下线事件、FRPS 状态变化触发增量推送
     - 服务端每 30 秒发送 ping 保持连接活跃
     """
+    if not _validate_ws_origin(websocket):
+        await websocket.close(code=1008)
+        return
+
     db = SessionLocal()
     try:
         token = websocket.query_params.get("token")
@@ -280,6 +308,10 @@ async def websocket_logs(websocket: WebSocket, client_id: str):
     日志实时订阅
     前端订阅某个客户端的日志流
     """
+    if not _validate_ws_origin(websocket):
+        await websocket.close(code=1008)
+        return
+
     db = SessionLocal()
     try:
         token = websocket.query_params.get("token")
@@ -316,6 +348,17 @@ def _set_client_offline(client_id: str):
         db.close()
 
 
+def _sanitize_agent_str(value, max_len: int = 128) -> str | None:
+    """清洗 Agent 上报的字符串字段，防止 XSS 和超长注入"""
+    if not isinstance(value, str):
+        return None
+    # 去除 HTML 标签和控制字符
+    import re
+    value = re.sub(r'[<>"\'&]', '', value)
+    value = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', value)
+    return value.strip()[:max_len] or None
+
+
 async def _handle_agent_message(client_id: str, msg: dict):
     """处理 Agent 上报的消息"""
     msg_type = msg.get("type")
@@ -325,31 +368,37 @@ async def _handle_agent_message(client_id: str, msg: dict):
         db = SessionLocal()
         try:
             crud.touch_client(db, client_id=client_id, status="online")
-            
-            hostname = data.get("hostname") if isinstance(data, dict) else None
+
+            raw = data if isinstance(data, dict) else {}
+            hostname = _sanitize_agent_str(raw.get("hostname"), 64)
+            os_name = _sanitize_agent_str(raw.get("os"), 32)
+            arch = _sanitize_agent_str(raw.get("arch"), 16)
+            version = _sanitize_agent_str(raw.get("version"), 32)
+            platform = _sanitize_agent_str(raw.get("platform"), 128)
+
             if hostname:
                 client = crud.get_client(db, client_id=client_id)
                 if client and client.name != hostname:
                     crud.update_client_name(db, client_id=client_id, new_name=hostname)
-            
+
             agent = db.query(models.AgentInfo).filter(
                 models.AgentInfo.client_id == client_id
             ).first()
-            
+
             if agent:
-                agent.hostname = data.get("hostname", agent.hostname) if isinstance(data, dict) else agent.hostname
-                agent.os = data.get("os", agent.os) if isinstance(data, dict) else agent.os
-                agent.arch = data.get("arch", agent.arch) if isinstance(data, dict) else agent.arch
-                agent.agent_version = data.get("version", agent.agent_version) if isinstance(data, dict) else agent.agent_version
-                agent.platform = data.get("platform", agent.platform) if isinstance(data, dict) else agent.platform
+                agent.hostname = hostname or agent.hostname
+                agent.os = os_name or agent.os
+                agent.arch = arch or agent.arch
+                agent.agent_version = version or agent.agent_version
+                agent.platform = platform or agent.platform
             else:
                 agent = models.AgentInfo(
                     client_id=client_id,
-                    hostname=data.get("hostname") if isinstance(data, dict) else None,
-                    os=data.get("os") if isinstance(data, dict) else None,
-                    arch=data.get("arch") if isinstance(data, dict) else None,
-                    agent_version=data.get("version") if isinstance(data, dict) else None,
-                    platform=data.get("platform") if isinstance(data, dict) else None,
+                    hostname=hostname,
+                    os=os_name,
+                    arch=arch,
+                    agent_version=version,
+                    platform=platform,
                 )
                 db.add(agent)
             
@@ -385,11 +434,11 @@ async def _handle_agent_message(client_id: str, msg: dict):
 
             if agent:
                 if "hostname" in data:
-                    agent.hostname = data["hostname"]
+                    agent.hostname = _sanitize_agent_str(data["hostname"], 64) or agent.hostname
                 if "os" in data:
-                    agent.os = data["os"]
+                    agent.os = _sanitize_agent_str(data["os"], 32) or agent.os
                 if "arch" in data:
-                    agent.arch = data["arch"]
+                    agent.arch = _sanitize_agent_str(data["arch"], 16) or agent.arch
 
             # 持久化当前指标（每 30 秒一条，取代每次都写）
             metrics = models.SystemMetrics(

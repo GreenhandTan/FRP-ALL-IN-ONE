@@ -51,20 +51,33 @@ func NewClient(serverURL, clientID, token, version string) *Client {
 // Connect 连接到服务端
 func (c *Client) Connect() {
 	c.isRunning = true
+	backoff := 3 * time.Second
+	const maxBackoff = 60 * time.Second
 
 	for c.isRunning && c.reconnect {
 		if err := c.connect(); err != nil {
-			log.Printf("[WebSocket] 连接失败: %v, 3秒后重试...", err)
-			time.Sleep(3 * time.Second)
+			log.Printf("[WebSocket] 连接失败: %v, %v后重试...", err, backoff)
+			time.Sleep(backoff)
+			backoff = backoff * 2
+			if backoff > maxBackoff {
+				backoff = maxBackoff
+			}
 			continue
 		}
+
+		// 连接成功，重置退避
+		backoff = 3 * time.Second
 
 		// 连接成功，开始读取消息
 		c.readLoop()
 
 		if c.reconnect {
-			log.Println("[WebSocket] 连接断开，3秒后重连...")
-			time.Sleep(3 * time.Second)
+			log.Printf("[WebSocket] 连接断开，%v后重连...", backoff)
+			time.Sleep(backoff)
+			backoff = backoff * 2
+			if backoff > maxBackoff {
+				backoff = maxBackoff
+			}
 		}
 	}
 }
@@ -83,6 +96,9 @@ func (c *Client) connect() error {
 	if err != nil {
 		return err
 	}
+
+	// 限制单条消息最大 1MB，防止恶意服务端发送超大消息导致 OOM
+	conn.SetReadLimit(1 << 20)
 
 	c.mu.Lock()
 	c.conn = conn

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -23,7 +24,7 @@ type Collector struct {
 	logFile  *os.File
 	fileMu   sync.Mutex
 
-	isRunning bool
+	isRunning atomic.Bool
 	OnLog     func(string) // 实时推送回调
 }
 
@@ -38,10 +39,10 @@ func NewCollector(logDir, clientID string) *Collector {
 
 // Start 启动日志采集器
 func (c *Collector) Start() error {
-	c.isRunning = true
+	c.isRunning.Store(true)
 
 	// 确保日志目录存在
-	if err := os.MkdirAll(c.logDir, 0755); err != nil {
+	if err := os.MkdirAll(c.logDir, 0700); err != nil {
 		return fmt.Errorf("创建日志目录失败: %v", err)
 	}
 
@@ -59,7 +60,7 @@ func (c *Collector) Start() error {
 
 // Stop 停止日志采集器
 func (c *Collector) Stop() {
-	c.isRunning = false
+	c.isRunning.Store(false)
 	c.flush()
 
 	c.fileMu.Lock()
@@ -111,7 +112,7 @@ func (c *Collector) flushLoop() {
 	// 每天零点轮转日志文件
 	lastDate := time.Now().Format("2006-01-02")
 
-	for c.isRunning {
+	for c.isRunning.Load() {
 		select {
 		case <-ticker.C:
 			c.flush()
@@ -164,7 +165,7 @@ func (c *Collector) rotateLogFile() error {
 	date := time.Now().Format("2006-01-02")
 	filename := filepath.Join(c.logDir, fmt.Sprintf("frpc-%s-%s.log", c.clientID, date))
 
-	file, err := os.OpenFile(filename, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	file, err := os.OpenFile(filename, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
 	if err != nil {
 		return fmt.Errorf("打开日志文件失败: %v", err)
 	}
