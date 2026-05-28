@@ -290,4 +290,20 @@ export const systemApi = {
   getPublicIp() {
     return request<{ success: boolean; ip?: string }>('GET', '/api/system/public-ip/open');
   },
+
+  /** 获取系统运行信息 */
+  getInfo() {
+    return request<{
+      uptime_seconds: number;
+      uptime_display: string;
+      start_time: string;
+      database_path: string;
+      database_size: string;
+      database_size_bytes: number;
+      total_clients: number;
+      online_clients: number;
+      total_tunnels: number;
+      frps_version: string;
+    }>('GET', '/api/system/info');
+  },
 };

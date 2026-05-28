@@ -102,6 +102,7 @@ export default function App() {
   const [globalSettings, setGlobalSettings] = useState<GlobalSettings>(defaultGlobalSettings);
   const [frpsInfo, setFrpsInfo] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<{ github_username: string; avatar_url: string; is_superadmin: boolean } | null>(null);
+  const [systemInfo, setSystemInfo] = useState<any>(null);
 
   // Script / OS selection wizard
   const [selectedOs, setSelectedOs] = useState<OS>('linux');
@@ -443,6 +444,12 @@ export default function App() {
       try {
         const profile = await authApi.getProfile();
         setUserProfile(profile);
+      } catch {}
+
+      // 加载系统运行信息
+      try {
+        const info = await systemApi.getInfo();
+        setSystemInfo(info);
       } catch {}
     } catch (err: any) {
       if (err.status === 401 || err.status === 403) {
@@ -2420,28 +2427,47 @@ export default function App() {
                           </div>
 
                           {/* Footer details metadata */}
-                          <div className="flex flex-col gap-1">
+                          <div className="flex flex-col gap-3">
                             <span className="text-xs font-mono text-outline uppercase font-medium">{t('服务端连接配置', 'Server Connection Profile')}</span>
-                            <div className="bg-slate-50 border border-slate-100 p-4 rounded-lg flex justify-between flex-wrap gap-4 text-xs font-mono text-on-surface">
+                            <div className="bg-slate-50 border border-slate-100 p-4 rounded-lg grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs font-mono text-on-surface">
                               <div className="flex flex-col gap-0.5">
-                                <span className="text-[10px] text-outline uppercase">{t('当前服务器地址', 'Server Bind IP')}</span>
+                                <span className="text-[10px] text-outline uppercase">{t('服务器地址', 'Server IP')}</span>
                                 <span className="font-bold">{serverConfig.ip || '-'}</span>
                               </div>
                               <div className="flex flex-col gap-0.5">
-                                <span className="text-[10px] text-outline uppercase">{t('当前 FRPS 端口', 'FRPS Daemon Port')}</span>
+                                <span className="text-[10px] text-outline uppercase">{t('FRPS 端口', 'FRPS Port')}</span>
                                 <span className="font-bold">{serverConfig.port}</span>
                               </div>
                               <div className="flex flex-col gap-0.5">
-                                <span className="text-[10px] text-outline uppercase">{t('FRP 版本', 'FRP Core Release')}</span>
-                                <span className="font-bold">{frpsInfo?.server_info?.version ? `v${frpsInfo.server_info.version}` : '-'}</span>
+                                <span className="text-[10px] text-outline uppercase">{t('FRP 版本', 'FRP Version')}</span>
+                                <span className="font-bold">{systemInfo?.frps_version || frpsInfo?.server_info?.version ? `v${systemInfo?.frps_version || frpsInfo?.server_info?.version}` : '-'}</span>
                               </div>
                               <div className="flex flex-col gap-0.5">
                                 <span className="text-[10px] text-outline uppercase">{t('在线客户端', 'Online Clients')}</span>
-                                <span className="font-bold">{frpsInfo?.total_clients ?? '-'}</span>
+                                <span className="font-bold">{systemInfo?.online_clients ?? frpsInfo?.total_clients ?? '-'}</span>
                               </div>
                               <div className="flex flex-col gap-0.5">
-                                <span className="text-[10px] text-outline uppercase">{t('总隧道数', 'Total Proxies')}</span>
-                                <span className="font-bold">{frpsInfo?.total_proxies ?? '-'}</span>
+                                <span className="text-[10px] text-outline uppercase">{t('总隧道数', 'Total Tunnels')}</span>
+                                <span className="font-bold">{systemInfo?.total_tunnels ?? frpsInfo?.total_proxies ?? '-'}</span>
+                              </div>
+                              <div className="flex flex-col gap-0.5">
+                                <span className="text-[10px] text-outline uppercase">{t('累计运行', 'Uptime')}</span>
+                                <span className="font-bold">{systemInfo?.uptime_display || '-'}</span>
+                              </div>
+                            </div>
+                            <span className="text-xs font-mono text-outline uppercase font-medium">{t('数据存储', 'Data Storage')}</span>
+                            <div className="bg-slate-50 border border-slate-100 p-4 rounded-lg grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-mono text-on-surface">
+                              <div className="flex flex-col gap-0.5">
+                                <span className="text-[10px] text-outline uppercase">{t('数据库路径', 'Database Path')}</span>
+                                <span className="font-bold break-all">{systemInfo?.database_path || '-'}</span>
+                              </div>
+                              <div className="flex flex-col gap-0.5">
+                                <span className="text-[10px] text-outline uppercase">{t('数据库大小', 'Database Size')}</span>
+                                <span className="font-bold">{systemInfo?.database_size || '-'}</span>
+                              </div>
+                              <div className="flex flex-col gap-0.5">
+                                <span className="text-[10px] text-outline uppercase">{t('启动时间', 'Start Time')}</span>
+                                <span className="font-bold">{systemInfo?.start_time || '-'}</span>
                               </div>
                             </div>
                           </div>
