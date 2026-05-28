@@ -3,8 +3,7 @@
 # ============================================================
 # 触发条件：
 #   1. 手动触发 (workflow_dispatch) — 可指定版本号
-#   2. 推送 tag (v*) — 自动使用 tag 作为版本号
-#   3. 推送到 main 分支时，agent/ 目录文件变动自动触发
+#   2. 推送到 main 分支时，agent/ 目录文件变动自动触发
 #
 # 产出：
 #   - frp-agent-linux-amd64
@@ -25,10 +24,10 @@ on:
         required: true
         default: 'v1.0.0'
 
-  # 推送 tag 触发
+  # 推送到 main 分支时 agent/ 代码变动触发
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
     paths:
       - 'agent/**'
 
@@ -54,15 +53,11 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             VERSION="${{ github.event.inputs.version }}"
-            SHOULD_RELEASE="true"
-          elif [ "${{ github.ref_type }}" = "tag" ]; then
-            VERSION="${GITHUB_REF#refs/tags/}"
-            SHOULD_RELEASE="true"
           else
             # agent/ 代码变动，自动生成版本号
             VERSION="v$(date +'%Y.%m.%d')-$(git rev-parse --short HEAD)"
-            SHOULD_RELEASE="true"
           fi
+          SHOULD_RELEASE="true"
           echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
           echo "SHOULD_RELEASE=${SHOULD_RELEASE}" >> $GITHUB_OUTPUT
           echo ">> Version: ${VERSION}, release: ${SHOULD_RELEASE}"
