@@ -6,3 +6,4 @@ requests
 httpx
 python-jose[cryptography]
 slowapi
+python-multipart
