@@ -270,3 +270,19 @@ export const settingsApi = {
     return request('POST', '/api/settings/panel-port', { port });
   },
 };
+
+// ===========================
+// 系统状态（无需认证）
+// ===========================
+
+export const systemApi = {
+  /** 检查 FRPS 是否已部署 */
+  getStatus() {
+    return request<{ frps_deployed: boolean }>('GET', '/api/system/status');
+  },
+
+  /** 获取公网 IP（无需认证） */
+  getPublicIp() {
+    return request<{ success: boolean; ip?: string }>('GET', '/api/system/public-ip/open');
+  },
+};

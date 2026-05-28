@@ -56,7 +56,7 @@ import {
   getOSScript
 } from './data';
 import { APP_VERSION_DISPLAY } from './version';
-import { authApi, clientsApi, tunnelsApi, frpApi, settingsApi, isLoggedIn, setToken, clearToken, ClientData } from './api';
+import { authApi, clientsApi, tunnelsApi, frpApi, settingsApi, systemApi, isLoggedIn, setToken, clearToken, ClientData } from './api';
 import { dashboardWs } from './ws';
 
 // Navigation transitions simulation mapping
@@ -227,6 +227,25 @@ export default function App() {
   // ===========================
   // OAuth 回调处理 & 初始化数据加载
   // ===========================
+  // 检查系统状态并跳转到对应页面
+  const checkSystemAndNavigate = async () => {
+    try {
+      const status = await systemApi.getStatus();
+      if (!status.frps_deployed) {
+        // FRPS 未部署，进入初始化引导
+        changeScreen(Screen.INIT_CHOOSE_MODE, 'push');
+      } else {
+        // FRPS 已部署，进入控制面板
+        changeScreen(Screen.DASHBOARD, 'push');
+        loadDashboardData();
+        dashboardWs.connect();
+      }
+    } catch {
+      // 接口异常时默认进入初始化引导
+      changeScreen(Screen.INIT_CHOOSE_MODE, 'push');
+    }
+  };
+
   useEffect(() => {
     // 处理 GitHub OAuth 回调中的 token
     const hash = window.location.hash;
@@ -236,13 +255,14 @@ export default function App() {
         setToken(token);
         window.history.replaceState({}, '', window.location.pathname);
         triggerToast(t('登录成功！', 'Login successful!'), 'success');
+        checkSystemAndNavigate();
+        return;
       }
     }
 
-    // 如果已登录，加载数据并连接 WebSocket
+    // 如果已登录（页面刷新等场景），检查系统状态并跳转
     if (isLoggedIn()) {
-      loadDashboardData();
-      dashboardWs.connect();
+      checkSystemAndNavigate();
     }
   }, []);
 
@@ -785,9 +805,7 @@ export default function App() {
                   <button
                     onClick={() => {
                       if (isLoggedIn()) {
-                        loadDashboardData();
-                        dashboardWs.connect();
-                        changeScreen(Screen.DASHBOARD, 'push');
+                        checkSystemAndNavigate();
                       } else {
                         authApi.loginWithGitHub();
                       }
