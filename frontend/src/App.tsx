@@ -297,11 +297,27 @@ export default function App() {
   // WebSocket 事件监听
   useEffect(() => {
     const handleFullSync = (data: any) => {
-      // 后端发送 registered_clients，兼容 clients
       const clientList = data.registered_clients || data.clients;
       if (clientList) {
-        const mappedDevices: Device[] = clientList.map((c: any) => mapClientToDevice(c));
-        setDevices(mappedDevices);
+        setDevices(prev => {
+          // 以 prev 中的实时指标为基准，合并 full_sync 的静态数据
+          const prevMap = new Map(prev.map(d => [d.id, d]));
+          return clientList.map((c: any) => {
+            const fresh = mapClientToDevice(c);
+            const old = prevMap.get(fresh.id);
+            if (!old) return fresh;
+            // 保留 WebSocket metrics_update 推送的实时数据，full_sync 仅更新静态字段
+            return {
+              ...fresh,
+              cpuUsage: old.cpuUsage || fresh.cpuUsage,
+              memUsage: old.memUsage || fresh.memUsage,
+              uploadRate: old.uploadRate || fresh.uploadRate,
+              downloadRate: old.downloadRate || fresh.downloadRate,
+              totalTraffic: old.totalTraffic || fresh.totalTraffic,
+              agentInfo: old.agentInfo ? { ...fresh.agentInfo, ...old.agentInfo } : fresh.agentInfo,
+            };
+          });
+        });
       }
       // 从 full_sync 中的 frps_status 更新服务端配置
       if (data.frps_status?.server_info) {
