@@ -94,6 +94,54 @@ install_podman_stack() {
     echo -e "${GREEN}[OK] Podman 安装完成${NC}"
 }
 
+check_podman_version() {
+    echo ""
+    echo "[CHECK] 检查 Podman 版本..."
+
+    PODMAN_VER=$(podman --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+    PODMAN_MAJOR=$(echo "$PODMAN_VER" | cut -d. -f1)
+
+    if [ -z "$PODMAN_VER" ]; then
+        echo -e "${RED}[ERROR] 无法获取 Podman 版本${NC}"
+        exit 1
+    fi
+
+    echo "   当前 Podman 版本: $PODMAN_VER"
+
+    if [ "$PODMAN_MAJOR" -lt 4 ]; then
+        echo -e "${YELLOW}[WARN] Podman $PODMAN_VER 版本过低，后端容器要求 4.x${NC}"
+        echo "   低版本会导致后端无法管理 FRPS 容器（API 版本不兼容）"
+        echo ""
+
+        UPGRADE_DONE="0"
+        case "$OS_ID" in
+            ubuntu|debian)
+                echo "正在通过 Kubic 仓库升级 Podman..."
+                mkdir -p /etc/apt/keyrings
+                curl -fsSL "https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/unstable/xUbuntu_$(lsb_release -rs)/Release.key" \
+                    | gpg --dearmor -o /etc/apt/keyrings/kubic-podman.gpg 2>/dev/null || true
+                echo "deb [signed-by=/etc/apt/keyrings/kubic-podman.gpg] https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/unstable/xUbuntu_$(lsb_release -rs)/ /" \
+                    > /etc/apt/sources.list.d/kubic-podman.list
+                apt-get update -qq
+                if apt-get install -y podman; then
+                    UPGRADE_DONE="1"
+                fi
+                ;;
+        esac
+
+        if [ "$UPGRADE_DONE" = "1" ]; then
+            PODMAN_VER=$(podman --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+            echo -e "${GREEN}[OK] Podman 已升级到 $PODMAN_VER${NC}"
+        else
+            echo -e "${RED}[ERROR] 自动升级失败，请手动升级 Podman 到 4.x 后重试${NC}"
+            echo "   参考: https://podman.io/docs/installation"
+            exit 1
+        fi
+    else
+        echo -e "${GREEN}[OK] Podman 版本兼容${NC}"
+    fi
+}
+
 detect_compose_mode() {
     if podman compose version >/dev/null 2>&1; then
         COMPOSE_MODE="podman"
@@ -382,6 +430,7 @@ main() {
     require_root
     detect_os
     install_podman_stack
+    check_podman_version
     detect_compose_mode
     ensure_podman_socket
     check_memory
