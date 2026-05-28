@@ -1,6 +1,6 @@
 # 纯静态文件 — 无需 Node.js 构建步骤
 # 直接用 Nginx 服务 HTML/CSS/JS 文件，镜像体积极小（~10MB）
-FROM docker.1ms.run/library/nginx:stable-alpine
+FROM nginx:stable-alpine
 # 复制静态前端文件
 COPY index.html  /usr/share/nginx/html/index.html
 COPY style.css   /usr/share/nginx/html/style.css
