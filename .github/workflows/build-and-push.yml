@@ -14,8 +14,8 @@
 #   - sgccr.ccs.tencentyun.com/frp-all-in-one/frp-frontend:<tag>
 #
 # 所需 GitHub Secrets:
-#   TENCENT_SECRET_ID   — 腾讯云 API SecretId
-#   TENCENT_SECRET_KEY  — 腾讯云 API SecretKey
+#   TCR_USERNAME  — 腾讯云 TCR 访问凭证用户名（控制台 → 容器镜像服务 → 访问凭证）
+#   TCR_PASSWORD  — 腾讯云 TCR 访问凭证密码
 # ============================================================
 
 name: Build and Push Docker Images
@@ -131,8 +131,8 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.TENCENT_SECRET_ID }}
-          password: ${{ secrets.TENCENT_SECRET_KEY }}
+          username: ${{ secrets.TCR_USERNAME }}
+          password: ${{ secrets.TCR_PASSWORD }}
 
       - name: Build and push backend
         uses: docker/build-push-action@v6
@@ -165,8 +165,8 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.TENCENT_SECRET_ID }}
-          password: ${{ secrets.TENCENT_SECRET_KEY }}
+          username: ${{ secrets.TCR_USERNAME }}
+          password: ${{ secrets.TCR_PASSWORD }}
 
       - name: Build and push frontend
         uses: docker/build-push-action@v6
