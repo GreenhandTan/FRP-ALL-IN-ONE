@@ -61,7 +61,7 @@ jobs:
           else
             # agent/ 代码变动，自动生成版本号
             VERSION="v$(date +'%Y.%m.%d')-$(git rev-parse --short HEAD)"
-            SHOULD_RELEASE="false"
+            SHOULD_RELEASE="true"
           fi
           echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
           echo "SHOULD_RELEASE=${SHOULD_RELEASE}" >> $GITHUB_OUTPUT
