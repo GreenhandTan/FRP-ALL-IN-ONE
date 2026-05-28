@@ -387,10 +387,13 @@ configure_env_vars() {
     fi
 
     # ---- SECRET_KEY ----
-    if [ -z "${SECRET_KEY:-}" ]; then
-        SECRET_KEY=$(head -c 48 /dev/urandom | base64 | tr -d '\n/+=' | head -c 64)
-        echo -e "${GREEN}[OK] 已自动生成 SECRET_KEY${NC}"
+    # 每次部署重新生成，使旧 JWT 令牌立即失效
+    SECRET_KEY=$(head -c 48 /dev/urandom | base64 | tr -d '\n/+=' | head -c 64)
+    # 清理系统持久化文件中的旧密钥（不再持久化 SECRET_KEY）
+    if [ -f "/etc/frp-all-in-one.env" ]; then
+        sed -i '/^SECRET_KEY=/d' /etc/frp-all-in-one.env 2>/dev/null || true
     fi
+    echo -e "${GREEN}[OK] 已重新生成 SECRET_KEY（旧登录会话已失效）${NC}"
 
     # 写入项目 .env 文件（供 docker compose 使用）
     cat > "$ENV_FILE" <<ENVEOF
