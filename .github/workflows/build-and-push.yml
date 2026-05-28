@@ -164,7 +164,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: frontend
-          file: frontend/frontend.Dockerfile
+          file: frontend/Dockerfile
           push: true
           tags: |
             ${{ env.FRONTEND_IMAGE }}:${{ needs.detect-changes.outputs.tag }}
