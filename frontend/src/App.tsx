@@ -707,13 +707,20 @@ export default function App() {
       logSocket.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data);
-          const now = new Date();
-          const timeStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${now.toTimeString().split(' ')[0]}`;
+          const rawMsg = typeof msg === 'string' ? msg : msg.data || msg.message || JSON.stringify(msg);
+          // 从日志消息中提取时间戳（支持多种 frpc/agent 日志格式）
+          const tsMatch = rawMsg.match(/(\d{4}[-/]\d{2}[-/]\d{2}\s+\d{2}:\d{2}:\d{2})/);
+          const timeStr = tsMatch ? tsMatch[1].replace(/\//g, '-') : (() => {
+            const now = new Date();
+            return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${now.toTimeString().split(' ')[0]}`;
+          })();
+          // 去除 ANSI 转义序列
+          const cleanMsg = rawMsg.replace(/\x1b\[[0-9;]*m/g, '');
           setLiveLogs(prev => [...prev, {
             id: String(Date.now() + Math.random()),
             time: timeStr,
             level: 'INFO',
-            msg: typeof msg === 'string' ? msg : msg.data || msg.message || JSON.stringify(msg),
+            msg: cleanMsg,
           }]);
         } catch {}
       };

@@ -70,23 +70,19 @@ func (c *Collector) Stop() {
 	c.fileMu.Unlock()
 }
 
-// AddLine 添加一行日志
+// AddLine 添加一行日志（不再预加时间戳，frpc 日志本身已包含）
 func (c *Collector) AddLine(line string) {
-	timestamp := time.Now().Format("2006-01-02 15:04:05")
-	formattedLine := fmt.Sprintf("[%s] %s", timestamp, line)
-
 	// 添加到缓冲区
 	c.bufferMu.Lock()
 	if len(c.buffer) >= c.maxBuffer {
-		// 缓冲区满，移除最旧的
 		c.buffer = c.buffer[1:]
 	}
-	c.buffer = append(c.buffer, formattedLine)
+	c.buffer = append(c.buffer, line)
 	c.bufferMu.Unlock()
 
 	// 实时推送
 	if c.OnLog != nil {
-		c.OnLog(formattedLine)
+		c.OnLog(line)
 	}
 }
 
