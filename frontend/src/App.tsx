@@ -135,7 +135,7 @@ export default function App() {
   // Realtime Live Logs Modal States
   const [logModalOpen, setLogModalOpen] = useState<boolean>(false);
   const [logModalDevice, setLogModalDevice] = useState<Device | null>(null);
-  const [liveLogs, setLiveLogs] = useState<{ id: string; time: string; level: 'INFO' | 'SUCCESS' | 'WARN' | 'ERROR'; msg: string; }[]>([]);
+  const [liveLogs, setLiveLogs] = useState<{ id: string; msg: string; }[]>([]);
   const terminalScrollRef = useRef<HTMLDivElement>(null);
   
   // Device management search/filtering states matching mockup requirements
@@ -708,18 +708,10 @@ export default function App() {
         try {
           const msg = JSON.parse(event.data);
           const rawMsg = typeof msg === 'string' ? msg : msg.data || msg.message || JSON.stringify(msg);
-          // 从日志消息中提取时间戳（支持多种 frpc/agent 日志格式）
-          const tsMatch = rawMsg.match(/(\d{4}[-/]\d{2}[-/]\d{2}\s+\d{2}:\d{2}:\d{2})/);
-          const timeStr = tsMatch ? tsMatch[1].replace(/\//g, '-') : (() => {
-            const now = new Date();
-            return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${now.toTimeString().split(' ')[0]}`;
-          })();
           // 去除 ANSI 转义序列
           const cleanMsg = rawMsg.replace(/\x1b\[[0-9;]*m/g, '');
           setLiveLogs(prev => [...prev, {
             id: String(Date.now() + Math.random()),
-            time: timeStr,
-            level: 'INFO',
             msg: cleanMsg,
           }]);
         } catch {}
@@ -744,9 +736,7 @@ export default function App() {
 
   const handleDownloadLogs = () => {
     if (!logModalDevice) return;
-    const logText = liveLogs
-      .map(log => `[${log.time}] [${log.level}] ${log.msg}`)
-      .join('\n');
+    const logText = liveLogs.map(log => log.msg).join('\n');
     const blob = new Blob([logText], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -1786,7 +1776,7 @@ export default function App() {
                                   {t('操作系统 / 架构', 'Operating System / Arch')}
                                 </th>
                                 <th className="py-3 px-4 font-label-md text-[11px] text-on-surface-variant font-semibold uppercase tracking-wider hidden lg:table-cell">
-                                  {t('系统平台', 'Platform')}
+                                  {t('资源监控', 'Resources')}
                                 </th>
                                 <th className="py-3 px-4 font-label-md text-[11px] text-on-surface-variant font-semibold uppercase tracking-wider hidden sm:table-cell">
                                   {t('最后心跳时间', 'Last Seen Alive')}
@@ -1841,9 +1831,7 @@ export default function App() {
                                             <ChevronRight className={`w-3.5 h-3.5 text-outline group-hover:text-primary transition-all shrink-0 ${isExpanded ? 'rotate-90 text-primary' : ''}`} />
                                           </div>
                                           <div className="font-mono text-[10px] text-outline mt-0.5 md:hidden">
-                                            {device.agentInfo?.platform
-                                              ? `${device.agentInfo.platform} ${device.agentInfo.platform_version || ''}`.trim()
-                                              : `${device.os} ${device.arch || ''}`.trim()}
+                                            CPU {device.cpuUsage}% · MEM {device.memUsage}% · DISK {Math.round(device.agentInfo?.disk_percent || 0)}%
                                           </div>
                                         </td>
                                         
@@ -1851,10 +1839,30 @@ export default function App() {
                                           {device.os} {device.arch ? `(${device.arch})` : '(x86_64)'}
                                         </td>
                                         
-                                        <td className="py-4 px-4 hidden lg:table-cell font-mono text-xs text-on-surface-variant">
-                                          {device.agentInfo?.platform
-                                            ? `${device.agentInfo.platform} ${device.agentInfo.platform_version || ''}`.trim()
-                                            : `${device.os} ${device.arch || ''}`.trim()}
+                                        <td className="py-4 px-4 hidden lg:table-cell">
+                                          <div className="flex flex-col gap-1.5 min-w-[140px]">
+                                            <div className="flex items-center gap-2">
+                                              <span className="text-[10px] text-outline w-7 shrink-0">CPU</span>
+                                              <div className="flex-1 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                                                <div className={`h-full rounded-full transition-all ${device.cpuUsage > 80 ? 'bg-red-500' : device.cpuUsage > 60 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${Math.min(device.cpuUsage, 100)}%` }} />
+                                              </div>
+                                              <span className="text-[10px] text-outline w-7 text-right shrink-0">{device.cpuUsage}%</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                              <span className="text-[10px] text-outline w-7 shrink-0">MEM</span>
+                                              <div className="flex-1 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                                                <div className={`h-full rounded-full transition-all ${device.memUsage > 80 ? 'bg-red-500' : device.memUsage > 60 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${Math.min(device.memUsage, 100)}%` }} />
+                                              </div>
+                                              <span className="text-[10px] text-outline w-7 text-right shrink-0">{device.memUsage}%</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                              <span className="text-[10px] text-outline w-7 shrink-0">DISK</span>
+                                              <div className="flex-1 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                                                <div className={`h-full rounded-full transition-all ${(device.agentInfo?.disk_percent || 0) > 80 ? 'bg-red-500' : (device.agentInfo?.disk_percent || 0) > 60 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${Math.min(device.agentInfo?.disk_percent || 0, 100)}%` }} />
+                                              </div>
+                                              <span className="text-[10px] text-outline w-7 text-right shrink-0">{Math.round(device.agentInfo?.disk_percent || 0)}%</span>
+                                            </div>
+                                          </div>
                                         </td>
                                         
                                         <td className="py-4 px-4 hidden sm:table-cell text-on-surface-variant font-mono text-xs whitespace-nowrap">
@@ -2840,20 +2848,11 @@ export default function App() {
                       {t('--- 暂无实时日志流数据输出，等待代理程序启动 ---', '--- No realtime logs trace output, waiting for proxy starting signal ---')}
                     </div>
                   ) : (
-                    liveLogs.map((log) => {
-                      let levelColor = 'text-cyan-400';
-                      if (log.level === 'SUCCESS') levelColor = 'text-emerald-400';
-                      else if (log.level === 'WARN') levelColor = 'text-amber-400 font-semibold';
-                      else if (log.level === 'ERROR') levelColor = 'text-rose-400 font-bold';
-
-                      return (
-                        <div key={log.id} className="flex gap-3 text-slate-300 hover:bg-white/5 px-2 py-0.5 rounded transition-all">
-                          <span className="text-slate-400 select-none shrink-0 font-medium font-mono">[{log.time}]</span>
-                          <span className={`${levelColor} font-bold shrink-0 font-mono`}>[{log.level}]</span>
-                          <span className="text-slate-100 break-all font-mono">{log.msg}</span>
+                    liveLogs.map((log) => (
+                        <div key={log.id} className="text-slate-100 hover:bg-white/5 px-2 py-0.5 rounded transition-all font-mono break-all whitespace-pre-wrap">
+                          {log.msg}
                         </div>
-                      );
-                    })
+                      ))
                   )}
                   {logModalDevice.status === 'online' && (
                     <div className="flex gap-3 text-slate-500 hover:bg-white/5 px-2 py-0.5 rounded transition-all opacity-50 select-none">
