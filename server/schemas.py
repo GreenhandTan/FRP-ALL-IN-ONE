@@ -43,14 +43,15 @@ class Client(ClientBase):
     class Config:
         from_attributes = True
 
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-    require_password_change: bool = False  # 首次登录需要修改密码
+class AdminInfo(BaseModel):
+    id: int
+    github_id: int
+    github_username: str
+    avatar_url: Optional[str] = None
+    is_superadmin: bool
 
-class TokenData(BaseModel):
-    username: Optional[str] = None
+    class Config:
+        from_attributes = True
 
-class UserCreate(BaseModel):
-    username: str
-    password: str
+class InviteCreate(BaseModel):
+    github_username: str

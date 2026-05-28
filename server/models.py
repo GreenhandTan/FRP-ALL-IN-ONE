@@ -25,10 +25,21 @@ class Admin(Base):
     __tablename__ = "admins"
 
     id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, index=True)
-    hashed_password = Column(String)
-    is_password_changed = Column(Boolean, default=False)  # 首次登录强制修改密码标记
-    token_version = Column(Integer, default=1)  # Token 版本号，修改密码时递增，使旧 Token 失效
+    github_id = Column(Integer, unique=True, index=True)  # GitHub 用户 ID（稳定不变）
+    github_username = Column(String, index=True)           # GitHub 用户名（仅展示，可变）
+    avatar_url = Column(String, nullable=True)             # GitHub 头像 URL
+    is_superadmin = Column(Boolean, default=False)         # 超级管理员（首个用户或手动提升）
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class AdminInvite(Base):
+    """控制哪些 GitHub 用户允许登录"""
+    __tablename__ = "admin_invites"
+
+    id = Column(Integer, primary_key=True, index=True)
+    github_username = Column(String, unique=True, index=True)
+    added_by = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 class SystemConfig(Base):
     __tablename__ = "system_config"

@@ -3,7 +3,6 @@ uvicorn[standard]
 pydantic
 sqlalchemy
 requests
-python-multipart
+httpx
 python-jose[cryptography]
-passlib[bcrypt]
 slowapi

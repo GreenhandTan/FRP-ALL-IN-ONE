@@ -49,6 +49,7 @@ logs/
 # Editor & IDE
 # ============================================
 .agent/
+.claude/
 .vscode/
 .idea/
 .DS_Store

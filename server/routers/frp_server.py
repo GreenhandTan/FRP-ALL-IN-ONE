@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 import crud
 import frp_deploy
 import models
-from core import get_db, require_password_changed
+from core import get_db, get_current_user
 from core.container_engine import run_podman
 
 router = APIRouter(prefix="/frp", tags=["FRP 服务端管理"])
@@ -20,7 +20,7 @@ router = APIRouter(prefix="/frp", tags=["FRP 服务端管理"])
 @router.get("/server-status")
 async def get_frps_status(
     db: Session = Depends(get_db),
-    current_user: models.Admin = Depends(require_password_changed)
+    current_user: models.Admin = Depends(get_current_user)
 ):
     """
     从 FRPS Dashboard API 获取实时状态
@@ -217,7 +217,7 @@ async def deploy_frp_server(
     auth_token: str = None,
     server_ip: str = None,
     db: Session = Depends(get_db),
-    current_user: models.Admin = Depends(require_password_changed)
+    current_user: models.Admin = Depends(get_current_user)
 ):
     """生成 FRPS 配置文件"""
     result = frp_deploy.generate_frps_config(port, auth_token, server_ip)
@@ -235,7 +235,7 @@ async def deploy_frp_server(
 
 @router.post("/restart-frps")
 async def restart_frps(
-    current_user: models.Admin = Depends(require_password_changed)
+    current_user: models.Admin = Depends(get_current_user)
 ):
     """手动重启 FRPS 容器"""
     try:
@@ -259,7 +259,7 @@ async def restart_frps(
 @router.get("/disabled-ports")
 async def get_disabled_ports(
     db: Session = Depends(get_db),
-    current_user: models.Admin = Depends(require_password_changed)
+    current_user: models.Admin = Depends(get_current_user)
 ):
     """获取禁用的端口列表"""
     disabled_ports_str = crud.get_config(db, models.ConfigKeys.DISABLED_PORTS)
@@ -272,7 +272,7 @@ async def get_disabled_ports(
 async def disable_port(
     port: int,
     db: Session = Depends(get_db),
-    current_user: models.Admin = Depends(require_password_changed)
+    current_user: models.Admin = Depends(get_current_user)
 ):
     """禁用指定端口"""
     current_str = crud.get_config(db, models.ConfigKeys.DISABLED_PORTS) or ""
@@ -297,7 +297,7 @@ async def disable_port(
 async def enable_port(
     port: int,
     db: Session = Depends(get_db),
-    current_user: models.Admin = Depends(require_password_changed)
+    current_user: models.Admin = Depends(get_current_user)
 ):
     """启用指定端口"""
     current_str = crud.get_config(db, models.ConfigKeys.DISABLED_PORTS) or ""
@@ -325,7 +325,7 @@ async def enable_port(
 @router.get("/agent/download/{platform}")
 async def download_agent_binary(
     platform: str,
-    current_user: models.Admin = Depends(require_password_changed)
+    current_user: models.Admin = Depends(get_current_user)
 ):
     """
     下载 Agent 二进制文件 (重定向到 GitHub Releases)
@@ -381,7 +381,7 @@ async def get_agent_install_script(
     client_id: str = None,
     request: Request = None,
     db: Session = Depends(get_db),
-    current_user: models.Admin = Depends(require_password_changed)
+    current_user: models.Admin = Depends(get_current_user)
 ):
     """
     获取动态生成的 Agent 安装脚本
@@ -700,7 +700,7 @@ async def get_install_script_info(db: Session = Depends(get_db)):
 
 @router.get("/public-ip")
 async def get_public_ip(
-    current_user: models.Admin = Depends(require_password_changed)
+    current_user: models.Admin = Depends(get_current_user)
 ):
     """获取服务器公网 IP"""
     import asyncio

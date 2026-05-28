@@ -1,6 +1,6 @@
 """
 FastAPI 依赖项
-包含数据库会话、用户认证、权限检查等
+包含数据库会话、用户认证等
 """
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -9,7 +9,7 @@ from database import SessionLocal
 import models
 import auth
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/github")
 
 
 def get_db():
@@ -22,12 +22,12 @@ def get_db():
 
 
 async def get_current_user(
-    token: str = Depends(oauth2_scheme), 
+    token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db)
 ) -> models.Admin:
     """
     获取当前登录用户
-    验证 JWT Token 并返回用户对象
+    验证 JWT Token 并返回用户对象（通过 github_id 查找）
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -36,40 +36,16 @@ async def get_current_user(
     )
     try:
         payload = auth.jwt.decode(token, auth.get_secret_key(), algorithms=[auth.ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None:
+        github_id_str: str = payload.get("sub")
+        if github_id_str is None:
             raise credentials_exception
-        from schemas import TokenData
-        token_data = TokenData(username=username)
-    except auth.JWTError:
+        github_id = int(github_id_str)
+    except (auth.JWTError, ValueError):
         raise credentials_exception
-    
-    # 延迟导入避免循环依赖
+
     import crud
-    user = crud.get_admin_by_username(db, username=token_data.username)
+    user = crud.get_admin_by_github_id(db, github_id=github_id)
     if user is None:
         raise credentials_exception
-    
-    # 检查 Token 版本号（修改密码后旧 Token 自动失效）
-    token_ver = payload.get("ver", 1)
-    user_ver = getattr(user, "token_version", 1) or 1
-    if token_ver != user_ver:
-        raise credentials_exception
-    
+
     return user
-
-
-async def require_password_changed(
-    current_user: models.Admin = Depends(get_current_user)
-) -> models.Admin:
-    """
-    检查用户是否已修改默认密码
-    未修改密码时拒绝访问（修改密码接口除外）
-    """
-    if not current_user.is_password_changed:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="请先在设置中修改默认密码",
-            headers={"X-Require-Password-Change": "true"}
-        )
-    return current_user

@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 import models
 import crud
-from core import get_db, require_password_changed
+from core import get_db, get_current_user
 from core.rate_limit import limiter
 from services.dns_checker import check_dns_resolution, get_public_ip
 from services.tls_manager import tls_manager
@@ -43,7 +43,7 @@ class TLSEnableRequest(BaseModel):
 @router.get("/domain")
 async def get_domain_config(
     db: Session = Depends(get_db),
-    current_user: models.Admin = Depends(require_password_changed)
+    current_user: models.Admin = Depends(get_current_user)
 ):
     """获取当前域名配置"""
     domain = crud.get_config(db, models.ConfigKeys.SERVER_DOMAIN) or ""
@@ -67,7 +67,7 @@ async def get_domain_config(
 async def set_domain(
     config: DomainConfig,
     db: Session = Depends(get_db),
-    current_user: models.Admin = Depends(require_password_changed)
+    current_user: models.Admin = Depends(get_current_user)
 ):
     """设置域名"""
     domain = _validate_domain(config.domain)
@@ -89,7 +89,7 @@ async def set_domain(
 async def check_domain_dns(
     domain: str,
     db: Session = Depends(get_db),
-    current_user: models.Admin = Depends(require_password_changed)
+    current_user: models.Admin = Depends(get_current_user)
 ):
     """检查域名 DNS 解析状态"""
     return await asyncio.to_thread(check_dns_resolution, domain)
@@ -101,7 +101,7 @@ async def enable_tls(
     request: Request,  # slowapi 需要 request 参数
     tls_request: TLSEnableRequest,
     db: Session = Depends(get_db),
-    current_user: models.Admin = Depends(require_password_changed)
+    current_user: models.Admin = Depends(get_current_user)
 ):
     """
     启用 HTTPS
@@ -189,7 +189,7 @@ async def enable_tls(
 @router.post("/disable-tls")
 async def disable_tls(
     db: Session = Depends(get_db),
-    current_user: models.Admin = Depends(require_password_changed)
+    current_user: models.Admin = Depends(get_current_user)
 ):
     """禁用 HTTPS，切换回 HTTP 模式"""
     domain = crud.get_config(db, models.ConfigKeys.SERVER_DOMAIN) or ""
@@ -227,7 +227,7 @@ async def upload_custom_cert(
     cert_file: UploadFile = File(...),
     key_file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: models.Admin = Depends(require_password_changed)
+    current_user: models.Admin = Depends(get_current_user)
 ):
     """上传自定义证书"""
     try:
@@ -266,7 +266,7 @@ async def get_tls_status(
 @router.post("/renew-cert")
 async def renew_certificate(
     db: Session = Depends(get_db),
-    current_user: models.Admin = Depends(require_password_changed)
+    current_user: models.Admin = Depends(get_current_user)
 ):
     """手动续期证书"""
     domain = crud.get_config(db, models.ConfigKeys.SERVER_DOMAIN)
@@ -300,7 +300,7 @@ class PanelPortConfig(BaseModel):
 @router.get("/panel-port")
 async def get_panel_port(
     db: Session = Depends(get_db),
-    current_user: models.Admin = Depends(require_password_changed)
+    current_user: models.Admin = Depends(get_current_user)
 ):
     """
     获取管理面板公网访问端口配置。
@@ -315,7 +315,7 @@ async def get_panel_port(
 async def set_panel_port(
     config: PanelPortConfig,
     db: Session = Depends(get_db),
-    current_user: models.Admin = Depends(require_password_changed)
+    current_user: models.Admin = Depends(get_current_user)
 ):
     """
     设置管理面板公网访问端口。
@@ -336,7 +336,7 @@ async def set_panel_port(
 @router.post("/renew-cert")
 async def renew_certificate(
     db: Session = Depends(get_db),
-    current_user: models.Admin = Depends(require_password_changed)
+    current_user: models.Admin = Depends(get_current_user)
 ):
     """手动续期证书"""
     domain = crud.get_config(db, models.ConfigKeys.SERVER_DOMAIN)

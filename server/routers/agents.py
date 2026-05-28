@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 import models
-from core import get_db, require_password_changed
+from core import get_db, get_current_user
 from websocket_manager import manager as ws_manager
 
 router = APIRouter(prefix="/agents", tags=["Agent 管理"])
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/agents", tags=["Agent 管理"])
 @router.get("/")
 async def get_agents(
     db: Session = Depends(get_db),
-    current_user: models.Admin = Depends(require_password_changed)
+    current_user: models.Admin = Depends(get_current_user)
 ):
     """获取所有 Agent 列表"""
     agents = db.query(models.AgentInfo).all()
@@ -54,7 +54,7 @@ async def get_agents(
 async def get_agent_detail(
     client_id: str,
     db: Session = Depends(get_db),
-    current_user: models.Admin = Depends(require_password_changed)
+    current_user: models.Admin = Depends(get_current_user)
 ):
     """获取单个 Agent 详情"""
     agent = db.query(models.AgentInfo).filter(
@@ -84,7 +84,7 @@ async def get_agent_metrics(
     client_id: str,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: models.Admin = Depends(require_password_changed)
+    current_user: models.Admin = Depends(get_current_user)
 ):
     """获取 Agent 系统指标历史"""
     metrics = db.query(models.SystemMetrics).filter(
@@ -116,7 +116,7 @@ async def get_agent_metrics(
 async def get_agent_latest_metrics(
     client_id: str,
     db: Session = Depends(get_db),
-    current_user: models.Admin = Depends(require_password_changed)
+    current_user: models.Admin = Depends(get_current_user)
 ):
     """获取 Agent 最新系统指标"""
     latest = db.query(models.SystemMetrics).filter(
@@ -147,7 +147,7 @@ async def get_agent_latest_metrics(
 async def push_config_to_agent(
     client_id: str,
     config: dict,
-    current_user: models.Admin = Depends(require_password_changed)
+    current_user: models.Admin = Depends(get_current_user)
 ):
     """推送配置更新到 Agent"""
     config_content = config.get("config", "")
@@ -165,7 +165,7 @@ async def push_config_to_agent(
 
 @router.get("/ws/stats")
 async def get_websocket_stats(
-    current_user: models.Admin = Depends(require_password_changed)
+    current_user: models.Admin = Depends(get_current_user)
 ):
     """获取 WebSocket 连接统计"""
     return ws_manager.get_stats()

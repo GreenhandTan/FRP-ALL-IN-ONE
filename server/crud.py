@@ -1,10 +1,15 @@
 from sqlalchemy.orm import Session
-import models, schemas, auth
-import uuid
+from typing import Optional, List
+import models
 import secrets
 import time
+import uuid
 
+
+# ===========================
 # SystemConfig 辅助函数
+# ===========================
+
 def get_config(db: Session, key: str):
     config = db.query(models.SystemConfig).filter(models.SystemConfig.key == key).first()
     return config.value if config else None
@@ -19,46 +24,86 @@ def set_config(db: Session, key: str, value: str):
     db.commit()
     return config
 
-def is_system_initialized(db: Session):
-    """检查系统是否已初始化（是否有管理员账户）"""
-    admin_count = db.query(models.Admin).count()
-    return admin_count > 0
 
-def get_admin_by_username(db: Session, username: str):
-    return db.query(models.Admin).filter(models.Admin.username == username).first()
+# ===========================
+# Admin CRUD（GitHub OAuth）
+# ===========================
 
-def create_admin(db: Session, admin: schemas.UserCreate):
-    hashed_password = auth.get_password_hash(admin.password)
-    db_admin = models.Admin(username=admin.username, hashed_password=hashed_password)
-    db.add(db_admin)
+def get_admin_by_github_id(db: Session, github_id: int) -> Optional[models.Admin]:
+    return db.query(models.Admin).filter(models.Admin.github_id == github_id).first()
+
+def create_admin_from_github(db: Session, github_id: int, github_username: str, avatar_url: str, is_superadmin: bool = False) -> models.Admin:
+    admin = models.Admin(
+        github_id=github_id,
+        github_username=github_username,
+        avatar_url=avatar_url,
+        is_superadmin=is_superadmin,
+    )
+    db.add(admin)
     db.commit()
-    db.refresh(db_admin)
-    return db_admin
+    db.refresh(admin)
+    return admin
 
-def update_admin_password(db: Session, admin_id: int, new_password: str):
-    """更新管理员密码"""
+def update_admin_github_info(db: Session, admin_id: int, github_username: str, avatar_url: str):
     admin = db.query(models.Admin).filter(models.Admin.id == admin_id).first()
     if admin:
-        admin.hashed_password = auth.get_password_hash(new_password)
+        admin.github_username = github_username
+        admin.avatar_url = avatar_url
+        db.commit()
+
+def get_all_admins(db: Session) -> List[models.Admin]:
+    return db.query(models.Admin).all()
+
+def delete_admin(db: Session, admin_id: int) -> bool:
+    admin = db.query(models.Admin).filter(models.Admin.id == admin_id).first()
+    if admin:
+        db.delete(admin)
         db.commit()
         return True
     return False
 
-def update_admin_username(db: Session, admin_id: int, new_username: str):
-    """更新管理员用户名，返回 (success, message)"""
-    admin = db.query(models.Admin).filter(models.Admin.id == admin_id).first()
-    if not admin:
-        return False, "用户不存在"
-    # 检查新用户名是否已被占用
-    existing = db.query(models.Admin).filter(
-        models.Admin.username == new_username,
-        models.Admin.id != admin_id
+def count_admins(db: Session) -> int:
+    return db.query(models.Admin).count()
+
+
+# ===========================
+# AdminInvite CRUD
+# ===========================
+
+def is_github_user_invited(db: Session, github_username: str) -> bool:
+    """检查 GitHub 用户是否在邀请列表中（首个部署时任何人都可以成为管理员）"""
+    count = db.query(models.Admin).count()
+    if count == 0:
+        return True
+    invite = db.query(models.AdminInvite).filter(
+        models.AdminInvite.github_username == github_username.lower()
     ).first()
-    if existing:
-        return False, "用户名已存在"
-    admin.username = new_username
+    return invite is not None
+
+def add_invite(db: Session, github_username: str, added_by: int) -> models.AdminInvite:
+    invite = models.AdminInvite(github_username=github_username.lower(), added_by=added_by)
+    db.add(invite)
     db.commit()
-    return True, "用户名修改成功"
+    db.refresh(invite)
+    return invite
+
+def remove_invite(db: Session, github_username: str) -> bool:
+    invite = db.query(models.AdminInvite).filter(
+        models.AdminInvite.github_username == github_username.lower()
+    ).first()
+    if invite:
+        db.delete(invite)
+        db.commit()
+        return True
+    return False
+
+def get_all_invites(db: Session) -> List[models.AdminInvite]:
+    return db.query(models.AdminInvite).all()
+
+
+# ===========================
+# Client CRUD
+# ===========================
 
 def get_client(db: Session, client_id: str):
     return db.query(models.Client).filter(models.Client.id == client_id).first()
@@ -67,7 +112,6 @@ def get_clients(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.Client).offset(skip).limit(limit).all()
 
 def create_client(db: Session, client: schemas.ClientCreate):
-    # 生成ID和Token
     db_client = models.Client(
         id=str(uuid.uuid4()),
         name=client.name,
@@ -109,6 +153,11 @@ def touch_client(db: Session, client_id: str, status: str = "online"):
     db.commit()
     db.refresh(client)
     return client
+
+
+# ===========================
+# Tunnel CRUD
+# ===========================
 
 def get_tunnels(db: Session, client_id: str):
     return db.query(models.Tunnel).filter(models.Tunnel.client_id == client_id).all()

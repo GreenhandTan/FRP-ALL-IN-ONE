@@ -9,7 +9,7 @@ import crud
 import models
 import schemas
 from database import SessionLocal
-from core import require_password_changed
+from core import get_current_user
 from websocket_manager import manager as ws_manager
 
 router = APIRouter(prefix="/clients", tags=["客户端管理"])
@@ -100,7 +100,7 @@ def read_clients(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(lambda: SessionLocal()),
-    current_user: models.Admin = Depends(require_password_changed)
+    current_user: models.Admin = Depends(get_current_user)
 ):
     """获取客户端列表"""
     return crud.get_clients(db, skip=skip, limit=limit)
@@ -110,7 +110,7 @@ def read_clients(
 def read_client(
     client_id: str,
     db: Session = Depends(lambda: SessionLocal()),
-    current_user: models.Admin = Depends(require_password_changed)
+    current_user: models.Admin = Depends(get_current_user)
 ):
     """获取单个客户端详情"""
     db_client = crud.get_client(db, client_id=client_id)
@@ -123,7 +123,7 @@ def read_client(
 async def delete_client_endpoint(
     client_id: str,
     db: Session = Depends(lambda: SessionLocal()),
-    current_user: models.Admin = Depends(require_password_changed)
+    current_user: models.Admin = Depends(get_current_user)
 ):
     """删除客户端及其所有隧道"""
     ok = crud.delete_client(db, client_id)
@@ -139,7 +139,7 @@ async def update_client(
     client_id: str,
     payload: dict,
     db: Session = Depends(lambda: SessionLocal()),
-    current_user: models.Admin = Depends(require_password_changed)
+    current_user: models.Admin = Depends(get_current_user)
 ):
     """更新客户端名称"""
     name = (payload.get("name") or "").strip()
@@ -159,7 +159,7 @@ async def create_tunnel_for_client(
     client_id: str,
     tunnel: schemas.TunnelCreate,
     db: Session = Depends(lambda: SessionLocal()),
-    current_user: models.Admin = Depends(require_password_changed)
+    current_user: models.Admin = Depends(get_current_user)
 ):
     """为客户端创建隧道"""
     created = crud.create_tunnel(db=db, tunnel=tunnel, client_id=client_id)
@@ -173,7 +173,7 @@ async def update_tunnel_for_client(
     tunnel_id: int,
     payload: dict,
     db: Session = Depends(lambda: SessionLocal()),
-    current_user: models.Admin = Depends(require_password_changed)
+    current_user: models.Admin = Depends(get_current_user)
 ):
     """更新隧道状态"""
     tunnel = db.query(models.Tunnel).filter(
@@ -194,7 +194,7 @@ async def delete_tunnel_for_client(
     client_id: str,
     tunnel_id: int,
     db: Session = Depends(lambda: SessionLocal()),
-    current_user: models.Admin = Depends(require_password_changed)
+    current_user: models.Admin = Depends(get_current_user)
 ):
     """删除隧道"""
     tunnel = db.query(models.Tunnel).filter(

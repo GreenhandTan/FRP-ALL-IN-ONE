@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 import crud
 import models
 import frp_deploy
-from core import get_db, require_password_changed
+from core import get_db, get_current_user
 
 router = APIRouter(prefix="/system", tags=["系统状态"])
 
@@ -23,7 +23,7 @@ def get_system_status(db: Session = Depends(get_db)):
 
 @router.get("/public-ip")
 async def get_public_ip(
-    current_user: models.Admin = Depends(require_password_changed)
+    current_user: models.Admin = Depends(get_current_user)
 ):
     """自动检测服务器公网 IP（需认证，防止泄露服务器信息）"""
     import asyncio

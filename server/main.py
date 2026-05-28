@@ -39,32 +39,14 @@ auth.init_secret_key()
 
 @app.on_event("startup")
 def init_database():
-    """初始化数据库表和默认管理员"""
-    # 创建所有表
+    """初始化数据库表"""
     models.Base.metadata.create_all(bind=engine)
-    
-    # 创建默认管理员（如果不存在）
-    db = SessionLocal()
-    try:
-        existing_admin = crud.get_admin_by_username(db, "admin")
-        if not existing_admin:
-            default_admin = schemas.UserCreate(username="admin", password="123456")
-            admin = crud.create_admin(db, default_admin)
-            # 标记为未修改密码（首次登录需要强制修改）
-            admin.is_password_changed = False
-            db.commit()
-            print("[OK] 默认管理员已创建 (admin / 123456)，首次登录请修改密码")
-        else:
-            print("[OK] 管理员账号已存在")
-    finally:
-        db.close()
-    
-    print("[OK] 数据库初始化完成")
-    
+    print("[OK] 数据库初始化完成。首个 GitHub 登录的用户将自动成为管理员。")
+
     # 启动后台任务
     asyncio.create_task(background_ping_task())
-    asyncio.create_task(background_cert_renew_task())  # 证书自动续期任务
-    asyncio.create_task(background_frps_status_task())  # FRPS 状态事件推送任务
+    asyncio.create_task(background_cert_renew_task())
+    asyncio.create_task(background_frps_status_task())
 
 
 async def background_ping_task():
@@ -196,17 +178,11 @@ def _get_admin_from_token(db: Session, token: str):
         return None
     try:
         payload = auth.jwt.decode(token, auth.get_secret_key(), algorithms=[auth.ALGORITHM])
-        username = payload.get("sub")
-        if not username:
+        github_id_str = payload.get("sub")
+        if not github_id_str:
             return None
-        user = crud.get_admin_by_username(db, username=username)
-        if not user:
-            return None
-        # 检查 Token 版本号（修改密码后旧 Token 自动失效）
-        token_ver = payload.get("ver", 1)
-        user_ver = getattr(user, "token_version", 1) or 1
-        if token_ver != user_ver:
-            return None
+        github_id = int(github_id_str)
+        user = crud.get_admin_by_github_id(db, github_id=github_id)
         return user
     except Exception:
         return None

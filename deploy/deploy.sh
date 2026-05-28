@@ -188,7 +188,7 @@ check_ports() {
     echo ""
     echo "[CHECK] 检查端口占用..."
 
-    for port in 80 7000; do
+    for port in 8080 7000; do
         if command -v lsof >/dev/null 2>&1 && lsof -Pi :"$port" -sTCP:LISTEN -t >/dev/null 2>&1; then
             echo -e "${YELLOW}[WARN] 端口 $port 已被占用${NC}"
             echo "   请释放端口或修改 compose.yml 中配置"
@@ -262,13 +262,12 @@ show_info() {
     echo "=========================================="
     echo ""
     echo "[访问地址]"
-    echo "   Web 管理界面: http://Your Server IP"
+    echo "   Web 管理界面: http://Your Server IP:8080"
     echo "   FRP 服务端口: Your Server IP:7000"
     echo ""
-    echo "[默认账户]"
-    echo "   用户名: admin"
-    echo "   密码:   123456"
-    echo -e "   ${YELLOW}* 请登录后及时修改密码${NC}"
+    echo "[登录方式]"
+    echo "   使用 GitHub 账号登录"
+    echo -e "   ${YELLOW}* 首个登录的用户将自动成为管理员${NC}"
     echo ""
     echo "[常用命令]"
     if [ "$COMPOSE_MODE" = "podman" ]; then
@@ -283,6 +282,49 @@ show_info() {
     echo ""
 }
 
+check_github_oauth() {
+    echo ""
+    echo "[CHECK] 检查 GitHub OAuth 配置..."
+
+    # 从 .env 文件读取（如果存在）
+    if [ -f "$SCRIPT_DIR/.env" ]; then
+        . "$SCRIPT_DIR/.env" 2>/dev/null || true
+    fi
+
+    if [ -z "${GITHUB_CLIENT_ID:-}" ] || [ -z "${GITHUB_CLIENT_SECRET:-}" ]; then
+        echo -e "${YELLOW}[WARN] 未检测到 GITHUB_CLIENT_ID 或 GITHUB_CLIENT_SECRET${NC}"
+        echo ""
+        echo "  本系统使用 GitHub OAuth 登录，你需要："
+        echo "  1. 创建 GitHub OAuth App: https://github.com/settings/developers"
+        echo "  2. 设置环境变量或创建 .env 文件："
+        echo ""
+        echo "     export GITHUB_CLIENT_ID=\"你的Client ID\""
+        echo "     export GITHUB_CLIENT_SECRET=\"你的Client Secret\""
+        echo ""
+        echo "  或在 deploy/ 目录下创建 .env 文件："
+        echo "     GITHUB_CLIENT_ID=你的Client ID"
+        echo "     GITHUB_CLIENT_SECRET=你的Client Secret"
+        echo ""
+
+        if [ -t 0 ]; then
+            printf "是否仍继续部署？(y/N): "
+            read -r continue_deploy
+            case "$continue_deploy" in
+                y|Y|yes|YES)
+                    ;;
+                *)
+                    echo -e "${RED}[ERROR] 已取消部署。请先配置 GitHub OAuth 环境变量。${NC}"
+                    exit 1
+                    ;;
+            esac
+        else
+            echo -e "${YELLOW}[WARN] 非交互环境，继续部署（请稍后配置环境变量并重启服务）${NC}"
+        fi
+    else
+        echo -e "${GREEN}[OK] GitHub OAuth 配置已就绪${NC}"
+    fi
+}
+
 main() {
     require_root
     detect_os
@@ -292,6 +334,7 @@ main() {
     check_memory
     cleanup_existing_project_containers
     check_ports
+    check_github_oauth
     deploy_services
     show_info
 }
