@@ -17,6 +17,7 @@ import crud
 import models
 from core import get_db, get_current_user
 from core.rate_limit import limiter
+from database import SessionLocal
 
 router = APIRouter(prefix="/auth", tags=["认证"])
 
@@ -61,9 +62,31 @@ async def github_login(request: Request):
 @limiter.limit("3/minute")
 async def github_rebind(
     request: Request,
-    current_user: models.Admin = Depends(get_current_user)
+    token: str = None,
 ):
-    """换绑 GitHub 账号：生成短期 token 并跳转 GitHub OAuth"""
+    """换绑 GitHub 账号：生成短期 token 并跳转 GitHub OAuth
+    支持通过 query param ?token=xxx 传入 JWT（浏览器跳转无法设置 Authorization header）
+    """
+    if not token:
+        raise HTTPException(status_code=401, detail="缺少认证 token")
+
+    # 验证 JWT
+    try:
+        payload = auth.jwt.decode(token, auth.get_secret_key(), algorithms=[auth.ALGORITHM])
+        github_id_str = payload.get("sub")
+        if not github_id_str:
+            raise HTTPException(status_code=401, detail="无效的 token")
+    except Exception:
+        raise HTTPException(status_code=401, detail="无效的 token")
+
+    db = SessionLocal()
+    try:
+        current_user = crud.get_admin_by_github_id(db, github_id=int(github_id_str))
+        if not current_user:
+            raise HTTPException(status_code=401, detail="用户不存在")
+    finally:
+        db.close()
+
     if not auth.GITHUB_CLIENT_ID or not auth.GITHUB_CLIENT_SECRET:
         raise HTTPException(status_code=500, detail="GitHub OAuth 未配置")
 

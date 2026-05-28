@@ -290,15 +290,21 @@ export default function App() {
   // WebSocket 事件监听
   useEffect(() => {
     const handleFullSync = (data: any) => {
-      if (data.clients) {
-        const mappedDevices: Device[] = data.clients.map((c: any) => mapClientToDevice(c));
+      // 后端发送 registered_clients，兼容 clients
+      const clientList = data.registered_clients || data.clients;
+      if (clientList) {
+        const mappedDevices: Device[] = clientList.map((c: any) => mapClientToDevice(c));
         setDevices(mappedDevices);
       }
-      if (data.frps_status) {
-        // 更新服务端配置
-      }
-      if (data.settings) {
-        // 更新设置
+      // 从 full_sync 中的 frps_status 更新服务端配置
+      if (data.frps_status?.server_info) {
+        setFrpsInfo(data.frps_status);
+        setServerConfig(prev => ({
+          ...prev,
+          ip: data.frps_status.server_info?.bindAddr || prev.ip,
+          port: data.frps_status.server_info?.bindPort || prev.port,
+          version: data.frps_status.server_info?.version ? `v${data.frps_status.server_info.version}-Stable` : prev.version,
+        }));
       }
     };
 
@@ -367,12 +373,14 @@ export default function App() {
   const mapClientToDevice = (client: any): Device => {
     const agent = client.agent_info || {};
     const os: OS = (agent.os === 'darwin' ? 'macos' : agent.os) || 'linux';
+    // 优先使用 agent_info.online（实时 WebSocket 状态），其次 is_online，最后 client.status
+    const onlineStatus = agent.online ?? client.is_online ?? (client.status === 'online');
     return {
       id: client.id,
       name: agent.hostname || client.name || client.id,
       os,
       ip: agent.ip || '未知',
-      status: client.status || 'offline',
+      status: onlineStatus ? 'online' : 'offline',
       lastSeen: client.last_seen || '-',
       tunnelsCount: client.tunnels?.length || 0,
       cpuUsage: Math.round(agent.cpu_percent || 0),

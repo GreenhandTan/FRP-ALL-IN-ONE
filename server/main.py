@@ -268,8 +268,10 @@ async def websocket_agent(websocket: WebSocket, client_id: str):
             await _handle_agent_message(client_id, data)
     except WebSocketDisconnect:
         await ws_manager.disconnect_agent(client_id)
+        _set_client_offline(client_id)
     except Exception:
         await ws_manager.disconnect_agent(client_id)
+        _set_client_offline(client_id)
 
 
 @app.websocket("/ws/logs/{client_id}")
@@ -298,6 +300,20 @@ async def websocket_logs(websocket: WebSocket, client_id: str):
         ws_manager.unsubscribe_logs(websocket, client_id)
     except Exception:
         ws_manager.unsubscribe_logs(websocket, client_id)
+
+
+def _set_client_offline(client_id: str):
+    """Agent 断开后将数据库中的客户端状态设为 offline"""
+    db = SessionLocal()
+    try:
+        client = db.query(models.Client).filter(models.Client.id == client_id).first()
+        if client:
+            client.status = "offline"
+            db.commit()
+    except Exception as e:
+        print(f"[Error] 设置客户端 {client_id} 离线失败: {e}")
+    finally:
+        db.close()
 
 
 async def _handle_agent_message(client_id: str, msg: dict):

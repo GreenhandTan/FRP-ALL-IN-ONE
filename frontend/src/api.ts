@@ -75,7 +75,8 @@ export const authApi = {
 
   /** 换绑 GitHub 账号 */
   rebindGithub() {
-    window.location.href = `${API_BASE}/api/auth/github/rebind`;
+    const token = getToken();
+    window.location.href = `${API_BASE}/api/auth/github/rebind?token=${token}`;
   },
 };
 
