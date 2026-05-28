@@ -13,3 +13,9 @@ export const APP_VERSION: string =
 
 /** 格式化显示版本（如 "V2.4.0-Stable"） */
 export const APP_VERSION_DISPLAY = `V${APP_VERSION.replace(/^v/i, '')}`;
+
+/** GitHub 仓库（用于检查更新） */
+export const GITHUB_REPO = 'GreenhandTan/FRP-ALL-IN-ONE';
+
+/** 纯版本号（用于与 GitHub release tag 比较，如 "2.4.0"） */
+export const VERSION_NUMBER = APP_VERSION.replace(/^v/i, '').replace(/-.*$/, '');

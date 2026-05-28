@@ -55,7 +55,7 @@ import {
   defaultGlobalSettings,
   getOSScript
 } from './data';
-import { APP_VERSION_DISPLAY } from './version';
+import { APP_VERSION_DISPLAY, GITHUB_REPO, VERSION_NUMBER } from './version';
 import { authApi, clientsApi, tunnelsApi, frpApi, settingsApi, systemApi, isLoggedIn, setToken, clearToken, ClientData } from './api';
 import { dashboardWs } from './ws';
 
@@ -2330,29 +2330,66 @@ export default function App() {
                               <div className="flex justify-between items-center pb-3 border-b border-white/10 select-none">
                                 <span className="text-slate-400">{t('版本', 'Version')}</span>
                                 <span className="text-cyan-400 bg-cyan-400/10 px-2 py-0.5 rounded text-[11px] font-bold">
-                                  {serverConfig.version || APP_VERSION_DISPLAY}
+                                  {APP_VERSION_DISPLAY}
                                 </span>
                               </div>
-                              
+
                               <div className="flex justify-between items-center pb-3 border-b border-white/10">
                                 <span className="text-slate-400">{t('数据库路径', 'Database File')}</span>
-                                <span 
-                                  className="text-slate-200 select-all cursor-pointer font-semibold truncate max-w-[150px]" 
-                                  title="/var/lib/frp/config.db"
-                                  onClick={() => handleCopyText('/var/lib/frp/config.db')}
+                                <span
+                                  className="text-slate-200 select-all cursor-pointer font-semibold truncate max-w-[200px]"
+                                  title={systemInfo?.database_path || ''}
+                                  onClick={() => systemInfo?.database_path && handleCopyText(systemInfo.database_path)}
                                 >
-                                  /var/lib/frp/...
+                                  {systemInfo?.database_path ? (systemInfo.database_path.length > 25 ? '...' + systemInfo.database_path.slice(-22) : systemInfo.database_path) : '...'}
                                 </span>
                               </div>
-                              
+
+                              <div className="flex justify-between items-center pb-3 border-b border-white/10 select-none">
+                                <span className="text-slate-400">{t('数据库大小', 'Database Size')}</span>
+                                <span className="text-slate-200 font-semibold">{systemInfo?.database_size || '-'}</span>
+                              </div>
+
                               <div className="flex justify-between items-center pb-3 border-b border-white/10 select-none">
                                 <span className="text-slate-400">{t('累计运行时间', 'Node Uptime')}</span>
-                                <span className="text-slate-200 font-semibold">{t('14天 08小时 22分', '14d 08h 22m')}</span>
+                                <span className="text-slate-200 font-semibold">{systemInfo?.uptime_display || '-'}</span>
                               </div>
-                              
+
+                              <div className="flex justify-between items-center pb-3 border-b border-white/10 select-none">
+                                <span className="text-slate-400">{t('启动时间', 'Start Time')}</span>
+                                <span className="text-slate-200 font-semibold">{systemInfo?.start_time || '-'}</span>
+                              </div>
+
                               <button
                                 type="button"
-                                onClick={() => triggerToast(t(`检测中... 已是最新运行版本 (${APP_VERSION_DISPLAY})。`, `Scanning repository... Core package is already updated at ${APP_VERSION_DISPLAY}.`), 'success')}
+                                onClick={async () => {
+                                  triggerToast(t('正在检查更新...', 'Checking for updates...'), 'info');
+                                  try {
+                                    const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`);
+                                    if (!res.ok) throw new Error('GitHub API error');
+                                    const data = await res.json();
+                                    const latestTag = data.tag_name || '';
+                                    const latestVersion = latestTag.replace(/^v/i, '').replace(/-.*$/, '');
+                                    if (latestVersion && latestVersion !== VERSION_NUMBER) {
+                                      triggerToast(
+                                        t(`发现新版本 ${latestTag}，当前版本 ${APP_VERSION_DISPLAY}`, `New version ${latestTag} available, current ${APP_VERSION_DISPLAY}`),
+                                        'info'
+                                      );
+                                      // 打开 GitHub releases 页面
+                                      window.open(data.html_url, '_blank');
+                                    } else {
+                                      triggerToast(
+                                        t(`已是最新版本 ${APP_VERSION_DISPLAY}`, `Already on latest version ${APP_VERSION_DISPLAY}`),
+                                        'success'
+                                      );
+                                    }
+                                  } catch {
+                                    triggerToast(
+                                      t('检查失败，请稍后重试', 'Check failed, please try again later'),
+                                      'warning'
+                                    );
+                                  }
+                                }}
                                 className="w-full mt-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 rounded font-bold text-xs transition-colors flex items-center justify-center gap-2 border border-slate-700 cursor-pointer select-none"
                               >
                                 <RefreshCw className="w-3.5 h-3.5 text-slate-300" />
