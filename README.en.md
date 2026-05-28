@@ -8,7 +8,7 @@
     <img alt="Podman" src="https://img.shields.io/badge/Podman-892CA0?style=flat&logo=podman&logoColor=white">
     <img alt="Go" src="https://img.shields.io/badge/Go-00ADD8?style=flat&logo=go&logoColor=white">
     <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-009688?style=flat&logo=fastapi&logoColor=white">
-    <img alt="H5" src="https://img.shields.io/badge/Native H5-E34F26?style=flat&logo=html5&logoColor=white">
+    <img alt="React" src="https://img.shields.io/badge/React-61DAFB?style=flat&logo=react&logoColor=black">
   </p>
   <p>
     <a href="#highlights">Highlights</a> ·
@@ -81,7 +81,7 @@
 ### Ultra Lightweight
 
 - **Runs smoothly on 1 vCPU + 1 GB RAM**: Tested and verified — the minimum spec cloud server is fully sufficient for deployment and daily operation
-- **Zero-dependency Engineering**: The web UI is modularized using pure Native ES Modules (ESM). No Node.js, no `npm install`, and no heavy bundlers like Vite/Webpack. The browser loads it natively, blending engineering best practices with extreme minimalism
+- **Modern frontend stack**: React 19 + TypeScript + Vite + Tailwind CSS — type-safe, fast builds, elegant styling
 - **Minimal backend stack**: FastAPI + SQLite — no MySQL/PostgreSQL needed, database files stay just a few MBs, ultra-low disk and memory footprint
 - **Tiny containers**: Nginx Alpine image serving pure static files — the web container uses < 10 MB of memory
 
@@ -99,7 +99,7 @@
 
 - **WebSocket real-time push**: Pushes global status every second — CPU/memory/disk/network metrics for every client visible in real time, no manual refresh needed
 - **Hot reload**: Dynamically add/remove port mappings via FRPC Admin API; changes take effect immediately without restarting frpc
-- **Fully automated HTTPS**: One-click Let's Encrypt certificate issuance in domain mode with automatic renewal (30 days before expiry); custom certificate upload also supported
+- **Fully automated HTTPS**: One-click Let's Encrypt certificate issuance in domain mode with automatic renewal (30 days before expiry)
 - **Multi-arch Agent**: frp-agent written in Go supports x86_64 / ARM64 / ARMv7 / MIPS — covers Raspberry Pi, routers, and more
 - **Production-grade security**: GitHub OAuth authentication, JWT authorization, API rate limiting, invite-based access control, Nginx security headers
 
@@ -114,7 +114,7 @@
 - **One-click Deployment**: Start management backend, web, and FRPS with Podman Compose
 - **Configuration Wizard**: Web interface for FRPS port, token, and public IP settings
 - **One-click Scripts**: Auto-generate client deployment scripts (multi-arch, systemd, auto-start)
-- **HTTPS Automation**: Support for auto-issuing Let's Encrypt certificates or uploading custom certificates
+- **HTTPS Automation**: One-click Let's Encrypt certificate issuance with automatic renewal
 - **NAT Port Config**: Support explicit panel access port for NAT cloud servers, scripts auto-use correct address
 
 ### Security Enhancements
@@ -147,7 +147,7 @@
 
 - **WebSocket Real-time Push**: Status updates every second, no manual refresh needed
 - **Internationalization**: Chinese/English/Traditional Chinese language switching
-- **Native H5 Frontend**: No build-tool dependencies, deploy static files directly, minimal maintenance
+- **Modern Frontend**: React + TypeScript + Vite, type-safe with instant hot reload
 - **Data Persistence**: SQLite database and certificates automatically persisted to Podman volumes
 
 <a id="architecture"></a>
@@ -157,7 +157,7 @@
 ```mermaid
 flowchart TB
     subgraph Server["Server Podman Compose"]
-        Web["Web<br/>Nginx Alpine + Native H5<br/>:8080/TCP or :443/TCP"]
+        Web["Web<br/>Nginx Alpine + React/Vite<br/>:8080/TCP or :443/TCP"]
         Backend["Backend<br/>FastAPI + SQLite<br/>WebSocket Real-time"]
         FRPS["FRPS<br/>FRP Server<br/>:7000 + :7500"]
         Web <--> Backend
@@ -186,7 +186,7 @@ flowchart TB
 
 > **System Recommendation**: This project is deployed via Podman. The deployment script auto-detects Linux distributions (including Alpine, Debian/Ubuntu, and RHEL-family) and installs dependencies automatically. Windows and macOS can run as client machines; Linux is recommended for the server.
 
-> **Lightweight Note**: The frontend is pure native H5 static files — the Nginx container uses < 10 MB of memory. The FastAPI + SQLite backend means the entire system runs comfortably on a 1 vCPU + 1 GB server.
+> **Lightweight Note**: The frontend is React-built static files served by Nginx — the web container uses < 10 MB of memory. The FastAPI + SQLite backend means the entire system runs comfortably on a 1 vCPU + 1 GB server.
 
 ### Create GitHub OAuth App (Required)
 
@@ -331,20 +331,6 @@ The system supports two HTTPS activation methods:
 6. Auto-redirect to `https://your-domain`
 
 > **Auto Renewal**: Certificates will be automatically renewed 30 days before expiration, no manual intervention needed.
-
-### Method 2: Upload Custom Certificate
-
-1. Go to "System Settings → Domain & HTTPS"
-2. Select "Custom Certificate" tab
-3. Upload certificate file (.crt/.pem) and private key file (.key)
-4. Enter domain and enable HTTPS
-
-### Check Certificate Status
-
-```bash
-# View certificate info and expiration
-curl http://localhost:8000/api/settings/tls-status
-```
 
 <a id="nat-port-setup"></a>
 
@@ -563,14 +549,15 @@ FRP-ALL-IN-ONE/
 │   └── services/          # Business logic layer
 │       ├── tls_manager.py     # Certificate management, Nginx config
 │       └── dns_checker.py     # DNS resolution verification
-├── frontend/              # Web interface (Pure Native ES Modules, no build tools required)
-│   ├── index.html         # Single-page app entry
-│   ├── style.css          # Global styles
-│   ├── app.js             # ESM Main Entry & Router
-│   └── js/                # Modularized business logic
-│       ├── api.js         # API wrapper
-│       ├── dashboard.js   # Dashboard rendering
-│       └── ...            # Other modules
+├── frontend/              # Web interface (React + TypeScript + Vite + Tailwind CSS)
+│   ├── src/
+│   │   ├── App.tsx         # Main application component
+│   │   ├── api.ts          # HTTP API module
+│   │   ├── ws.ts           # WebSocket module
+│   │   └── types.ts        # TypeScript type definitions
+│   ├── package.json
+│   ├── vite.config.ts
+│   └── Dockerfile          # Multi-stage build: Node compile + Nginx deploy
 ├── deploy/                # Deployment scripts & compose
 ├── demo1.png              # Demo screenshot 1
 ├── demo2.png              # Demo screenshot 2
@@ -584,21 +571,14 @@ FRP-ALL-IN-ONE/
 
 ### Frontend
 
-The frontend is based on pure Native ES Modules (ESM) — **zero build step required**. Changes take effect immediately:
-
-```
-frontend/
-├── index.html   # Page structure & templates
-├── style.css    # Styles
-├── app.js       # ESM main router
-└── js/          # Splitted business logic modules
-```
-
-For local preview, use any static file server:
+The frontend is built with React + TypeScript + Vite + Tailwind CSS, requiring Node.js:
 
 ```bash
 cd frontend
-python3 -m http.server 3000
+npm install
+npm run dev     # Dev server at http://localhost:3000
+npm run build   # Build production to dist/
+npm run lint    # TypeScript type check
 ```
 
 ### Agent

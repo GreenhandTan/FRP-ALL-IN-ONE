@@ -8,7 +8,7 @@
     <img alt="Podman" src="https://img.shields.io/badge/Podman-892CA0?style=flat&logo=podman&logoColor=white">
     <img alt="Go" src="https://img.shields.io/badge/Go-00ADD8?style=flat&logo=go&logoColor=white">
     <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-009688?style=flat&logo=fastapi&logoColor=white">
-    <img alt="H5" src="https://img.shields.io/badge/原生 H5-E34F26?style=flat&logo=html5&logoColor=white">
+    <img alt="React" src="https://img.shields.io/badge/React-61DAFB?style=flat&logo=react&logoColor=black">
   </p>
   <p>
     <a href="#highlights">核心優勢</a> ·
@@ -81,7 +81,7 @@
 ### 極致輕量
 
 - **1栻1G 伺服器即可流畅運行**：經過實際測試，最低配置（1 vCPU + 1 GB RAM）的雲伺服器完全滴足系統部署與運行需求
-- **前端零依賴工程化**：Web 介面採用純原生 ES Modules 架構模組化拆分，無需 Node.js、無需 npm install 或 Vite/Webpack，瀏覽器原生載入，兼顧工程化與極簡主義
+- **前端現代化技術棧**：React 19 + TypeScript + Vite + Tailwind CSS，類型安全、構建高效、樣式優雅
 - **輕量後端技術棄**：FastAPI + SQLite，無需 MySQL/PostgreSQL，資料檔案僅數 MB，極低磁碟與記憶體占用
 - **容器極度精簡**：Nginx Alpine 鏡像 + 純靜態檔案，Web 容器記憶體占用 < 10 MB
 
@@ -99,7 +99,7 @@
 
 - **WebSocket 即時推送**：每秒推送全局狀態，每個客戶端的 CPU/記憶體/磁碟/網路指標即時可見，無需手動刷新
 - **配置熱重載**：透過 FRPC Admin API 動態新剂端口映射，通道變更立即生效，無需重啟 frpc 處理程序
-- **HTTPS 全自動**：網域模式下一鍵申請 Let's Encrypt 憑證並自動續期（到期前 30 天），也支持上傳自定義憑證
+- **HTTPS 全自動**：網域模式下一鍵申請 Let's Encrypt 憑證並自動續期（到期前 30 天）
 - **多架構 Agent**：Go 編寫的 frp-agent 支持 x86_64 / ARM64 / ARMv7 / MIPS，涉蓋樹莓派、路由器等各類設備
 - **完善的安全機制**：GitHub OAuth 認證、JWT 鑑權、API 限流、邀請制訪問控制、Nginx 安全響應頭，生產級別安全保障
 
@@ -114,7 +114,7 @@
 - **一鍵部署**：Podman Compose 啟動管理後台、Web、FRPS
 - **配置嚮導**：Web 介面完成 FRPS 端口、Token、公網 IP 設置
 - **一鍵腳本**：自動生成客戶端部署腳本（支持多架構、systemd、開機自啟）
-- **HTTPS 全自動**：支援自動申請 Let's Encrypt 憑證或上傳自定義憑證
+- **HTTPS 全自動**：一鍵申請 Let's Encrypt 憑證並自動續期
 - **NAT 端口配置**：支援 NAT 雲伺服器顯式指定管理面板公網端口，腳本生成自動感知
 
 ### 安全增強
@@ -147,7 +147,7 @@
 
 - **WebSocket 實時推送**：每秒推送狀態更新，無需手動刷新
 - **國際化**：支持簡體中文/英文/繁體中文三語切換
-- **原生 H5 前端**：無構建工具依賴，直接部署靜態檔案，維護極簡
+- **現代化前端**：React + TypeScript + Vite 構建，TypeScript 類型安全，Vite 秒級熱更新
 - **資料持久化**：SQLite 資料庫和憑證自動持久化到 Podman 卷
 
 <a id="architecture"></a>
@@ -157,7 +157,7 @@
 ```mermaid
 flowchart TB
     subgraph Server["伺服器端 Podman Compose"]
-        Web["Web<br/>Nginx Alpine + 原生 H5<br/>:8080/TCP 或 :443/TCP"]
+        Web["Web<br/>Nginx Alpine + React/Vite<br/>:8080/TCP 或 :443/TCP"]
         Backend["Backend<br/>FastAPI + SQLite<br/>WebSocket 實時推送"]
         FRPS["FRPS<br/>FRP Server<br/>:7000 + :7500"]
         Web <--> Backend
@@ -186,7 +186,7 @@ flowchart TB
 
 > **系統建議**：本項目基於 Podman 部署，部署腳本會自動識別 Linux 發行版（含 Alpine、Debian/Ubuntu、RHEL 系）並安裝依賴。
 
-> **輕量提示**：前端為原生 H5 純靜態檔案，Nginx 容器記憶體占用 < 10 MB；後端 FastAPI + SQLite，整套系統在 1栻1G 機器上運行绰绰有餘。
+> **輕量提示**：前端為 React 構建的靜態檔案，Nginx 容器記憶體占用 < 10 MB；後端 FastAPI + SQLite，整套系統在 1栻1G 機器上運行绰绰有餘。
 
 ### 建立 GitHub OAuth App（必須）
 
@@ -331,20 +331,6 @@ sudo ./deploy-frpc.sh
 6. 完成後自動跳轉到 `https://你的域名`
 
 > **自動續期**：證書將在過期前 30 天自動續期，無需手動干預。
-
-### 方式二：上傳自定義證書
-
-1. 進入「系統設置 → 域名與 HTTPS」
-2. 選擇「自定義證書」標籤
-3. 上傳證書文件（.crt/.pem）和私鑰文件（.key）
-4. 輸入域名並啟用 HTTPS
-
-### 查看證書狀態
-
-```bash
-# 查看證書信息和過期時間
-curl http://localhost:8000/api/settings/tls-status
-```
 
 <a id="nat-port-setup"></a>
 
@@ -563,14 +549,15 @@ FRP-ALL-IN-ONE/
 │   └── services/          # 業務邏輯層
 │       ├── tls_manager.py     # 證書申請、Nginx 配置
 │       └── dns_checker.py     # DNS 解析驗證
-├── frontend/              # Web 介面（純原生 ES Modules，無構建工具依賴）
-│   ├── index.html         # 單頁應用入口
-│   ├── style.css          # 全局樣式
-│   ├── app.js             # 模組化入口總線
-│   └── js/                # 分離的業務邏輯模組
-│       ├── api.js         # API 封裝
-│       ├── dashboard.js   # 儀表盤渲染
-│       └── ...            # 其他模組
+├── frontend/              # Web 介面（React + TypeScript + Vite + Tailwind CSS）
+│   ├── src/
+│   │   ├── App.tsx         # 主應用組件
+│   │   ├── api.ts          # HTTP API 模組
+│   │   ├── ws.ts           # WebSocket 模組
+│   │   └── types.ts        # TypeScript 類型定義
+│   ├── package.json
+│   ├── vite.config.ts
+│   └── Dockerfile          # 多階段構建：Node 編譯 + Nginx 部署
 ├── deploy/                # 部署腳本 & compose
 ├── demo1.png              # 演示截圖 1
 ├── demo2.png              # 演示截圖 2
@@ -584,21 +571,14 @@ FRP-ALL-IN-ONE/
 
 ### 前端
 
-前端基於純原生 ES Modules (ESM)，**徹底零構建步驟**，修改代碼後直接生效：
-
-```
-frontend/
-├── index.html   # 頁面結構與模板
-├── style.css    # 樣式
-├── app.js       # ESM 入口調度
-└── js/          # 拆分後的各業務模組
-```
-
-本地預覽可用任意靜態檔案伺服器：
+前端基於 React + TypeScript + Vite + Tailwind CSS，需 Node.js 環境：
 
 ```bash
 cd frontend
-python3 -m http.server 3000
+npm install
+npm run dev     # 啟動開發伺服器 http://localhost:3000
+npm run build   # 構建生產版本到 dist/
+npm run lint    # TypeScript 類型檢查
 ```
 
 ### Agent

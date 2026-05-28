@@ -8,7 +8,7 @@
     <img alt="Podman" src="https://img.shields.io/badge/Podman-892CA0?style=flat&logo=podman&logoColor=white">
     <img alt="Go" src="https://img.shields.io/badge/Go-00ADD8?style=flat&logo=go&logoColor=white">
     <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-009688?style=flat&logo=fastapi&logoColor=white">
-    <img alt="H5" src="https://img.shields.io/badge/原生 H5-E34F26?style=flat&logo=html5&logoColor=white">
+    <img alt="React" src="https://img.shields.io/badge/React-61DAFB?style=flat&logo=react&logoColor=black">
   </p>
   <p>
     <a href="#highlights">核心优势</a> ·
@@ -99,7 +99,7 @@
 
 - **WebSocket 实时推送**：每秒推送全局状态，每个客户端的 CPU/内存/磁盘/网络指标实时可见，无需手动刷新
 - **配置热重载**：通过 FRPC Admin API 动态增删端口映射，通道变更立即生效，无需重启 frpc 进程
-- **HTTPS 全自动**：域名模式下一键申请 Let's Encrypt 证书并自动续期（到期前 30 天），也支持上传自定义证书
+- **HTTPS 全自动**：域名模式下一键申请 Let's Encrypt 证书并自动续期（到期前 30 天）
 - **多架构 Agent**：Go 编写的 frp-agent 支持 x86_64 / ARM64 / ARMv7 / MIPS，覆盖树莓派、路由器等各类设备
 - **完善的安全机制**：GitHub OAuth 认证、JWT 鉴权、API 限流、邀请制访问控制、Nginx 安全响应头，生产级别安全保障
 
@@ -114,7 +114,7 @@
 - **一键部署**：Podman Compose 启动管理后台、Web、FRPS
 - **配置向导**：Web 界面完成 FRPS 端口、Token、公网 IP 设置
 - **一键脚本**：自动生成客户端部署脚本（支持多架构、systemd、开机自启）
-- **HTTPS 全自动**：支持自动申请 Let's Encrypt 证书或上传自定义证书
+- **HTTPS 全自动**：一键申请 Let's Encrypt 证书并自动续期
 - **NAT 端口配置**：支持 NAT 云服务器显式指定管理面板公网端口，脚本生成自动感知
 
 ### 安全增强
@@ -332,20 +332,6 @@ sudo ./deploy-frpc.sh
 6. 完成后自动跳转到 `https://你的域名`
 
 > **自动续期**：证书将在过期前 30 天自动续期，无需手动干预。
-
-### 方式二：上传自定义证书
-
-1. 进入"系统设置 → 域名与 HTTPS"
-2. 选择"自定义证书"标签
-3. 上传证书文件（.crt/.pem）和私钥文件（.key）
-4. 输入域名并启用 HTTPS
-
-### 查看证书状态
-
-```bash
-# 查看证书信息和过期时间
-curl http://localhost:8000/api/settings/tls-status
-```
 
 <a id="nat-port-setup"></a>
 
