@@ -1,7 +1,7 @@
 <div align="center">
   <h1>FRP-ALL-IN-ONE</h1>
   <p>一個基於 Web 的 FRP 內網穿透管理系統：用瀏覽器完成 <b>FRPS 配置</b>、<b>客戶端一鍵部署</b>、<b>設備註冊/心跳</b>、<b>端口映射管理</b>，並提供<b>實時流量監控</b>與<b>系統資源監控</b>。</p>
-  <p><b>極致輕量 · 開笱即用 · 功能強大</b></p>
+  <p><b>極致輕量 · 開箱即用 · 功能強大</b></p>
   <p>
     <a href="https://github.com/GreenhandTan/FRP-ALL-IN-ONE/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/GreenhandTan/FRP-ALL-IN-ONE?style=flat&logo=github"></a>
     <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/GreenhandTan/FRP-ALL-IN-ONE?style=flat"></a>
@@ -82,27 +82,27 @@
 
 ### 極致輕量
 
-- **1栻1G 伺服器即可流畅運行**：經過實際測試，最低配置（1 vCPU + 1 GB RAM）的雲伺服器完全滴足系統部署與運行需求
+- **1核1G 伺服器即可流暢運行**：經過實際測試，最低配置（1 vCPU + 1 GB RAM）的雲伺服器完全滿足系統部署與運行需求
 - **前端現代化技術棧**：React 19 + TypeScript + Vite + Tailwind CSS，類型安全、構建高效、樣式優雅
-- **輕量後端技術棄**：FastAPI + SQLite，無需 MySQL/PostgreSQL，資料檔案僅數 MB，極低磁碟與記憶體占用
+- **輕量後端技術棧**：FastAPI + SQLite，無需 MySQL/PostgreSQL，資料檔案僅數 MB，極低磁碟與記憶體占用
 - **容器極度精簡**：Nginx Alpine 鏡像 + 純靜態檔案，Web 容器記憶體占用 < 10 MB
 
 > **實例：超低配 LXC 伺服器實測**  
 > 透過「**本地構建 + 雲端導入**」的特殊部署手法（在本地構建好專案映像後匯入雲伺服器，繞過記憶體不足的構建限制），本專案可在 **1核 256MB 記憶體 + 2G 資料盤** 的 LXC 架構雲伺服器上流暢運行，實現完整的內網穿透集中管理。作者實測機器售價僅 **¥29.9 / 三年**，極具性價比。詳細部署思路請參見：[作者博客 Blog#25](https://greenhandtan.top/blog/25)
 
-### 開笱即用
+### 開箱即用
 
 - **一條指令完成全部部署**：`git clone` + 執行 `deploy.sh`，自動處理依賴安裝、容器構建、服務啟動
-- **可視化配置導籬**：首次登入後透過 Web 介面導籬完成 FRPS 配置（IP/網域模式可選），無需手動編輯任何配置檔案
+- **可視化配置嚮導**：首次登入後透過 Web 介面嚮導完成 FRPS 配置（IP/網域模式可選），無需手動編輯任何配置檔案
 - **客戶端腳本自動生成**：在控制台一鍵生成針對不同平台（Linux/macOS/Windows）、不同架構（x86/ARM/MIPS）的部署腳本，複製後直接在內網機器執行
 - **NAT 穿透相容**：支援在 NAT 環境下顯式配置管理面板公網訪問端口（如 `公網IP:10967 → 內網80`），生成的客戶端腳本自動使用正確地址
 
 ### 功能強大
 
-- **WebSocket 即時推送**：每秒推送全局狀態，每個客戶端的 CPU/記憶體/磁碟/網路指標即時可見，無需手動刷新
-- **配置熱重載**：透過 FRPC Admin API 動態新剂端口映射，通道變更立即生效，無需重啟 frpc 處理程序
+- **WebSocket 即時推送**：每 3 秒推送全局狀態，每個客戶端的 CPU/記憶體/磁碟/網路指標即時可見，無需手動刷新
+- **配置熱重載**：透過 FRPC Admin API 動態增刪端口映射，通道變更立即生效，無需重啟 frpc 處理程序
 - **HTTPS 全自動**：網域模式下一鍵申請 Let's Encrypt 憑證並自動續期（到期前 30 天）
-- **多架構 Agent**：Go 編寫的 frp-agent 支持 x86_64 / ARM64 / ARMv7 / MIPS，涉蓋樹莓派、路由器等各類設備
+- **多架構 Agent**：Go 編寫的 frp-agent 支持 x86_64 / ARM64 / ARMv7 / MIPS，涵蓋樹莓派、路由器等各類設備
 - **完善的安全機制**：GitHub OAuth 認證、JWT 鑑權、API 限流、邀請制訪問控制、Nginx 安全響應頭，生產級別安全保障
 
 ---
@@ -115,7 +115,7 @@
 
 - **一鍵部署**：Podman Compose 啟動管理後台、Web、FRPS
 - **配置嚮導**：Web 介面完成 FRPS 端口、Token、公網 IP 設置
-- **一鍵腳本**：自動生成客戶端部署腳本（支持多架構、systemd、開機自啟）
+- **一鍵腳本**：自動生成客戶端部署腳本（支持多架構、systemd / OpenRC / launchd、開機自啟）
 - **HTTPS 全自動**：一鍵申請 Let's Encrypt 憑證並自動續期
 - **NAT 端口配置**：支援 NAT 雲伺服器顯式指定管理面板公網端口，腳本生成自動感知
 
@@ -143,11 +143,11 @@
 - **心跳上報**：定時上報系統指標（CPU、記憶體、磁碟、網路速率）
 - **配置熱重載**：通過 FRPC Admin API 熱重載配置，無需重啟服務
 - **實時日誌**：WebSocket 推送 FRPC 運行日誌到控制台
-- **協議自適應**：Agent 自動檸測服務器協議（ws/wss）並切換
+- **協議自適應**：Agent 自動偵測服務器協議（ws/wss）並切換
 
 ### 其他特性
 
-- **WebSocket 實時推送**：每秒推送狀態更新，無需手動刷新
+- **WebSocket 實時推送**：每 3 秒推送狀態更新，無需手動刷新
 - **國際化**：支持簡體中文/英文/繁體中文三語切換
 - **現代化前端**：React + TypeScript + Vite 構建，TypeScript 類型安全，Vite 秒級熱更新
 - **資料持久化**：SQLite 資料庫和憑證自動持久化到 Podman 卷
@@ -182,13 +182,14 @@ flowchart TB
 
 ### 前置要求
 
-- 一台具備公網 IP 的伺服器（**建議 Linux 系統，最低 1栻1G 即可流畅運行**，實測驗證）
+- 一台具備公網 IP 的伺服器（**建議 Linux 系統，最低 1核1G 即可流暢運行**，實測驗證）
 - Podman & Podman Compose（可由部署腳本自動安裝）
 - 端口放行（至少）：8080/TCP、FRPS 端口（預設 7000/TCP）
+- 一個 GitHub 帳號（用於登入和建立 OAuth App）
 
 > **系統建議**：本項目基於 Podman 部署，部署腳本會自動識別 Linux 發行版（含 Alpine、Debian/Ubuntu、RHEL 系）並安裝依賴。
 
-> **輕量提示**：前端為 React 構建的靜態檔案，Nginx 容器記憶體占用 < 10 MB；後端 FastAPI + SQLite，整套系統在 1栻1G 機器上運行绰绰有餘。
+> **輕量提示**：前端為 React 構建的靜態檔案，Nginx 容器記憶體占用 < 10 MB；後端 FastAPI + SQLite，整套系統在 1核1G 機器上運行绰绰有餘。
 
 ### 建立 GitHub OAuth App（必須）
 
@@ -249,7 +250,7 @@ sudo ./setup-swap.sh   # 建立 2GB Swap
 sudo ./deploy.sh
 ```
 
-> 1栻1G 的伺服器通常無需開啟 Swap 即可直接部署。
+> 1核1G 的伺服器通常無需開啟 Swap 即可直接部署。
 
 ### 數據持久化
 
@@ -334,6 +335,15 @@ sudo ./deploy-frpc.sh
 
 > **自動續期**：證書將在過期前 30 天自動續期，無需手動干預。
 
+### 方式二：手動上傳自定義證書
+
+1. 進入「系統設置 → 域名與 HTTPS」
+2. 輸入你的域名
+3. 上傳 PEM 格式的證書檔案和私鑰檔案
+4. 系統將自動配置 Nginx 並重載服務
+
+> **適用場景**：已有第三方 CA 簽發的證書，或使用自簽名證書。
+
 <a id="nat-port-setup"></a>
 
 ## NAT 訪問端口配置（可選）
@@ -375,15 +385,15 @@ ws://151.242.85.89:10967/ws/agent/<CLIENT_ID>
 可以，但需要區分「Agent 能運行」和「目前的一鍵腳本能直接運行」這兩件事。
 
 - **可以作為客戶端部署**：飛牛 OS 本質上仍是 Linux 環境，只要設備架構是 `x86_64` 或 `arm64`，理論上即可運行本項目的 Linux Agent。
-- **目前一鍵腳本有前提**：現有 Linux 安裝腳本預設依賴 `systemd`、`sudo`、`/opt/frp` 可寫，以及 `curl`/`wget` 等常見工具。
+- **目前一鍵腳本相容多種 init 系統**：自動偵測 systemd（主流發行版）、OpenRC（Alpine 等），無 init 系統時自動降級為 nohup 背景運行。
 - **若飛牛 OS 提供標準 Linux 使用者空間**：通常可以直接使用控制台生成的 Linux 客戶端腳本安裝。
-- **若飛牛 OS 不帶 systemd 或限制系統服務**：Agent 與 frpc 仍可能可以運行，但需要改為手動啟動，或接入飛牛自己的任務/服務管理方式；此時目前的一鍵腳本不一定能直接成功。
+- **若飛牛 OS 不帶 systemd/OpenRC 或限制系統服務**：腳本會自動降級為 nohup 背景運行模式，Agent 與 frpc 仍可正常運作。
 
 建議先在飛牛 OS 上檢查以下命令：
 
 ```bash
 uname -m
-command -v systemctl
+command -v systemctl || command -v rc-update
 command -v curl
 command -v wget
 test -w /opt || sudo test -w /opt
@@ -392,8 +402,8 @@ test -w /opt || sudo test -w /opt
 判定原則：
 
 - 輸出為 `x86_64` 或 `aarch64`：架構符合。
-- 存在 `systemctl`，且 `/opt` 可寫：通常可直接使用目前腳本。
-- 缺少 `systemctl`：建議改為手動部署，或使用飛牛 OS 自帶的服務管理機制。
+- 存在 `systemctl` 或 `rc-update`，且 `/opt` 可寫：可直接使用目前腳本。
+- 兩者都不存在：腳本會自動降級為 nohup 背景運行，仍可正常使用。
 
 <a id="ports"></a>
 
@@ -414,13 +424,14 @@ test -w /opt || sudo test -w /opt
 
 ### 數據刷新頻率
 
-| 環節                 | 刷新頻率         |
-| -------------------- | ---------------- |
-| Agent 系統指標採集   | 每 3 秒          |
-| WebSocket 推送到前端 | 每 1 秒          |
-| 前端 UI 更新         | 實時（事件驅動） |
-| FRPS 狀態快取刷新    | 每 5 秒          |
-| 憑證續期檢查         | 每 24 小時       |
+| 環節                 | 刷新頻率                   |
+| -------------------- | -------------------------- |
+| Agent 系統指標採集   | 每 3 秒                    |
+| WebSocket 推送到前端 | 每 3 秒（隨 Agent 採集）   |
+| 前端即時速率更新     | 每次訊息到達立即刷新       |
+| 前端 CPU/記憶體/磁碟 | 每 3 次訊息刷新一次        |
+| FRPS 狀態快取刷新    | 每 10 秒                   |
+| 憑證續期檢查         | 每 24 小時                 |
 
 ### 流量統計口徑
 
@@ -452,10 +463,10 @@ podman compose -f compose.yml logs -f
 podman compose -f compose.yml restart
 podman restart frps
 
-# 更新到最新版本
+# 更新到最新版本（從 TCR 拉取預構建鏡像）
 podman compose -f compose.yml down
-git pull
-podman compose -f compose.yml up -d --build
+podman compose -f compose.yml pull
+podman compose -f compose.yml up -d
 
 # 查看證書續期日誌
 podman exec frp-manager-backend cat /var/log/acme.cron.log
@@ -463,10 +474,25 @@ podman exec frp-manager-backend cat /var/log/acme.cron.log
 
 ### 客戶端
 
+**Linux (systemd)**：
+
 ```bash
-# frp-agent 狀態
 systemctl status frp-agent --no-pager
 journalctl -u frp-agent -n 200 --no-pager
+```
+
+**Linux (OpenRC / Alpine)**：
+
+```bash
+rc-service frp-agent status
+cat /opt/frp/logs/*.log
+```
+
+**macOS (launchd)**：
+
+```bash
+launchctl list | grep frp-agent
+cat /opt/frp/logs/*.log
 ```
 
 <a id="troubleshooting"></a>
@@ -528,44 +554,67 @@ sudo ./uninstall-frpc.sh
 
 ```
 FRP-ALL-IN-ONE/
-├── agent/                 # 設備端 Agent（Go 語言）
-│   ├── cmd/frp-agent/     # 主程式入口
-│   └── internal/          # 內部模組
-│       ├── config/        # 配置管理
-│       ├── frpc/          # FRPC 進程管理
-│       ├── logger/        # 日誌採集
-│       ├── monitor/       # 系統監控（CPU/記憶體/磁碟/網路）
-│       └── ws/            # WebSocket 客戶端
+├── frontend/               # Web 介面（React + TypeScript + Vite + Tailwind CSS）
+│   ├── src/
+│   │   ├── App.tsx         # 主應用組件（路由、頁面、狀態管理）
+│   │   ├── api.ts          # HTTP API 模組（對接後端 REST API）
+│   │   ├── ws.ts           # WebSocket 模組（即時資料推送）
+│   │   ├── types.ts        # TypeScript 類型定義
+│   │   ├── data.ts         # 靜態資料與腳本生成
+│   │   └── index.css       # 全域樣式（Tailwind CSS）
+│   ├── Dockerfile          # 多階段構建：Node 編譯 + Nginx 部署
+│   ├── package.json
+│   └── vite.config.ts
 ├── server/                # 後端 API（FastAPI + SQLite）
-│   ├── core/              # 核心基礎設施
+│   ├── main.py             # 應用入口，WebSocket 端點
+│   ├── auth.py             # JWT 認證與 GitHub OAuth
+│   ├── models.py           # 資料庫模型
+│   ├── schemas.py          # Pydantic 資料校驗
+│   ├── crud.py             # 資料庫增刪改查
+│   ├── database.py         # SQLite 資料庫連接
+│   ├── frp_deploy.py       # FRPS 部署與配置生成
+│   ├── websocket_manager.py # WebSocket 連接管理器
+│   ├── core/               # 核心基礎設施
 │   │   ├── dependencies.py    # 依賴注入（認證、資料庫）
-│   │   ├── exceptions.py      # 統一異常處理
-│   │   └── rate_limit.py      # API 限流
-│   ├── routers/           # API 路由
+│   │   ├── container_engine.py # Podman 容器引擎
+│   │   ├── rate_limit.py      # API 限流
+│   │   └── exceptions.py      # 統一異常處理
+│   ├── routers/            # API 路由
 │   │   ├── auth.py            # 認證（GitHub OAuth、管理員管理）
 │   │   ├── clients.py         # 客戶端、隧道管理
 │   │   ├── agents.py          # Agent 管理、指標查詢
 │   │   ├── frp_server.py      # FRPS 管理、安裝腳本
 │   │   ├── system.py          # 系統狀態
 │   │   └── settings.py        # 域名與 HTTPS 設置
-│   └── services/          # 業務邏輯層
+│   └── services/           # 業務邏輯層
+│       ├── dashboard.py       # Dashboard 資料聚合
 │       ├── tls_manager.py     # 證書申請、Nginx 配置
 │       └── dns_checker.py     # DNS 解析驗證
-├── frontend/              # Web 介面（React + TypeScript + Vite + Tailwind CSS）
-│   ├── src/
-│   │   ├── App.tsx         # 主應用組件
-│   │   ├── api.ts          # HTTP API 模組
-│   │   ├── ws.ts           # WebSocket 模組
-│   │   └── types.ts        # TypeScript 類型定義
-│   ├── package.json
-│   ├── vite.config.ts
-│   └── Dockerfile          # 多階段構建：Node 編譯 + Nginx 部署
-├── deploy/                # 部署腳本 & compose
-├── demo1.png              # 演示截圖 1
-├── demo2.png              # 演示截圖 2
-├── demo3.png              # 演示截圖 3
-├── demo4.png              # 演示截圖 4
-└── demo5.png              # 演示截圖 5
+├── agent/                  # 設備端 Agent（Go 語言）
+│   ├── cmd/frp-agent/      # 主程式入口
+│   ├── internal/           # 內部模組
+│   │   ├── config/         #   配置管理
+│   │   ├── frpc/           #   FRPC 進程管理
+│   │   ├── monitor/        #   系統監控（CPU/記憶體/磁碟/網路）
+│   │   ├── ws/             #   WebSocket 客戶端
+│   │   └── logger/         #   日誌採集
+│   ├── scripts/            # 安裝腳本範本
+│   ├── go.mod
+│   └── Makefile
+├── deploy/                 # 部署腳本 & compose
+│   ├── compose.yml         # Podman Compose（3 個容器）
+│   ├── deploy.sh           # 一鍵部署腳本
+│   ├── frps.toml           # FRPS 配置範本
+│   ├── setup-swap.sh       # Swap/zram 建立腳本
+│   └── uninstall-frpc.sh   # Agent 卸載腳本
+├── .github/workflows/      # CI/CD
+│   ├── build-and-push.yml  #   構建推送 Docker 鏡像到 TCR
+│   └── release-agent.yml   #   編譯發布 Agent 到 GitHub Releases
+├── demo1.png               # 演示截圖 1
+├── demo2.png               # 演示截圖 2
+├── demo3.png               # 演示截圖 3
+├── demo4.png               # 演示截圖 4
+└── demo5.png               # 演示截圖 5
 ```
 
 <a id="development"></a>
@@ -588,16 +637,17 @@ npm run lint    # TypeScript 類型檢查
 
 ```bash
 cd agent
-go build -o frp-agent ./cmd/frp-agent
+make dev            # 構建當前平台
+make all            # 構建所有平台（產物在 dist/ 目錄）
 ```
 
-多平台交叉編譯範例：
+Linux 平台使用 `CGO_ENABLED=0` 編譯靜態連結二進制，相容 Alpine (musl) 和普通發行版 (glibc)：
 
 ```bash
 # Linux ARM64（樹莓派等）
-GOOS=linux GOARCH=arm64 go build -o frp-agent-linux-arm64 ./cmd/frp-agent
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o frp-agent-linux-arm64 ./cmd/frp-agent
 # Linux x86_64
-GOOS=linux GOARCH=amd64 go build -o frp-agent-linux-amd64 ./cmd/frp-agent
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o frp-agent-linux-amd64 ./cmd/frp-agent
 ```
 
 ### 後端

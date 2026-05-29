@@ -19,15 +19,15 @@ deps:
 	go mod tidy
 	go mod download
 
-# Linux AMD64 (最常用)
+# Linux AMD64 (最常用) - CGO_ENABLED=0 生成静态链接二进制，兼容 Alpine(musl) 和普通发行版(glibc)
 linux-amd64:
 	@echo "🔨 构建 Linux AMD64..."
-	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o dist/$(BINARY_NAME)-linux-amd64 ./cmd/frp-agent
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o dist/$(BINARY_NAME)-linux-amd64 ./cmd/frp-agent
 
 # Linux ARM64 (树莓派, ARM服务器)
 linux-arm64:
 	@echo "🔨 构建 Linux ARM64..."
-	GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o dist/$(BINARY_NAME)-linux-arm64 ./cmd/frp-agent
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o dist/$(BINARY_NAME)-linux-arm64 ./cmd/frp-agent
 
 # macOS Intel
 darwin-amd64:

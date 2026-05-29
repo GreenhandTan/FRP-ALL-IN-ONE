@@ -99,7 +99,7 @@
 
 ### 功能强大
 
-- **WebSocket 实时推送**：每秒推送全局状态，每个客户端的 CPU/内存/磁盘/网络指标实时可见，无需手动刷新
+- **WebSocket 实时推送**：每 3 秒推送全局状态，每个客户端的 CPU/内存/磁盘/网络指标实时可见，无需手动刷新
 - **配置热重载**：通过 FRPC Admin API 动态增删端口映射，通道变更立即生效，无需重启 frpc 进程
 - **HTTPS 全自动**：域名模式下一键申请 Let's Encrypt 证书并自动续期（到期前 30 天）
 - **多架构 Agent**：Go 编写的 frp-agent 支持 x86_64 / ARM64 / ARMv7 / MIPS，覆盖树莓派、路由器等各类设备
@@ -115,7 +115,7 @@
 
 - **一键部署**：Podman Compose 启动管理后台、Web、FRPS
 - **配置向导**：Web 界面完成 FRPS 端口、Token、公网 IP 设置
-- **一键脚本**：自动生成客户端部署脚本（支持多架构、systemd、开机自启）
+- **一键脚本**：自动生成客户端部署脚本（支持多架构、systemd / OpenRC / launchd、开机自启）
 - **HTTPS 全自动**：一键申请 Let's Encrypt 证书并自动续期
 - **NAT 端口配置**：支持 NAT 云服务器显式指定管理面板公网端口，脚本生成自动感知
 
@@ -147,7 +147,7 @@
 
 ### 其他特性
 
-- **WebSocket 实时推送**：每秒推送状态更新，无需手动刷新
+- **WebSocket 实时推送**：每 3 秒推送状态更新，无需手动刷新
 - **国际化**：支持简体中文/英文/繁体中文三语切换
 - **现代化前端**：React + TypeScript + Vite 构建，TypeScript 类型安全，Vite 秒级热更新
 - **数据持久化**：SQLite 数据库和证书自动持久化到 Podman 卷
@@ -335,6 +335,15 @@ sudo ./deploy-frpc.sh
 
 > **自动续期**：证书将在过期前 30 天自动续期，无需手动干预。
 
+### 方式二：手动上传自定义证书
+
+1. 进入"系统设置 → 域名与 HTTPS"
+2. 输入你的域名
+3. 上传 PEM 格式的证书文件和私钥文件
+4. 系统将自动配置 Nginx 并重载服务
+
+> **适用场景**：已有第三方 CA 签发的证书，或使用自签名证书。
+
 <a id="nat-port-setup"></a>
 
 ## NAT 访问端口配置（可选）
@@ -376,15 +385,15 @@ ws://151.242.85.89:10967/ws/agent/<CLIENT_ID>
 可以，但需要区分“Agent 能运行”和“当前一键脚本能直接运行”这两件事。
 
 - **可以作为客户端部署**：飞牛 OS 本质上属于 Linux 环境，只要设备架构是 `x86_64` 或 `arm64`，理论上即可运行本项目的 Linux Agent。
-- **当前一键脚本有前提**：现有 Linux 安装脚本默认依赖 `systemd`、`sudo`、`/opt/frp` 可写，以及 `curl`/`wget` 等常见工具。
+- **当前一键脚本兼容多种 init 系统**：自动检测 systemd（主流发行版）、OpenRC（Alpine 等），无 init 系统时自动降级为 nohup 后台运行。
 - **若飞牛 OS 提供标准 Linux 用户态**：可直接尝试使用控制台生成的 Linux 客户端脚本安装。
-- **若飞牛 OS 不带 systemd 或限制系统服务**：Agent 和 frpc 仍可能可以运行，但需要改为手动启动，或接入飞牛自己的任务/服务管理方式，当前一键脚本不一定能直接成功。
+- **若飞牛 OS 不带 systemd/OpenRC 或限制系统服务**：脚本会自动降级为 nohup 后台运行模式，Agent 和 frpc 仍可正常工作。
 
 建议先在飞牛 OS 上检查以下命令：
 
 ```bash
 uname -m
-command -v systemctl
+command -v systemctl || command -v rc-update
 command -v curl
 command -v wget
 test -w /opt || sudo test -w /opt
@@ -393,8 +402,8 @@ test -w /opt || sudo test -w /opt
 判定原则：
 
 - 输出为 `x86_64` 或 `aarch64`：架构满足。
-- 存在 `systemctl`，且 `/opt` 可写：通常可直接使用当前脚本。
-- 缺少 `systemctl`：建议改为手动部署或使用飞牛 OS 自带的服务管理机制。
+- 存在 `systemctl` 或 `rc-update`，且 `/opt` 可写：可直接使用当前脚本。
+- 两者都不存在：脚本会自动降级为 nohup 后台运行，仍可正常使用。
 
 <a id="ports"></a>
 
@@ -415,13 +424,14 @@ test -w /opt || sudo test -w /opt
 
 ### 数据刷新频率
 
-| 环节                 | 刷新频率         |
-| -------------------- | ---------------- |
-| Agent 系统指标采集   | 每 3 秒          |
-| WebSocket 推送到前端 | 每 1 秒          |
-| 前端 UI 更新         | 实时（事件驱动） |
-| FRPS 状态缓存刷新    | 每 5 秒          |
-| 证书续期检查         | 每 24 小时       |
+| 环节                 | 刷新频率                |
+| -------------------- | ----------------------- |
+| Agent 系统指标采集   | 每 3 秒                 |
+| WebSocket 推送到前端 | 每 3 秒（随 Agent 采集） |
+| 前端实时速率更新     | 每次消息到达立即刷新    |
+| 前端 CPU/内存/磁盘   | 每 3 次消息刷新一次     |
+| FRPS 状态缓存刷新    | 每 10 秒                |
+| 证书续期检查         | 每 24 小时              |
 
 ### 流量统计口径
 
@@ -464,10 +474,25 @@ podman exec frp-manager-backend cat /var/log/acme.cron.log
 
 ### 客户端
 
+**Linux (systemd)**：
+
 ```bash
-# frp-agent 状态
 systemctl status frp-agent --no-pager
 journalctl -u frp-agent -n 200 --no-pager
+```
+
+**Linux (OpenRC / Alpine)**：
+
+```bash
+rc-service frp-agent status
+cat /opt/frp/logs/*.log
+```
+
+**macOS (launchd)**：
+
+```bash
+launchctl list | grep frp-agent
+cat /opt/frp/logs/*.log
 ```
 
 <a id="troubleshooting"></a>
@@ -614,16 +639,17 @@ npm run lint    # TypeScript 类型检查
 
 ```bash
 cd agent
-go build -o frp-agent ./cmd/frp-agent
+make dev            # 构建当前平台
+make all            # 构建所有平台（产物在 dist/ 目录）
 ```
 
-多平台交叉编译示例：
+Linux 平台使用 `CGO_ENABLED=0` 编译静态链接二进制，兼容 Alpine (musl) 和普通发行版 (glibc)：
 
 ```bash
 # Linux ARM64（树莓派等）
-GOOS=linux GOARCH=arm64 go build -o frp-agent-linux-arm64 ./cmd/frp-agent
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o frp-agent-linux-arm64 ./cmd/frp-agent
 # Linux x86_64
-GOOS=linux GOARCH=amd64 go build -o frp-agent-linux-amd64 ./cmd/frp-agent
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o frp-agent-linux-amd64 ./cmd/frp-agent
 ```
 
 ### 后端

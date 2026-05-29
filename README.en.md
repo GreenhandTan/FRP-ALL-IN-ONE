@@ -99,7 +99,7 @@
 
 ### Feature-Rich
 
-- **WebSocket real-time push**: Pushes global status every second — CPU/memory/disk/network metrics for every client visible in real time, no manual refresh needed
+- **WebSocket real-time push**: Pushes global status every 3 seconds — CPU/memory/disk/network metrics for every client visible in real time, no manual refresh needed
 - **Hot reload**: Dynamically add/remove port mappings via FRPC Admin API; changes take effect immediately without restarting frpc
 - **Fully automated HTTPS**: One-click Let's Encrypt certificate issuance in domain mode with automatic renewal (30 days before expiry)
 - **Multi-arch Agent**: frp-agent written in Go supports x86_64 / ARM64 / ARMv7 / MIPS — covers Raspberry Pi, routers, and more
@@ -115,7 +115,7 @@
 
 - **One-click Deployment**: Start management backend, web, and FRPS with Podman Compose
 - **Configuration Wizard**: Web interface for FRPS port, token, and public IP settings
-- **One-click Scripts**: Auto-generate client deployment scripts (multi-arch, systemd, auto-start)
+- **One-click Scripts**: Auto-generate client deployment scripts (multi-arch, systemd / OpenRC / launchd, auto-start)
 - **HTTPS Automation**: One-click Let's Encrypt certificate issuance with automatic renewal
 - **NAT Port Config**: Support explicit panel access port for NAT cloud servers, scripts auto-use correct address
 
@@ -147,7 +147,7 @@
 
 ### Other Features
 
-- **WebSocket Real-time Push**: Status updates every second, no manual refresh needed
+- **WebSocket Real-time Push**: Status updates every 3 seconds, no manual refresh needed
 - **Internationalization**: Chinese/English/Traditional Chinese language switching
 - **Modern Frontend**: React + TypeScript + Vite, type-safe with instant hot reload
 - **Data Persistence**: SQLite database and certificates automatically persisted to Podman volumes
@@ -185,6 +185,7 @@ flowchart TB
 - A server with public IP (**Linux recommended, minimum 1 vCPU + 1 GB RAM verified by real-world testing**)
 - Podman & Podman Compose (auto-installed by deploy script)
 - Port forwarding (minimum): 8080/TCP, FRPS port (default 7000/TCP)
+- A GitHub account (for login and creating OAuth App)
 
 > **System Recommendation**: This project is deployed via Podman. The deployment script auto-detects Linux distributions (including Alpine, Debian/Ubuntu, and RHEL-family) and installs dependencies automatically. Windows and macOS can run as client machines; Linux is recommended for the server.
 
@@ -334,6 +335,15 @@ The system supports two HTTPS activation methods:
 
 > **Auto Renewal**: Certificates will be automatically renewed 30 days before expiration, no manual intervention needed.
 
+### Method 2: Upload Custom Certificate
+
+1. Go to "System Settings → Domain & HTTPS"
+2. Enter your domain
+3. Upload PEM format certificate and private key files
+4. The system will automatically configure Nginx and reload services
+
+> **Use Case**: You already have a certificate from a third-party CA, or want to use a self-signed certificate.
+
 <a id="nat-port-setup"></a>
 
 ## NAT Access Port Configuration (Optional)
@@ -375,15 +385,15 @@ The `MANAGER_WS_URL` in generated scripts is determined by the following priorit
 Yes, but you need to distinguish between “the Agent binary can run” and “the current one-click install script works out of the box”.
 
 - **Client deployment is generally possible**: Feiniu OS is still a Linux-based environment, so the Linux Agent can usually run as long as the device architecture is `x86_64` or `arm64`.
-- **The current one-click script has assumptions**: it expects `systemd`, `sudo`, a writable `/opt/frp`, and common tools such as `curl` or `wget`.
+- **The current one-click script supports multiple init systems**: auto-detects systemd (mainstream distros), OpenRC (Alpine, etc.), and falls back to nohup background process when no init system is available.
 - **If Feiniu OS provides a standard Linux userspace**: you can usually deploy with the generated Linux client script directly.
-- **If Feiniu OS does not use systemd or restricts system services**: the Agent and frpc may still run, but you will likely need manual startup or Feiniu OS specific service/task management. In that case, the current one-click script may not work unchanged.
+- **If Feiniu OS does not use systemd/OpenRC or restricts system services**: the script automatically falls back to nohup background mode — the Agent and frpc will still work normally.
 
 Recommended checks on Feiniu OS:
 
 ```bash
 uname -m
-command -v systemctl
+command -v systemctl || command -v rc-update
 command -v curl
 command -v wget
 test -w /opt || sudo test -w /opt
@@ -392,8 +402,8 @@ test -w /opt || sudo test -w /opt
 Quick interpretation:
 
 - `x86_64` or `aarch64`: architecture is supported.
-- `systemctl` exists and `/opt` is writable: the current script will usually work.
-- No `systemctl`: prefer manual deployment or Feiniu OS native service management.
+- `systemctl` or `rc-update` exists and `/opt` is writable: the current script will work directly.
+- Neither exists: the script automatically falls back to nohup background mode.
 
 <a id="ports"></a>
 
@@ -414,13 +424,14 @@ Quick interpretation:
 
 ### Data Refresh Frequency
 
-| Component                       | Refresh Rate             |
-| ------------------------------- | ------------------------ |
-| Agent system metrics collection | Every 3 seconds          |
-| WebSocket push to frontend      | Every 1 second           |
-| Frontend UI update              | Real-time (event-driven) |
-| FRPS status cache refresh       | Every 5 seconds          |
-| Certificate renewal check       | Every 24 hours           |
+| Component                       | Refresh Rate                      |
+| ------------------------------- | --------------------------------- |
+| Agent system metrics collection | Every 3 seconds                   |
+| WebSocket push to frontend      | Every 3 seconds (per agent cycle) |
+| Frontend real-time speed update | Instant on each message           |
+| Frontend CPU/Memory/Disk        | Every 3rd message                 |
+| FRPS status cache refresh       | Every 10 seconds                  |
+| Certificate renewal check       | Every 24 hours                    |
 
 ### Traffic Statistics Scope
 
@@ -452,10 +463,10 @@ podman compose -f compose.yml logs -f
 podman compose -f compose.yml restart
 podman restart frps
 
-# Update to latest version
+# Update to latest version (pull pre-built images from TCR)
 podman compose -f compose.yml down
-git pull
-podman compose -f compose.yml up -d --build
+podman compose -f compose.yml pull
+podman compose -f compose.yml up -d
 
 # View certificate renewal logs
 podman exec frp-manager-backend cat /var/log/acme.cron.log
@@ -463,10 +474,25 @@ podman exec frp-manager-backend cat /var/log/acme.cron.log
 
 ### Client
 
+**Linux (systemd)**:
+
 ```bash
-# frp-agent status
 systemctl status frp-agent --no-pager
 journalctl -u frp-agent -n 200 --no-pager
+```
+
+**Linux (OpenRC / Alpine)**:
+
+```bash
+rc-service frp-agent status
+cat /opt/frp/logs/*.log
+```
+
+**macOS (launchd)**:
+
+```bash
+launchctl list | grep frp-agent
+cat /opt/frp/logs/*.log
 ```
 
 <a id="troubleshooting"></a>
@@ -528,44 +554,67 @@ sudo ./uninstall-frpc.sh
 
 ```
 FRP-ALL-IN-ONE/
-├── agent/                 # Client Agent (Go)
-│   ├── cmd/frp-agent/     # Main entry point
-│   └── internal/          # Internal modules
-│       ├── config/        # Configuration management
-│       ├── frpc/          # FRPC process management
-│       ├── logger/        # Log collection
-│       ├── monitor/       # System monitoring (CPU/memory/disk/network)
-│       └── ws/            # WebSocket client
+├── frontend/               # Web UI (React + TypeScript + Vite + Tailwind CSS)
+│   ├── src/
+│   │   ├── App.tsx         # Main application component (routes, pages, state)
+│   │   ├── api.ts          # HTTP API module (REST API client)
+│   │   ├── ws.ts           # WebSocket module (real-time data push)
+│   │   ├── types.ts        # TypeScript type definitions
+│   │   ├── data.ts         # Static data & script generation
+│   │   └── index.css       # Global styles (Tailwind CSS)
+│   ├── Dockerfile          # Multi-stage build: Node compile + Nginx deploy
+│   ├── package.json
+│   └── vite.config.ts
 ├── server/                # Backend API (FastAPI + SQLite)
-│   ├── core/              # Core infrastructure
+│   ├── main.py             # App entry, WebSocket endpoints
+│   ├── auth.py             # JWT auth & GitHub OAuth
+│   ├── models.py           # Database models
+│   ├── schemas.py          # Pydantic validation
+│   ├── crud.py             # Database CRUD operations
+│   ├── database.py         # SQLite connection
+│   ├── frp_deploy.py       # FRPS deployment & config generation
+│   ├── websocket_manager.py # WebSocket connection manager
+│   ├── core/               # Core infrastructure
 │   │   ├── dependencies.py    # Dependency injection (auth, database)
-│   │   ├── exceptions.py      # Unified exception handling
-│   │   └── rate_limit.py      # API rate limiting
-│   ├── routers/           # API routes
+│   │   ├── container_engine.py # Podman container engine
+│   │   ├── rate_limit.py      # API rate limiting
+│   │   └── exceptions.py      # Unified exception handling
+│   ├── routers/            # API routes
 │   │   ├── auth.py            # Authentication (GitHub OAuth, admin management)
-│   │   ├── clients.py         # Client, tunnel management
-│   │   ├── agents.py          # Agent management, metrics
-│   │   ├── frp_server.py      # FRPS management, install scripts
+│   │   ├── clients.py         # Client & tunnel management
+│   │   ├── agents.py          # Agent management & metrics
+│   │   ├── frp_server.py      # FRPS management & install scripts
 │   │   ├── system.py          # System status
 │   │   └── settings.py        # Domain & HTTPS settings
-│   └── services/          # Business logic layer
-│       ├── tls_manager.py     # Certificate management, Nginx config
+│   └── services/           # Business logic layer
+│       ├── dashboard.py       # Dashboard data aggregation
+│       ├── tls_manager.py     # Certificate management & Nginx config
 │       └── dns_checker.py     # DNS resolution verification
-├── frontend/              # Web interface (React + TypeScript + Vite + Tailwind CSS)
-│   ├── src/
-│   │   ├── App.tsx         # Main application component
-│   │   ├── api.ts          # HTTP API module
-│   │   ├── ws.ts           # WebSocket module
-│   │   └── types.ts        # TypeScript type definitions
-│   ├── package.json
-│   ├── vite.config.ts
-│   └── Dockerfile          # Multi-stage build: Node compile + Nginx deploy
-├── deploy/                # Deployment scripts & compose
-├── demo1.png              # Demo screenshot 1
-├── demo2.png              # Demo screenshot 2
-├── demo3.png              # Demo screenshot 3
-├── demo4.png              # Demo screenshot 4
-└── demo5.png              # Demo screenshot 5
+├── agent/                  # Client Agent (Go)
+│   ├── cmd/frp-agent/      # Main entry point
+│   ├── internal/           # Internal modules
+│   │   ├── config/         #   Configuration management
+│   │   ├── frpc/           #   FRPC process management
+│   │   ├── monitor/        #   System monitoring (CPU/memory/disk/network)
+│   │   ├── ws/             #   WebSocket client
+│   │   └── logger/         #   Log collection
+│   ├── scripts/            # Install script templates
+│   ├── go.mod
+│   └── Makefile
+├── deploy/                 # Deployment scripts & compose
+│   ├── compose.yml         # Podman Compose (3 containers)
+│   ├── deploy.sh           # One-click server deploy script
+│   ├── frps.toml           # FRPS config template
+│   ├── setup-swap.sh       # Swap/zram setup for low-memory VPS
+│   └── uninstall-frpc.sh   # Client uninstall script
+├── .github/workflows/      # CI/CD
+│   ├── build-and-push.yml  #   Build & push Docker images to TCR
+│   └── release-agent.yml   #   Build & release Agent to GitHub Releases
+├── demo1.png               # Demo screenshot 1
+├── demo2.png               # Demo screenshot 2
+├── demo3.png               # Demo screenshot 3
+├── demo4.png               # Demo screenshot 4
+└── demo5.png               # Demo screenshot 5
 ```
 
 <a id="development"></a>
@@ -588,16 +637,17 @@ npm run lint    # TypeScript type check
 
 ```bash
 cd agent
-go build -o frp-agent ./cmd/frp-agent
+make dev            # Build for current platform
+make all            # Build all platforms (output in dist/)
 ```
 
-Cross-compilation examples:
+Linux builds use `CGO_ENABLED=0` for static linking, compatible with both Alpine (musl) and standard distros (glibc):
 
 ```bash
 # Linux ARM64 (Raspberry Pi, etc.)
-GOOS=linux GOARCH=arm64 go build -o frp-agent-linux-arm64 ./cmd/frp-agent
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o frp-agent-linux-arm64 ./cmd/frp-agent
 # Linux x86_64
-GOOS=linux GOARCH=amd64 go build -o frp-agent-linux-amd64 ./cmd/frp-agent
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o frp-agent-linux-amd64 ./cmd/frp-agent
 ```
 
 ### Backend
