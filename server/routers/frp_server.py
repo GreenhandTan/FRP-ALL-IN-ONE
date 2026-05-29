@@ -616,7 +616,10 @@ log_ok "配置文件已创建"
 log_info "[5/5] 创建系统服务..."
 if [ "$AGENT_DOWNLOAD_OK" = "1" ]; then
     if [ "$OS" = "linux" ]; then
-        cat > /etc/systemd/system/frp-agent.service << AGENT_SERVICE
+        # 检测 init 系统
+        if [ -d /run/systemd/system ] && command -v systemctl >/dev/null 2>&1; then
+            # systemd (Ubuntu/Debian/CentOS/Fedora 等)
+            cat > /etc/systemd/system/frp-agent.service << AGENT_SERVICE
 [Unit]
 Description=FRP Manager Agent
 After=network.target
@@ -631,10 +634,47 @@ RestartSec=5
 WantedBy=multi-user.target
 AGENT_SERVICE
 
-        systemctl daemon-reload
-        systemctl enable frp-agent
-        systemctl start frp-agent
-        log_ok "Agent 服务已创建并启动 (systemd)"
+            systemctl daemon-reload
+            systemctl enable frp-agent
+            systemctl start frp-agent
+            log_ok "Agent 服务已创建并启动 (systemd)"
+        elif command -v rc-update >/dev/null 2>&1 || command -v openrc >/dev/null 2>&1; then
+            # OpenRC (Alpine 等)
+            AGENT_CMD="$INSTALL_DIR/frp-agent -server $MANAGER_WS_URL -id $CLIENT_ID -token $CLIENT_TOKEN -frpc $INSTALL_DIR/frpc -config $INSTALL_DIR/frpc.toml -log $INSTALL_DIR/logs"
+            cat > /etc/init.d/frp-agent << AGENT_OPENRC
+#!/sbin/openrc-run
+
+name="frp-agent"
+description="FRP Manager Agent"
+command="$AGENT_CMD"
+command_background=true
+pidfile="/run/\$RC_SVCNAME.pid"
+
+start_pre() {{
+    mkdir -p "$INSTALL_DIR/logs"
+}}
+
+stop() {{
+    start-stop-daemon --stop --pidfile "\$pidfile" --retry=TERM/5/KILL/2
+    rm -f "\$pidfile"
+}}
+
+depend() {{
+    need net
+    after firewall
+}}
+AGENT_OPENRC
+            chmod +x /etc/init.d/frp-agent
+            rc-update add frp-agent default 2>/dev/null || true
+            rc-service frp-agent start 2>/dev/null || /etc/init.d/frp-agent start
+            log_ok "Agent 服务已创建并启动 (OpenRC)"
+        else
+            # 无 systemd/OpenRC，使用 nohup 后台运行
+            log_warn "未检测到 systemd 或 OpenRC，使用后台进程模式"
+            nohup $INSTALL_DIR/frp-agent -server $MANAGER_WS_URL -id $CLIENT_ID -token $CLIENT_TOKEN -frpc $INSTALL_DIR/frpc -config $INSTALL_DIR/frpc.toml -log $INSTALL_DIR/logs > $INSTALL_DIR/logs/agent.log 2>&1 &
+            echo $! > $INSTALL_DIR/frp-agent.pid
+            log_ok "Agent 已后台启动 (PID: $(cat $INSTALL_DIR/frp-agent.pid))"
+        fi
     elif [ "$OS" = "darwin" ]; then
         PLIST_PATH="$HOME/Library/LaunchAgents/com.frpmanager.agent.plist"
         mkdir -p "$HOME/Library/LaunchAgents"
