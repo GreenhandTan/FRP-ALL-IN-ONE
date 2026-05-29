@@ -347,10 +347,20 @@ show_info() {
     echo "=========================================="
     echo ""
 
-    PUBLIC_IP=$(curl -s --max-time 5 ifconfig.me 2>/dev/null || \
-                curl -s --max-time 5 ip.sb 2>/dev/null || \
-                curl -s --max-time 5 api.ipify.org 2>/dev/null || \
+    # 优先获取 IPv4，其次 IPv6
+    PUBLIC_IP=$(curl -4 -s --max-time 5 ifconfig.me 2>/dev/null || \
+                curl -4 -s --max-time 5 ip.sb 2>/dev/null || \
+                curl -4 -s --max-time 5 api.ipify.org 2>/dev/null || \
                 echo "")
+    if [ -z "$PUBLIC_IP" ]; then
+        PUBLIC_IP=$(curl -6 -s --max-time 5 ifconfig.me 2>/dev/null || \
+                    curl -6 -s --max-time 5 ip.sb 2>/dev/null || \
+                    echo "")
+        if [ -n "$PUBLIC_IP" ]; then
+            # IPv6 地址需要用方括号包裹
+            PUBLIC_IP="[${PUBLIC_IP}]"
+        fi
+    fi
     if [ -z "$PUBLIC_IP" ]; then
         PUBLIC_IP="<你的服务器IP>"
     fi
