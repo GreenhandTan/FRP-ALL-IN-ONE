@@ -236,7 +236,7 @@ check_ports() {
     echo ""
     echo "[CHECK] 检查端口占用..."
 
-    for port in 8080 7000; do
+    for port in 8080 7000 7500; do
         if command -v lsof >/dev/null 2>&1 && lsof -Pi :"$port" -sTCP:LISTEN -t >/dev/null 2>&1; then
             echo -e "${YELLOW}[WARN] 端口 $port 已被占用${NC}"
             echo "   请释放端口或修改 compose.yml 中配置"
@@ -297,14 +297,47 @@ deploy_services() {
         fi
     fi
 
-    run_compose down --remove-orphans >/dev/null 2>&1 || true
-
     echo "[PULL] 拉取最新镜像..."
-    run_compose pull backend frontend || echo -e "${YELLOW}[WARN] 镜像拉取失败，将尝试使用本地缓存${NC}"
+    if ! run_compose pull backend frontend; then
+        echo -e "${YELLOW}[WARN] 镜像拉取失败，检查本地缓存...${NC}"
+        has_local="1"
+        for img in sgccr.ccs.tencentyun.com/frp-all-in-one/frp-backend:latest \
+                    sgccr.ccs.tencentyun.com/frp-all-in-one/frp-frontend:latest; do
+            if ! podman image exists "$img" 2>/dev/null; then
+                has_local="0"
+                echo -e "${RED}[ERROR] 本地无缓存镜像: $img${NC}"
+            fi
+        done
+        if [ "$has_local" = "0" ]; then
+            echo -e "${RED}[ERROR] 镜像拉取失败且无本地缓存，请检查网络或镜像仓库配置${NC}"
+            exit 1
+        fi
+        echo -e "${YELLOW}[OK] 使用本地缓存镜像继续部署${NC}"
+    fi
 
     run_compose up -d
 
-    echo -e "${GREEN}[OK] 服务启动成功${NC}"
+    echo ""
+    echo "[CHECK] 验证容器启动状态..."
+    sleep 3
+    all_ok="1"
+    for name in frp-manager-backend frp-manager-web frps; do
+        if ! podman ps --filter "name=^${name}$" --format '{{.Status}}' 2>/dev/null | grep -qi "up"; then
+            echo -e "${RED}[ERROR] 容器 ${name} 未正常运行${NC}"
+            podman logs "$name" --tail 10 2>/dev/null || true
+            echo ""
+            all_ok="0"
+        else
+            echo -e "${GREEN}[OK] ${name} 运行中${NC}"
+        fi
+    done
+
+    if [ "$all_ok" = "0" ]; then
+        echo -e "${RED}[ERROR] 部分容器启动失败，请根据上方日志排查${NC}"
+        exit 1
+    fi
+
+    echo -e "${GREEN}[OK] 所有服务启动成功${NC}"
 }
 
 show_info() {
@@ -313,9 +346,18 @@ show_info() {
     echo "  部署完成！"
     echo "=========================================="
     echo ""
+
+    PUBLIC_IP=$(curl -s --max-time 5 ifconfig.me 2>/dev/null || \
+                curl -s --max-time 5 ip.sb 2>/dev/null || \
+                curl -s --max-time 5 api.ipify.org 2>/dev/null || \
+                echo "")
+    if [ -z "$PUBLIC_IP" ]; then
+        PUBLIC_IP="<你的服务器IP>"
+    fi
+
     echo "[访问地址]"
-    echo "   Web 管理界面: http://Your Server IP:8080"
-    echo "   FRP 服务端口: Your Server IP:7000"
+    echo "   Web 管理界面: http://${PUBLIC_IP}:8080"
+    echo "   FRP 服务端口: ${PUBLIC_IP}:7000"
     echo ""
     echo "[登录方式]"
     echo "   使用 GitHub 账号登录"

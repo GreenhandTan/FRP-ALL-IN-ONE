@@ -5,13 +5,11 @@ services:
     restart: always
     user: root
     network_mode: host
+    env_file: .env
     environment:
       - PODMAN_BIN=podman
       - PODMAN_TIMEOUT=30
       - PODMAN_URL=unix:///run/podman/podman.sock
-      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID:-}
-      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET:-}
-      - SECRET_KEY=${SECRET_KEY:-}
     volumes:
       - frp-data:/opt/frp
       - frp-certs:/app/certs
