@@ -293,7 +293,7 @@ async def websocket_agent(websocket: WebSocket, client_id: str):
     
     try:
         while True:
-            raw = await websocket.receive_text(max_size=65536)
+            raw = await websocket.receive_text()
             import json as _json
             data = _json.loads(raw)
             await _handle_agent_message(client_id, data)
