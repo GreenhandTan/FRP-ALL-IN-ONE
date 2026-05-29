@@ -51,6 +51,8 @@
 <img src="demo3.png" alt="Demo 3" width="900" />
 <br/><br/>
 <img src="demo4.png" alt="Demo 4" width="900" />
+<br/><br/>
+<img src="demo5.png" alt="Demo 5" width="900" />
 
 <a id="toc"></a>
 
@@ -562,7 +564,8 @@ FRP-ALL-IN-ONE/
 ├── demo1.png              # 演示截圖 1
 ├── demo2.png              # 演示截圖 2
 ├── demo3.png              # 演示截圖 3
-└── demo4.png              # 演示截圖 4
+├── demo4.png              # 演示截圖 4
+└── demo5.png              # 演示截圖 5
 ```
 
 <a id="development"></a>
