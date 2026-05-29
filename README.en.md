@@ -319,10 +319,6 @@ In the "Device List" on the dashboard:
 
 ## HTTPS Configuration (Optional)
 
-The system supports two HTTPS activation methods:
-
-### Method 1: Auto-issue Let's Encrypt Certificate (Recommended)
-
 1. Go to "System Settings → Domain & HTTPS"
 2. Enter your domain (e.g., `frp.example.com`)
 3. Follow the prompt to point domain A record to server's public IP
@@ -334,15 +330,6 @@ The system supports two HTTPS activation methods:
 6. Auto-redirect to `https://your-domain`
 
 > **Auto Renewal**: Certificates will be automatically renewed 30 days before expiration, no manual intervention needed.
-
-### Method 2: Upload Custom Certificate
-
-1. Go to "System Settings → Domain & HTTPS"
-2. Enter your domain
-3. Upload PEM format certificate and private key files
-4. The system will automatically configure Nginx and reload services
-
-> **Use Case**: You already have a certificate from a third-party CA, or want to use a self-signed certificate.
 
 <a id="nat-port-setup"></a>
 
