@@ -300,7 +300,9 @@ async def websocket_agent(websocket: WebSocket, client_id: str):
     except WebSocketDisconnect:
         await ws_manager.disconnect_agent(client_id)
         _set_client_offline(client_id)
-    except Exception:
+    except Exception as e:
+        print(f"[Error] Agent {client_id} WebSocket 异常: {type(e).__name__}: {e}")
+        import traceback; traceback.print_exc()
         await ws_manager.disconnect_agent(client_id)
         _set_client_offline(client_id)
 
