@@ -640,13 +640,17 @@ AGENT_SERVICE
             log_ok "Agent 服务已创建并启动 (systemd)"
         elif command -v rc-update >/dev/null 2>&1 || command -v openrc >/dev/null 2>&1; then
             # OpenRC (Alpine 等)
-            AGENT_CMD="$INSTALL_DIR/frp-agent -server $MANAGER_WS_URL -id $CLIENT_ID -token $CLIENT_TOKEN -frpc $INSTALL_DIR/frpc -config $INSTALL_DIR/frpc.toml -log $INSTALL_DIR/logs"
+            # command 只能放可执行文件路径，参数必须放 command_args
+            # 否则 start-stop-daemon 会把 -server 等当成自己的参数
+            AGENT_BIN="$INSTALL_DIR/frp-agent"
+            AGENT_ARGS="-server $MANAGER_WS_URL -id $CLIENT_ID -token $CLIENT_TOKEN -frpc $INSTALL_DIR/frpc -config $INSTALL_DIR/frpc.toml -log $INSTALL_DIR/logs"
             cat > /etc/init.d/frp-agent << AGENT_OPENRC
 #!/sbin/openrc-run
 
 name="frp-agent"
 description="FRP Manager Agent"
-command="$AGENT_CMD"
+command="$AGENT_BIN"
+command_args="$AGENT_ARGS"
 command_background=true
 pidfile="/run/\$RC_SVCNAME.pid"
 
