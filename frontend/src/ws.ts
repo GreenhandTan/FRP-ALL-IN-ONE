@@ -30,7 +30,11 @@ class DashboardWebSocket {
       try {
         const msg = JSON.parse(event.data);
         if (msg.type === 'ping') return;
-        this.emit(msg.type, msg.data);
+        // 将顶层字段（如 client_id）合并进 data，方便 handler 直接使用
+        const payload = (msg.data && typeof msg.data === 'object' && !Array.isArray(msg.data))
+          ? { ...msg.data, ...(msg.client_id != null ? { client_id: msg.client_id } : {}) }
+          : msg.data;
+        this.emit(msg.type, payload);
       } catch (e) {
         console.error('[WS] Parse error:', e);
       }
