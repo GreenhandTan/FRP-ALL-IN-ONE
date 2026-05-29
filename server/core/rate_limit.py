@@ -13,29 +13,15 @@ limiter = Limiter(
 )
 
 
-# 各接口限流配置
-RATE_LIMITS = {
-    # 登录接口：5次/分钟（防暴力破解）
-    "/token": ["5/minute"],
-    "/api/auth/token": ["5/minute"],
-    
-    # 证书申请接口：3次/小时（防滥用 Let's Encrypt）
-    "/api/settings/enable-tls": ["3/hour"],
-    
-    # 通用 API 接口
-    "/api/*": ["100/minute"],
-}
-
-
 def setup_rate_limit(app):
     """
     在 FastAPI 应用中注册限流器
-    
+
     Args:
         app: FastAPI 应用实例
     """
     # 注册限流器状态
     app.state.limiter = limiter
-    
+
     # 注册限流异常处理
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)

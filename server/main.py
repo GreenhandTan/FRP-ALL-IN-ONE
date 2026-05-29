@@ -4,7 +4,8 @@ FRP Manager API - 主入口
 其他路由已拆分至 routers/ 目录
 """
 import asyncio
-from datetime import datetime
+import hmac
+from datetime import datetime, timezone
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
@@ -281,7 +282,7 @@ async def websocket_agent(websocket: WebSocket, client_id: str):
     db = SessionLocal()
     try:
         client = crud.get_client(db, client_id=client_id)
-        if not client or not header_token or header_token != client.auth_token:
+        if not client or not header_token or not hmac.compare_digest(header_token, client.auth_token):
             await websocket.close(code=1008)
             return
     finally:
@@ -292,7 +293,9 @@ async def websocket_agent(websocket: WebSocket, client_id: str):
     
     try:
         while True:
-            data = await websocket.receive_json()
+            raw = await websocket.receive_text(max_size=65536)
+            import json as _json
+            data = _json.loads(raw)
             await _handle_agent_message(client_id, data)
     except WebSocketDisconnect:
         await ws_manager.disconnect_agent(client_id)
@@ -443,7 +446,7 @@ async def _handle_agent_message(client_id: str, msg: dict):
             # 持久化当前指标（每 30 秒一条，取代每次都写）
             metrics = models.SystemMetrics(
                 client_id=client_id,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 cpu_percent=data.get("cpu_percent"),
                 memory_used=data.get("memory_used"),
                 memory_total=data.get("memory_total"),
@@ -484,7 +487,12 @@ async def _handle_agent_message(client_id: str, msg: dict):
             ).first()
             
             if client:
-                status = data if isinstance(data, str) else data.get("status", "unknown")
+                if isinstance(data, dict):
+                    status = data.get("status", "unknown")
+                elif isinstance(data, str):
+                    status = data
+                else:
+                    status = "unknown"
                 client.status = "online" if status == "running" else "offline"
                 db.commit()
         finally:

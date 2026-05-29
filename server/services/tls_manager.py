@@ -4,7 +4,7 @@ TLS 证书管理服务
 """
 import os
 import subprocess
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from pathlib import Path
 from core.container_engine import run_podman
@@ -52,7 +52,7 @@ class TLSManager:
                         try:
                             expiry = datetime.strptime(expiry_str, "%b %d %H:%M:%S %Y %Z")
                             info["expires_at"] = expiry.isoformat()
-                            info["days_until_expiry"] = (expiry - datetime.utcnow()).days
+                            info["days_until_expiry"] = (expiry - datetime.now(timezone.utc)).days
                         except:
                             pass
                     if "subject=" in line:

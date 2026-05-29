@@ -87,6 +87,7 @@ async def get_agent_metrics(
     current_user: models.Admin = Depends(get_current_user)
 ):
     """获取 Agent 系统指标历史"""
+    limit = min(max(limit, 1), 1000)
     metrics = db.query(models.SystemMetrics).filter(
         models.SystemMetrics.client_id == client_id
     ).order_by(models.SystemMetrics.timestamp.desc()).limit(limit).all()

@@ -49,11 +49,11 @@ async def get_domain_config(
     domain = crud.get_config(db, models.ConfigKeys.SERVER_DOMAIN) or ""
     tls_enabled = crud.get_config(db, models.ConfigKeys.TLS_ENABLED) == "true"
     tls_mode = crud.get_config(db, models.ConfigKeys.TLS_MODE) or "auto"
-    
+
     cert_info = None
     if domain and tls_enabled:
         cert_info = tls_manager.get_cert_info(domain)
-    
+
     return {
         "domain": domain,
         "tls_enabled": tls_enabled,
@@ -71,13 +71,13 @@ async def set_domain(
 ):
     """设置域名"""
     domain = _validate_domain(config.domain)
-    
-    # 检查 DNS 解析（异步执行避免阻塞事件循环）
-    check_result = await asyncio.to_thread(check_dns_resolution, domain)
-    
+
+    # 检查 DNS 解析（dns_checker 现在是 async，直接 await）
+    check_result = await check_dns_resolution(domain)
+
     # 保存域名配置（即使 DNS 检查失败也保存）
     crud.set_config(db, models.ConfigKeys.SERVER_DOMAIN, domain)
-    
+
     return {
         "success": True,
         "domain": domain,
@@ -88,11 +88,11 @@ async def set_domain(
 @router.post("/check-dns")
 async def check_domain_dns(
     domain: str,
-    db: Session = Depends(get_db),
     current_user: models.Admin = Depends(get_current_user)
 ):
     """检查域名 DNS 解析状态"""
-    return await asyncio.to_thread(check_dns_resolution, domain)
+    domain = _validate_domain(domain)
+    return await check_dns_resolution(domain)
 
 
 @router.post("/enable-tls")
@@ -110,18 +110,18 @@ async def enable_tls(
     """
     domain = _validate_domain(tls_request.domain)
     mode = tls_request.mode
-    
-    # 验证 DNS 解析（异步执行避免阻塞事件循环）
-    dns_check = await asyncio.to_thread(check_dns_resolution, domain)
+
+    # 验证 DNS 解析（dns_checker 现在是 async，直接 await）
+    dns_check = await check_dns_resolution(domain)
     if not dns_check["success"]:
         return {
             "success": False,
             "message": f"DNS 检查失败：{dns_check['message']}"
         }
-    
+
     cert_path = None
     key_path = None
-    
+
     if mode == "auto":
         # 自动申请 Let's Encrypt 证书
         result = tls_manager.issue_cert(domain)
@@ -139,15 +139,15 @@ async def enable_tls(
             }
         cert_path = cert_info["cert_path"]
         key_path = cert_path.replace(".crt", ".key")
-    
+
     # 生成 Nginx 配置
     nginx_config = tls_manager.generate_nginx_config(domain, cert_path, key_path, enable_https=True)
-    
+
     # 写入 Nginx 配置文件
     config_path = f"/app/certs/nginx-{domain}.conf"
     with open(config_path, "w") as f:
         f.write(nginx_config)
-    
+
     # 尝试复制到 Nginx 容器
     try:
         # 复制配置文件到 Nginx 容器
@@ -155,29 +155,29 @@ async def enable_tls(
             ["cp", config_path, "frp-manager-web:/etc/nginx/conf.d/default.conf"],
             timeout=30
         )
-        
+
         if cp_result.returncode != 0:
             return {
                 "success": False,
                 "message": f"复制 Nginx 配置失败：{cp_result.stderr}"
             }
-        
+
         # 重载 Nginx
         reload_result = tls_manager.reload_nginx()
         if not reload_result["success"]:
             return reload_result
-        
+
     except Exception as e:
         return {
             "success": False,
             "message": f"更新 Nginx 配置失败：{str(e)}"
         }
-    
+
     # 保存配置到数据库
     crud.set_config(db, models.ConfigKeys.SERVER_DOMAIN, domain)
     crud.set_config(db, models.ConfigKeys.TLS_ENABLED, "true")
     crud.set_config(db, models.ConfigKeys.TLS_MODE, mode)
-    
+
     return {
         "success": True,
         "message": f"HTTPS 已启用，请访问 https://{domain}",
@@ -193,28 +193,28 @@ async def disable_tls(
 ):
     """禁用 HTTPS，切换回 HTTP 模式"""
     domain = crud.get_config(db, models.ConfigKeys.SERVER_DOMAIN) or ""
-    
+
     # 生成 HTTP 配置的 Nginx 配置
     nginx_config = tls_manager.generate_nginx_config(domain or "_", "", "", enable_https=False)
-    
+
     config_path = "/app/certs/nginx-http.conf"
     with open(config_path, "w") as f:
         f.write(nginx_config)
-    
+
     # 复制到 Nginx 容器
     try:
         run_podman(
             ["cp", config_path, "frp-manager-web:/etc/nginx/conf.d/default.conf"],
             timeout=30
         )
-        
+
         tls_manager.reload_nginx()
     except Exception:
         pass
-    
+
     # 更新数据库
     crud.set_config(db, models.ConfigKeys.TLS_ENABLED, "false")
-    
+
     return {
         "success": True,
         "message": "HTTPS 已禁用，恢复 HTTP 访问"
@@ -231,11 +231,11 @@ async def get_tls_status(
     """
     domain = crud.get_config(db, models.ConfigKeys.SERVER_DOMAIN) or ""
     tls_enabled = crud.get_config(db, models.ConfigKeys.TLS_ENABLED) == "true"
-    
+
     cert_info = None
     if domain and tls_enabled:
         cert_info = tls_manager.get_cert_info(domain)
-    
+
     return {
         "domain": domain,
         "enabled": tls_enabled,
@@ -302,9 +302,8 @@ async def renew_certificate(
         }
 
     # 执行续期
-    import asyncio
     result = await asyncio.to_thread(tls_manager.renew_cert, domain)
-    
+
     if result["success"]:
         # 续期成功，重载 Nginx
         reload_result = await asyncio.to_thread(tls_manager.reload_nginx)

@@ -7,7 +7,7 @@
 #   3. 推送到 main 分支时，仅当前端或后端代码文件变动才触发
 #
 # 前端文件路径: frontend/**
-# 后端文件路径: server/**, agent/**
+# 后端文件路径: server/**
 #
 # 产出：
 #   - sgccr.ccs.tencentyun.com/frp-all-in-one/frp-backend:<tag>
@@ -34,7 +34,6 @@ on:
     paths:
       # 后端文件
       - 'server/**'
-      - 'agent/**'
       # 前端文件
       - 'frontend/**'
     tags:
@@ -73,14 +72,14 @@ jobs:
             exit 0
           fi
 
-          # paths 过滤器已保证只有 server/agent/frontend 的文件变动才会触发
+          # paths 过滤器已保证只有 server/frontend 的文件变动才会触发
           # 直接用 git diff 比较最近两次提交来判断哪个目录有变更
           BACKEND_CHANGED="false"
           FRONTEND_CHANGED="false"
 
           for file in $(git diff --name-only HEAD~1 HEAD 2>/dev/null); do
             case "$file" in
-              server/*|agent/*)
+              server/*)
                 BACKEND_CHANGED="true" ;;
               frontend/*)
                 FRONTEND_CHANGED="true" ;;

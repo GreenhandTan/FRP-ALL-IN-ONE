@@ -91,7 +91,7 @@ async def _push_config_for_client(client_id: str):
 @router.post("/", response_model=schemas.Client)
 def create_client(
     client: schemas.ClientCreate,
-    db: Session = Depends(lambda: SessionLocal())
+    db: Session = Depends(get_db)
 ):
     """创建客户端（仅允许 Agent 自动注册）"""
     raise HTTPException(status_code=403, detail="Clients must be created by agent registration")
@@ -101,7 +101,7 @@ def create_client(
 def read_clients(
     skip: int = 0,
     limit: int = 100,
-    db: Session = Depends(lambda: SessionLocal()),
+    db: Session = Depends(get_db),
     current_user: models.Admin = Depends(get_current_user)
 ):
     """获取客户端列表"""
@@ -141,7 +141,7 @@ def read_clients(
 @router.get("/{client_id}", response_model=schemas.Client)
 def read_client(
     client_id: str,
-    db: Session = Depends(lambda: SessionLocal()),
+    db: Session = Depends(get_db),
     current_user: models.Admin = Depends(get_current_user)
 ):
     """获取单个客户端详情"""
@@ -154,7 +154,7 @@ def read_client(
 @router.delete("/{client_id}")
 async def delete_client_endpoint(
     client_id: str,
-    db: Session = Depends(lambda: SessionLocal()),
+    db: Session = Depends(get_db),
     current_user: models.Admin = Depends(get_current_user)
 ):
     """删除客户端及其所有隧道"""
@@ -169,14 +169,12 @@ async def delete_client_endpoint(
 @router.patch("/{client_id}", response_model=schemas.Client)
 async def update_client(
     client_id: str,
-    payload: dict,
-    db: Session = Depends(lambda: SessionLocal()),
+    payload: schemas.ClientUpdate,
+    db: Session = Depends(get_db),
     current_user: models.Admin = Depends(get_current_user)
 ):
     """更新客户端名称"""
-    name = (payload.get("name") or "").strip()
-    if not name:
-        raise HTTPException(status_code=400, detail="name is required")
+    name = payload.name
     updated = crud.update_client_name(db, client_id=client_id, new_name=name)
     if not updated:
         raise HTTPException(status_code=404, detail="Client not found")
@@ -190,7 +188,7 @@ async def update_client(
 async def create_tunnel_for_client(
     client_id: str,
     tunnel: schemas.TunnelCreate,
-    db: Session = Depends(lambda: SessionLocal()),
+    db: Session = Depends(get_db),
     current_user: models.Admin = Depends(get_current_user)
 ):
     """为客户端创建隧道"""
@@ -204,7 +202,7 @@ async def update_tunnel_for_client(
     client_id: str,
     tunnel_id: int,
     payload: dict,
-    db: Session = Depends(lambda: SessionLocal()),
+    db: Session = Depends(get_db),
     current_user: models.Admin = Depends(get_current_user)
 ):
     """更新隧道状态"""
@@ -225,7 +223,7 @@ async def update_tunnel_for_client(
 async def delete_tunnel_for_client(
     client_id: str,
     tunnel_id: int,
-    db: Session = Depends(lambda: SessionLocal()),
+    db: Session = Depends(get_db),
     current_user: models.Admin = Depends(get_current_user)
 ):
     """删除隧道"""

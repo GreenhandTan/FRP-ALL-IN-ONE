@@ -1,6 +1,6 @@
 import os
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from jose import jwt
 
@@ -32,7 +32,7 @@ def init_secret_key():
         return
 
     SECRET_KEY = secrets.token_urlsafe(64)
-    print("[Security] ⚠️  未配置 SECRET_KEY 环境变量，已生成临时密钥（重启后所有登录会话将失效）")
+    print("[WARN] 未配置 SECRET_KEY 环境变量，已生成临时密钥（重启后所有登录会话将失效）")
     print("[Security] 生产环境建议在 compose.yml 中设置: SECRET_KEY=<your-random-key>")
 
 
@@ -46,9 +46,9 @@ def get_secret_key():
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=15)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, get_secret_key(), algorithm=ALGORITHM)
     return encoded_jwt

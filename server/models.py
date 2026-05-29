@@ -2,7 +2,7 @@ from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Enum, Float
 from sqlalchemy.orm import relationship
 from database import Base
 import enum
-from datetime import datetime
+from datetime import datetime, timezone
 
 class TunnelType(str, enum.Enum):
     TCP = "tcp"
@@ -29,7 +29,7 @@ class Admin(Base):
     github_username = Column(String, index=True)           # GitHub 用户名（仅展示，可变）
     avatar_url = Column(String, nullable=True)             # GitHub 头像 URL
     is_superadmin = Column(Boolean, default=False)         # 超级管理员（首个用户或手动提升）
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class AdminInvite(Base):
@@ -39,7 +39,7 @@ class AdminInvite(Base):
     id = Column(Integer, primary_key=True, index=True)
     github_username = Column(String, unique=True, index=True)
     added_by = Column(Integer, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 class SystemConfig(Base):
     __tablename__ = "system_config"
@@ -97,7 +97,7 @@ class AgentInfo(Base):
     agent_version = Column(String, nullable=True)         # Agent 版本
     platform = Column(String, nullable=True)              # 平台详情
     # last_heartbeat 和 is_online 已移除，改用 Client 表的 last_seen 和 ws_manager 动态状态
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class SystemMetrics(Base):
@@ -106,7 +106,7 @@ class SystemMetrics(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     client_id = Column(String, index=True)                # 客户端 ID
-    timestamp = Column(DateTime, default=datetime.utcnow) # 采集时间
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc)) # 采集时间
     cpu_percent = Column(Float, nullable=True)            # CPU 使用率
     memory_used = Column(BigInteger, nullable=True)       # 已用内存 (bytes)
     memory_total = Column(BigInteger, nullable=True)      # 总内存 (bytes)

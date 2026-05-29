@@ -3,10 +3,10 @@ DNS 检查服务
 验证域名解析是否正确指向本服务器
 """
 import socket
-import requests
+import httpx
 
 
-def get_public_ip() -> str:
+async def get_public_ip() -> str:
     """获取本机公网 IP"""
     try:
         # 尝试多个服务
@@ -15,29 +15,30 @@ def get_public_ip() -> str:
             "https://httpbin.org/ip",
             "https://ipinfo.io/json"
         ]
-        for url in services:
-            try:
-                resp = requests.get(url, timeout=5)
-                data = resp.json()
-                if "ip" in data:
-                    return data["ip"]
-                if "origin" in data:
-                    return data["origin"]
-            except:
-                continue
+        async with httpx.AsyncClient(timeout=5) as client:
+            for url in services:
+                try:
+                    resp = await client.get(url)
+                    data = resp.json()
+                    if "ip" in data:
+                        return data["ip"]
+                    if "origin" in data:
+                        return data["origin"]
+                except:
+                    continue
     except:
         pass
     return None
 
 
-def check_dns_resolution(domain: str, expected_ip: str = None) -> dict:
+async def check_dns_resolution(domain: str, expected_ip: str = None) -> dict:
     """
     检查域名 DNS 解析
-    
+
     Args:
         domain: 要检查的域名
         expected_ip: 期望解析到的 IP（不指定则使用本机公网 IP）
-    
+
     Returns:
         {
             "success": bool,
@@ -49,17 +50,17 @@ def check_dns_resolution(domain: str, expected_ip: str = None) -> dict:
         }
     """
     if expected_ip is None:
-        expected_ip = get_public_ip()
+        expected_ip = await get_public_ip()
         if expected_ip is None:
             expected_ip = "未知(获取失败)"
-    
+
     try:
         # 解析域名
         resolved_ip = socket.gethostbyname(domain)
-        
+
         # 检查是否匹配
         matches = resolved_ip == expected_ip
-        
+
         if matches:
             return {
                 "success": True,

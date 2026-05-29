@@ -5,7 +5,7 @@ import os
 import time
 from datetime import datetime
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 import crud
@@ -33,8 +33,7 @@ async def get_public_ip(
     current_user: models.Admin = Depends(get_current_user)
 ):
     """自动检测服务器公网 IP（需认证，防止泄露服务器信息）"""
-    import asyncio
-    details = await asyncio.to_thread(frp_deploy.get_public_ip_details)
+    details = await frp_deploy.get_public_ip_details()
     ip = details.get("ip")
     if ip:
         return {"success": True, "ip": ip}
@@ -42,10 +41,12 @@ async def get_public_ip(
 
 
 @router.get("/public-ip/open")
-async def get_public_ip_open():
-    """自动检测服务器公网 IP（无需认证，用于初始化流程）"""
-    import asyncio
-    details = await asyncio.to_thread(frp_deploy.get_public_ip_details)
+async def get_public_ip_open(db: Session = Depends(get_db)):
+    """自动检测服务器公网 IP（无需认证，仅初始化阶段可用）"""
+    is_initialized = crud.get_config(db, models.ConfigKeys.IS_INITIALIZED)
+    if is_initialized:
+        raise HTTPException(status_code=403, detail="系统已完成初始化，此接口不再可用")
+    details = await frp_deploy.get_public_ip_details()
     ip = details.get("ip")
     if ip:
         return {"success": True, "ip": ip}

@@ -66,7 +66,29 @@ class ClientBase(BaseModel):
     name: str
 
 class ClientCreate(ClientBase):
-    pass
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        if not re.match(r'^[a-zA-Z0-9_\-. ]+$', v):
+            raise ValueError("名称只能包含字母、数字、下划线、连字符、点和空格")
+        if len(v) > 64:
+            raise ValueError("名称长度不能超过 64 个字符")
+        return v
+
+class ClientUpdate(BaseModel):
+    name: str
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("名称不能为空")
+        if not re.match(r'^[a-zA-Z0-9_\-. ]+$', v):
+            raise ValueError("名称只能包含字母、数字、下划线、连字符、点和空格")
+        if len(v) > 64:
+            raise ValueError("名称长度不能超过 64 个字符")
+        return v
 
 class Client(ClientBase):
     id: str

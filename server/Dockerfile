@@ -33,9 +33,8 @@ RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ \
     && pip install --upgrade pip \
     && pip install --no-cache-dir --timeout 120 -r requirements.txt
 
-# 复制后端源码与 Agent 脚本
+# 复制后端源码
 COPY server/ ./
-COPY agent/ ./agent/
 
 # 创建证书目录
 RUN mkdir -p /app/certs/auto /app/certs/custom

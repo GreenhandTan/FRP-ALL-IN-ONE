@@ -6,7 +6,7 @@ from fastapi import WebSocket
 from typing import Dict, Set, List
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +103,7 @@ class ConnectionManager:
             # 记录冲突事件（最多保留 20 条）
             event = {
                 "client_id": client_id,
-                "time": datetime.utcnow().isoformat(),
+                "time": datetime.now(timezone.utc).isoformat(),
                 "message": f"检测到重复 client_id [{client_id[:8]}...]：同一脚本被安装到多台设备，请从控制台为每台设备单独生成脚本"
             }
             self.conflict_events.append(event)

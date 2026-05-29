@@ -4,6 +4,7 @@ FRP 服务端管理路由
 """
 import subprocess
 import time
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import PlainTextResponse, RedirectResponse
 from sqlalchemy.orm import Session
@@ -26,10 +27,8 @@ async def get_frps_status(
     从 FRPS Dashboard API 获取实时状态
     包括已连接的客户端和代理信息
     """
-    import requests
-    import asyncio
     import re
-    
+
     # 获取 Dashboard 密码
     dashboard_pwd = crud.get_config(db, models.ConfigKeys.FRPS_DASHBOARD_PWD)
     if not dashboard_pwd:
@@ -39,7 +38,7 @@ async def get_frps_status(
             "clients": [],
             "proxies": []
         }
-    
+
     # 尝试多种可能的连接地址
     possible_urls = [
         "http://127.0.0.1:7500/api",
@@ -52,165 +51,161 @@ async def get_frps_status(
     auth = ("admin", dashboard_pwd)
     server_info = {}
 
-    loop = asyncio.get_running_loop()
-    
-    async def _fetch(url, timeout=5):
-        return await loop.run_in_executor(None, lambda: requests.get(f"{url}/serverinfo", auth=auth, timeout=timeout))
-
-    for url in possible_urls:
-        try:
-            resp = await _fetch(url)
-            if resp.status_code == 200:
-                base_url = url
-                server_info = resp.json()
-                break
-        except:
-            continue
-    
-    if not base_url:
-        return {
-            "success": False,
-            "message": "无法连接到 FRPS Dashboard",
-            "clients": [],
-            "proxies": []
-        }
-
-    try:
-        def _get_any(d: dict, keys, default=None):
-            for k in keys:
-                if k in d and d.get(k) is not None:
-                    return d.get(k)
-            return default
-
-        def _to_int(value, default=0):
+    async with httpx.AsyncClient(timeout=5, auth=httpx.BasicAuth("admin", dashboard_pwd)) as client:
+        for url in possible_urls:
             try:
+                resp = await client.get(f"{url}/serverinfo")
+                if resp.status_code == 200:
+                    base_url = url
+                    server_info = resp.json()
+                    break
+            except:
+                continue
+
+        if not base_url:
+            return {
+                "success": False,
+                "message": "无法连接到 FRPS Dashboard",
+                "clients": [],
+                "proxies": []
+            }
+
+        try:
+            def _get_any(d: dict, keys, default=None):
+                for k in keys:
+                    if k in d and d.get(k) is not None:
+                        return d.get(k)
+                return default
+
+            def _to_int(value, default=0):
+                try:
+                    if value is None:
+                        return default
+                    if isinstance(value, bool):
+                        return int(value)
+                    if isinstance(value, (int, float)):
+                        return int(value)
+                    s = str(value).strip()
+                    if not s:
+                        return default
+                    return int(float(s))
+                except Exception:
+                    return default
+
+            def _to_bytes(value, default=0):
                 if value is None:
                     return default
-                if isinstance(value, bool):
-                    return int(value)
-                if isinstance(value, (int, float)):
+                if isinstance(value, (int, float)) and not isinstance(value, bool):
                     return int(value)
                 s = str(value).strip()
                 if not s:
                     return default
-                return int(float(s))
-            except Exception:
-                return default
+                try:
+                    return int(float(s))
+                except Exception:
+                    pass
+                m = re.match(r"^\s*(\d+(?:\.\d+)?)\s*([KMGTP]?B)\s*$", s, re.IGNORECASE)
+                if not m:
+                    return default
+                num = float(m.group(1))
+                unit = m.group(2).upper()
+                scale = {
+                    "B": 1,
+                    "KB": 1024,
+                    "MB": 1024 ** 2,
+                    "GB": 1024 ** 3,
+                    "TB": 1024 ** 4,
+                    "PB": 1024 ** 5,
+                }.get(unit, 1)
+                return int(num * scale)
 
-        def _to_bytes(value, default=0):
-            if value is None:
-                return default
-            if isinstance(value, (int, float)) and not isinstance(value, bool):
-                return int(value)
-            s = str(value).strip()
-            if not s:
-                return default
+            def _normalize_proxy(proxy: dict) -> dict:
+                if not isinstance(proxy, dict):
+                    return {}
+                name = _get_any(proxy, ["name"], "")
+                ptype = _get_any(proxy, ["type"], "")
+                conf = _get_any(proxy, ["conf"], {}) or {}
+                cur_conns = _to_int(_get_any(proxy, ["curConns", "cur_conns"], 0), 0)
+                today_in = _to_bytes(_get_any(proxy, ["todayTrafficIn", "today_traffic_in"], 0), 0)
+                today_out = _to_bytes(_get_any(proxy, ["todayTrafficOut", "today_traffic_out"], 0), 0)
+                return {
+                    "name": name,
+                    "type": ptype,
+                    "conf": conf,
+                    "cur_conns": cur_conns,
+                    "today_traffic_in": today_in,
+                    "today_traffic_out": today_out,
+                }
+
+            # 获取各类代理列表
+            tcp_proxies, udp_proxies, http_proxies = [], [], []
+
             try:
-                return int(float(s))
-            except Exception:
+                resp = await client.get(f"{base_url}/proxy/tcp")
+                if resp.status_code == 200:
+                    tcp_proxies = resp.json().get("proxies", []) or []
+            except:
                 pass
-            m = re.match(r"^\s*(\d+(?:\.\d+)?)\s*([KMGTP]?B)\s*$", s, re.IGNORECASE)
-            if not m:
-                return default
-            num = float(m.group(1))
-            unit = m.group(2).upper()
-            scale = {
-                "B": 1,
-                "KB": 1024,
-                "MB": 1024 ** 2,
-                "GB": 1024 ** 3,
-                "TB": 1024 ** 4,
-                "PB": 1024 ** 5,
-            }.get(unit, 1)
-            return int(num * scale)
 
-        def _normalize_proxy(proxy: dict) -> dict:
-            if not isinstance(proxy, dict):
-                return {}
-            name = _get_any(proxy, ["name"], "")
-            ptype = _get_any(proxy, ["type"], "")
-            conf = _get_any(proxy, ["conf"], {}) or {}
-            cur_conns = _to_int(_get_any(proxy, ["curConns", "cur_conns"], 0), 0)
-            today_in = _to_bytes(_get_any(proxy, ["todayTrafficIn", "today_traffic_in"], 0), 0)
-            today_out = _to_bytes(_get_any(proxy, ["todayTrafficOut", "today_traffic_out"], 0), 0)
+            try:
+                resp = await client.get(f"{base_url}/proxy/udp")
+                if resp.status_code == 200:
+                    udp_proxies = resp.json().get("proxies", []) or []
+            except:
+                pass
+
+            try:
+                resp = await client.get(f"{base_url}/proxy/http")
+                if resp.status_code == 200:
+                    http_proxies = resp.json().get("proxies", []) or []
+            except:
+                pass
+
+            all_proxies_raw = tcp_proxies + udp_proxies + http_proxies
+            all_proxies = [_normalize_proxy(p) for p in all_proxies_raw]
+
+            # 提取唯一的客户端名称
+            client_names = set()
+            for proxy in all_proxies:
+                name = proxy.get("name", "")
+                if "." in name:
+                    client_names.add(name.split(".")[0])
+
+            clients = []
+            for name in client_names:
+                client_proxies = [p for p in all_proxies if p.get("name", "").startswith(f"{name}.")]
+                clients.append({
+                    "name": name,
+                    "status": "online",
+                    "proxy_count": len(client_proxies),
+                    "proxies": client_proxies
+                })
+
+            normalized_server_info = dict(server_info or {})
+            normalized_server_info["curConns"] = _to_int(_get_any(normalized_server_info, ["curConns", "cur_conns"], 0), 0)
+            normalized_server_info["totalTrafficIn"] = _to_bytes(_get_any(normalized_server_info, ["totalTrafficIn", "total_traffic_in"], 0), 0)
+            normalized_server_info["totalTrafficOut"] = _to_bytes(_get_any(normalized_server_info, ["totalTrafficOut", "total_traffic_out"], 0), 0)
+
             return {
-                "name": name,
-                "type": ptype,
-                "conf": conf,
-                "cur_conns": cur_conns,
-                "today_traffic_in": today_in,
-                "today_traffic_out": today_out,
+                "success": True,
+                "server_info": normalized_server_info,
+                "total_clients": len(clients),
+                "total_proxies": len(all_proxies),
+                "clients": clients,
+                "proxies": all_proxies,
+                "aggregated_traffic_in": sum(p.get("today_traffic_in", 0) for p in all_proxies),
+                "aggregated_traffic_out": sum(p.get("today_traffic_out", 0) for p in all_proxies)
             }
 
-        # 获取各类代理列表
-        tcp_proxies, udp_proxies, http_proxies = [], [], []
-        
-        try:
-            resp = await loop.run_in_executor(None, lambda: requests.get(f"{base_url}/proxy/tcp", auth=auth, timeout=5))
-            if resp.status_code == 200:
-                tcp_proxies = resp.json().get("proxies", []) or []
-        except:
-            pass
-        
-        try:
-            resp = await loop.run_in_executor(None, lambda: requests.get(f"{base_url}/proxy/udp", auth=auth, timeout=5))
-            if resp.status_code == 200:
-                udp_proxies = resp.json().get("proxies", []) or []
-        except:
-            pass
-        
-        try:
-            resp = await loop.run_in_executor(None, lambda: requests.get(f"{base_url}/proxy/http", auth=auth, timeout=5))
-            if resp.status_code == 200:
-                http_proxies = resp.json().get("proxies", []) or []
-        except:
-            pass
-        
-        all_proxies_raw = tcp_proxies + udp_proxies + http_proxies
-        all_proxies = [_normalize_proxy(p) for p in all_proxies_raw]
-        
-        # 提取唯一的客户端名称
-        client_names = set()
-        for proxy in all_proxies:
-            name = proxy.get("name", "")
-            if "." in name:
-                client_names.add(name.split(".")[0])
-        
-        clients = []
-        for name in client_names:
-            client_proxies = [p for p in all_proxies if p.get("name", "").startswith(f"{name}.")]
-            clients.append({
-                "name": name,
-                "status": "online",
-                "proxy_count": len(client_proxies),
-                "proxies": client_proxies
-            })
-        
-        normalized_server_info = dict(server_info or {})
-        normalized_server_info["curConns"] = _to_int(_get_any(normalized_server_info, ["curConns", "cur_conns"], 0), 0)
-        normalized_server_info["totalTrafficIn"] = _to_bytes(_get_any(normalized_server_info, ["totalTrafficIn", "total_traffic_in"], 0), 0)
-        normalized_server_info["totalTrafficOut"] = _to_bytes(_get_any(normalized_server_info, ["totalTrafficOut", "total_traffic_out"], 0), 0)
-
-        return {
-            "success": True,
-            "server_info": normalized_server_info,
-            "total_clients": len(clients),
-            "total_proxies": len(all_proxies),
-            "clients": clients,
-            "proxies": all_proxies,
-            "aggregated_traffic_in": sum(p.get("today_traffic_in", 0) for p in all_proxies),
-            "aggregated_traffic_out": sum(p.get("today_traffic_out", 0) for p in all_proxies)
-        }
-        
-    except Exception as e:
-        import logging
-        logging.exception("获取 FRPS 状态失败")
-        return {
-            "success": False,
-            "message": "获取 FRPS 状态失败，请检查服务端日志",
-            "clients": [],
-            "proxies": []
-        }
+        except Exception as e:
+            import logging
+            logging.exception("获取 FRPS 状态失败")
+            return {
+                "success": False,
+                "message": "获取 FRPS 状态失败，请检查服务端日志",
+                "clients": [],
+                "proxies": []
+            }
 
 
 @router.post("/deploy-server")
@@ -222,8 +217,10 @@ async def deploy_frp_server(
     current_user: models.Admin = Depends(get_current_user)
 ):
     """生成 FRPS 配置文件"""
-    result = frp_deploy.generate_frps_config(port, auth_token, server_ip)
-    
+    if not (1 <= port <= 65535):
+        raise HTTPException(status_code=400, detail="端口必须在 1-65535 之间")
+    result = await frp_deploy.generate_frps_config(port, auth_token, server_ip)
+
     if result["success"]:
         info = result["info"]
         crud.set_config(db, models.ConfigKeys.FRPS_VERSION, info["version"])
@@ -231,7 +228,8 @@ async def deploy_frp_server(
         crud.set_config(db, models.ConfigKeys.FRPS_AUTH_TOKEN, info["auth_token"])
         crud.set_config(db, models.ConfigKeys.SERVER_PUBLIC_IP, info["public_ip"])
         crud.set_config(db, models.ConfigKeys.FRPS_DASHBOARD_PWD, info["dashboard_pwd"])
-    
+        crud.set_config(db, models.ConfigKeys.IS_INITIALIZED, "true")
+
     return result
 
 
@@ -241,7 +239,8 @@ async def restart_frps(
 ):
     """手动重启 FRPS 容器"""
     try:
-        result = run_podman(["restart", "frps"], timeout=30)
+        import asyncio
+        result = await asyncio.to_thread(run_podman, ["restart", "frps"], 30)
         if result.returncode == 0:
             return {"success": True, "message": "FRPS 重启成功"}
         else:
@@ -279,19 +278,19 @@ async def disable_port(
     """禁用指定端口"""
     current_str = crud.get_config(db, models.ConfigKeys.DISABLED_PORTS) or ""
     current_ports = [int(p) for p in current_str.split(",") if p.strip()]
-    
+
     if port not in current_ports:
         current_ports.append(port)
         crud.set_config(db, models.ConfigKeys.DISABLED_PORTS, ",".join(map(str, current_ports)))
-        
+
         frps_port = int(crud.get_config(db, models.ConfigKeys.FRPS_PORT) or 7000)
         auth_token = crud.get_config(db, models.ConfigKeys.FRPS_AUTH_TOKEN)
         server_ip = crud.get_config(db, models.ConfigKeys.SERVER_PUBLIC_IP)
-        
-        frp_deploy.generate_frps_config(frps_port, auth_token, server_ip, current_ports)
-        
+
+        await frp_deploy.generate_frps_config(frps_port, auth_token, server_ip, current_ports)
+
         return {"success": True, "message": f"端口 {port} 已禁用，FRPS 已重启"}
-    
+
     return {"success": True, "message": f"端口 {port} 已经是禁用状态"}
 
 
@@ -304,19 +303,19 @@ async def enable_port(
     """启用指定端口"""
     current_str = crud.get_config(db, models.ConfigKeys.DISABLED_PORTS) or ""
     current_ports = [int(p) for p in current_str.split(",") if p.strip()]
-    
+
     if port in current_ports:
         current_ports.remove(port)
         crud.set_config(db, models.ConfigKeys.DISABLED_PORTS, ",".join(map(str, current_ports)))
-        
+
         frps_port = int(crud.get_config(db, models.ConfigKeys.FRPS_PORT) or 7000)
         auth_token = crud.get_config(db, models.ConfigKeys.FRPS_AUTH_TOKEN)
         server_ip = crud.get_config(db, models.ConfigKeys.SERVER_PUBLIC_IP)
-        
-        frp_deploy.generate_frps_config(frps_port, auth_token, server_ip, current_ports)
-        
+
+        await frp_deploy.generate_frps_config(frps_port, auth_token, server_ip, current_ports)
+
         return {"success": True, "message": f"端口 {port} 已启用，FRPS 已重启"}
-    
+
     return {"success": True, "message": f"端口 {port} 未被禁用"}
 
 
@@ -334,19 +333,19 @@ async def download_agent_binary(
     platform: linux-amd64, linux-arm64, darwin-amd64, darwin-arm64, windows-amd64
     """
     valid_platforms = [
-        "linux-amd64", "linux-arm64", 
-        "darwin-amd64", "darwin-arm64", 
+        "linux-amd64", "linux-arm64",
+        "darwin-amd64", "darwin-arm64",
         "windows-amd64"
     ]
-    
+
     if platform not in valid_platforms:
         raise HTTPException(status_code=400, detail=f"Invalid platform. Valid: {valid_platforms}")
-    
+
     if platform.startswith("windows"):
         filename = f"frp-agent-{platform}.exe"
     else:
         filename = f"frp-agent-{platform}"
-    
+
     github_url = f"https://github.com/GreenhandTan/FRP-ALL-IN-ONE/releases/latest/download/{filename}"
     return RedirectResponse(url=github_url)
 
@@ -361,7 +360,7 @@ async def get_available_agent_platforms():
         "darwin-arm64": {"name": "macOS Apple Silicon", "os": "darwin", "arch": "arm64", "ext": ""},
         "windows-amd64": {"name": "Windows x64", "os": "windows", "arch": "amd64", "ext": ".exe"},
     }
-    
+
     platforms = []
     for platform_id, info in platform_info.items():
         filename = f"frp-agent-{platform_id}{info['ext']}"
@@ -373,7 +372,7 @@ async def get_available_agent_platforms():
             "available": True,
             "filename": filename
         })
-    
+
     return {"platforms": platforms}
 
 
@@ -390,7 +389,7 @@ async def get_agent_install_script(
     platform: linux, darwin, windows
     """
     import crud as crud_module
-    
+
     auth_token = crud_module.get_config(db, models.ConfigKeys.FRPS_AUTH_TOKEN) or "frp-token"
     server_ip = crud_module.get_config(db, models.ConfigKeys.SERVER_PUBLIC_IP) or "YOUR_SERVER_IP"
     frps_port = crud_module.get_config(db, models.ConfigKeys.FRPS_PORT) or "7000"
@@ -713,5 +712,4 @@ async def get_public_ip(
     current_user: models.Admin = Depends(get_current_user)
 ):
     """获取服务器公网 IP"""
-    import asyncio
-    return await asyncio.to_thread(frp_deploy.get_public_ip_details)
+    return await frp_deploy.get_public_ip_details()
