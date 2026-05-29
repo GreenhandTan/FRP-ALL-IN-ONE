@@ -132,6 +132,10 @@ export default function App() {
   const [logs, setLogs] = useState<string[]>([]);
   const consoleEndRef = useRef<HTMLDivElement>(null);
 
+  // 指标节流：缓冲 WebSocket 推送的指标，每 3 次更新刷新 1 次页面
+  const metricsBufferRef = useRef<Map<string, any>>(new Map());
+  const metricsCountRef = useRef(0);
+
   // Toast notifications helper
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'warning' } | null>(null);
 
@@ -335,24 +339,31 @@ export default function App() {
     };
 
     const handleMetricsUpdate = (data: any) => {
-      if (data.client_id) {
+      if (!data.client_id) return;
+      // 缓冲最新数据
+      metricsBufferRef.current.set(data.client_id, data);
+      metricsCountRef.current += 1;
+      // 每 3 次更新刷新一次页面
+      if (metricsCountRef.current >= 3) {
+        metricsCountRef.current = 0;
+        const buffer = metricsBufferRef.current;
+        metricsBufferRef.current = new Map();
         setDevices(prev => prev.map(d => {
-          if (d.id === data.client_id) {
-            const speedOut = data.net_speed_out ?? d.agentInfo?.net_speed_out;
-            const speedIn = data.net_speed_in ?? d.agentInfo?.net_speed_in;
-            const bytesIn = data.net_bytes_in ?? d.agentInfo?.net_bytes_in ?? 0;
-            const bytesOut = data.net_bytes_out ?? d.agentInfo?.net_bytes_out ?? 0;
-            return {
-              ...d,
-              cpuUsage: data.cpu_percent != null ? Math.round(data.cpu_percent) : d.cpuUsage,
-              memUsage: data.memory_percent != null ? Math.round(data.memory_percent) : d.memUsage,
-              uploadRate: speedOut != null ? `${(speedOut / 1024).toFixed(1)} KB/s` : d.uploadRate,
-              downloadRate: speedIn != null ? `${(speedIn / 1024).toFixed(1)} KB/s` : d.downloadRate,
-              totalTraffic: formatBytes(bytesIn + bytesOut),
-              agentInfo: { ...d.agentInfo, ...data },
-            };
-          }
-          return d;
+          const m = buffer.get(d.id);
+          if (!m) return d;
+          const speedOut = m.net_speed_out ?? d.agentInfo?.net_speed_out;
+          const speedIn = m.net_speed_in ?? d.agentInfo?.net_speed_in;
+          const bytesIn = m.net_bytes_in ?? d.agentInfo?.net_bytes_in ?? 0;
+          const bytesOut = m.net_bytes_out ?? d.agentInfo?.net_bytes_out ?? 0;
+          return {
+            ...d,
+            cpuUsage: m.cpu_percent != null ? Math.round(m.cpu_percent) : d.cpuUsage,
+            memUsage: m.memory_percent != null ? Math.round(m.memory_percent) : d.memUsage,
+            uploadRate: speedOut != null ? `${(speedOut / 1024).toFixed(1)} KB/s` : d.uploadRate,
+            downloadRate: speedIn != null ? `${(speedIn / 1024).toFixed(1)} KB/s` : d.downloadRate,
+            totalTraffic: formatBytes(bytesIn + bytesOut),
+            agentInfo: { ...d.agentInfo, ...m },
+          };
         }));
       }
     };
