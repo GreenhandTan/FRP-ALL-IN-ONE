@@ -9,7 +9,7 @@ import crud
 import models
 import schemas
 from database import SessionLocal
-from core import get_current_user
+from core import get_db, get_current_user
 from websocket_manager import manager as ws_manager
 
 router = APIRouter(prefix="/clients", tags=["客户端管理"])
