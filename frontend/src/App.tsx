@@ -343,7 +343,22 @@ export default function App() {
       // 缓冲最新数据
       metricsBufferRef.current.set(data.client_id, data);
       metricsCountRef.current += 1;
-      // 每 3 次更新刷新一次页面
+
+      // 每次收到消息都立即更新实时速率（秒级刷新）
+      const speedOut = data.net_speed_out;
+      const speedIn = data.net_speed_in;
+      if (speedOut != null || speedIn != null) {
+        setDevices(prev => prev.map(d => {
+          if (d.id !== data.client_id) return d;
+          return {
+            ...d,
+            uploadRate: speedOut != null ? `${(speedOut / 1024).toFixed(1)} KB/s` : d.uploadRate,
+            downloadRate: speedIn != null ? `${(speedIn / 1024).toFixed(1)} KB/s` : d.downloadRate,
+          };
+        }));
+      }
+
+      // 每 3 次更新刷新一次完整指标（CPU/内存/磁盘等）
       if (metricsCountRef.current >= 3) {
         metricsCountRef.current = 0;
         const buffer = metricsBufferRef.current;
@@ -351,16 +366,12 @@ export default function App() {
         setDevices(prev => prev.map(d => {
           const m = buffer.get(d.id);
           if (!m) return d;
-          const speedOut = m.net_speed_out ?? d.agentInfo?.net_speed_out;
-          const speedIn = m.net_speed_in ?? d.agentInfo?.net_speed_in;
           const bytesIn = m.net_bytes_in ?? d.agentInfo?.net_bytes_in ?? 0;
           const bytesOut = m.net_bytes_out ?? d.agentInfo?.net_bytes_out ?? 0;
           return {
             ...d,
             cpuUsage: m.cpu_percent != null ? Math.round(m.cpu_percent) : d.cpuUsage,
             memUsage: m.memory_percent != null ? Math.round(m.memory_percent) : d.memUsage,
-            uploadRate: speedOut != null ? `${(speedOut / 1024).toFixed(1)} KB/s` : d.uploadRate,
-            downloadRate: speedIn != null ? `${(speedIn / 1024).toFixed(1)} KB/s` : d.downloadRate,
             totalTraffic: formatBytes(bytesIn + bytesOut),
             agentInfo: { ...d.agentInfo, ...m },
           };
