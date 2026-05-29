@@ -37,7 +37,6 @@ class DomainConfig(BaseModel):
 
 class TLSEnableRequest(BaseModel):
     domain: str
-    mode: str = "auto"  # auto 或 custom
 
 
 @router.get("/domain")
@@ -103,13 +102,8 @@ async def enable_tls(
     db: Session = Depends(get_db),
     current_user: models.Admin = Depends(get_current_user)
 ):
-    """
-    启用 HTTPS
-    mode: auto - 自动申请 Let's Encrypt 证书
-    mode: custom - 使用已上传的自定义证书
-    """
+    """启用 HTTPS（自动申请 Let's Encrypt 证书）"""
     domain = _validate_domain(tls_request.domain)
-    mode = tls_request.mode
 
     # 验证 DNS 解析（dns_checker 现在是 async，直接 await）
     dns_check = await check_dns_resolution(domain)
@@ -119,26 +113,12 @@ async def enable_tls(
             "message": f"DNS 检查失败：{dns_check['message']}"
         }
 
-    cert_path = None
-    key_path = None
-
-    if mode == "auto":
-        # 自动申请 Let's Encrypt 证书
-        result = tls_manager.issue_cert(domain)
-        if not result["success"]:
-            return result
-        cert_path = result["cert_path"]
-        key_path = result["key_path"]
-    else:
-        # 使用自定义证书
-        cert_info = tls_manager.get_cert_info(domain)
-        if not cert_info:
-            return {
-                "success": False,
-                "message": "未找到自定义证书，请先上传证书"
-            }
-        cert_path = cert_info["cert_path"]
-        key_path = cert_path.replace(".crt", ".key")
+    # 自动申请 Let's Encrypt 证书
+    result = tls_manager.issue_cert(domain)
+    if not result["success"]:
+        return result
+    cert_path = result["cert_path"]
+    key_path = result["key_path"]
 
     # 生成 Nginx 配置
     nginx_config = tls_manager.generate_nginx_config(domain, cert_path, key_path, enable_https=True)
@@ -176,7 +156,7 @@ async def enable_tls(
     # 保存配置到数据库
     crud.set_config(db, models.ConfigKeys.SERVER_DOMAIN, domain)
     crud.set_config(db, models.ConfigKeys.TLS_ENABLED, "true")
-    crud.set_config(db, models.ConfigKeys.TLS_MODE, mode)
+    crud.set_config(db, models.ConfigKeys.TLS_MODE, "auto")
 
     return {
         "success": True,

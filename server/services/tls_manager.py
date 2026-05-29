@@ -12,7 +12,6 @@ from core.container_engine import run_podman
 # 证书存储路径
 CERTS_DIR = Path("/app/certs")
 AUTO_CERTS_DIR = CERTS_DIR / "auto"
-CUSTOM_CERTS_DIR = CERTS_DIR / "custom"
 NGINX_CONFIG_PATH = Path("/etc/nginx/conf.d")
 
 # acme.sh 路径
@@ -24,14 +23,11 @@ class TLSManager:
     
     def __init__(self):
         AUTO_CERTS_DIR.mkdir(parents=True, exist_ok=True)
-        CUSTOM_CERTS_DIR.mkdir(parents=True, exist_ok=True)
     
     def get_cert_info(self, domain: str) -> Optional[dict]:
         """获取证书信息"""
         cert_path = AUTO_CERTS_DIR / f"{domain}.crt"
-        if not cert_path.exists():
-            cert_path = CUSTOM_CERTS_DIR / f"{domain}.crt"
-        
+
         if not cert_path.exists():
             return None
         
@@ -186,60 +182,6 @@ class TLSManager:
             return {
                 "success": False,
                 "message": f"证书续期异常：{str(e)}"
-            }
-    
-    def save_custom_cert(self, domain: str, cert_content: str, key_content: str) -> dict:
-        """
-        保存用户上传的自定义证书
-        
-        Args:
-            domain: 域名
-            cert_content: 证书内容（PEM 格式）
-            key_content: 私钥内容（PEM 格式）
-        """
-        try:
-            # 验证证书格式
-            cert_path = CUSTOM_CERTS_DIR / f"{domain}.crt"
-            key_path = CUSTOM_CERTS_DIR / f"{domain}.key"
-            
-            # 写入文件
-            cert_path.write_text(cert_content)
-            key_path.write_text(key_content)
-            
-            # 验证证书有效性
-            result = subprocess.run(
-                ["openssl", "x509", "-in", str(cert_path), "-noout", "-text"],
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
-            
-            if result.returncode != 0:
-                # 删除无效文件
-                cert_path.unlink(missing_ok=True)
-                key_path.unlink(missing_ok=True)
-                return {
-                    "success": False,
-                    "message": "证书格式无效，请上传有效的 PEM 格式证书"
-                }
-            
-            # 检查证书域名是否匹配
-            if domain not in result.stdout:
-                return {
-                    "success": False,
-                    "message": f"证书域名不匹配：证书不包含 {domain}"
-                }
-            
-            return {
-                "success": True,
-                "message": "自定义证书保存成功",
-                "cert_path": str(cert_path),
-                "key_path": str(key_path)
-            }
-        except Exception as e:
-            return {
-                "success": False,
-                "message": f"保存证书失败：{str(e)}"
             }
     
     def generate_nginx_config(self, domain: str, cert_path: str, key_path: str, enable_https: bool = True) -> str:
