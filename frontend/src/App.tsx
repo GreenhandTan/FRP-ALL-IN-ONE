@@ -124,9 +124,12 @@ export default function App() {
   // Settings view states matching design mockup from HTML
   const [tempDomain, setTempDomain] = useState<string>('');
   const [enableAutoHttps, setEnableAutoHttps] = useState<boolean>(false);
-  const [tempDashboardPort, setTempDashboardPort] = useState<number>(7500);
+  const [tempDashboardPort, setTempDashboardPort] = useState<string>('');
   const [dnsChecked, setDnsChecked] = useState<boolean>(true);
   const [dnsCheckLoading, setDnsCheckLoading] = useState<boolean>(false);
+  // 追踪服务端已保存的 TLS 状态，避免保存设置时重复申请证书
+  const [savedTlsEnabled, setSavedTlsEnabled] = useState<boolean>(false);
+  const [savedDomain, setSavedDomain] = useState<string>('');
   
   // 日志流 — 由 WebSocket 实时推送填充
   const [logs, setLogs] = useState<string[]>([]);
@@ -499,6 +502,8 @@ export default function App() {
           patch.domain = domainCfg.domain;
           setTempDomain(domainCfg.domain);
           setEnableAutoHttps(domainCfg.tls_enabled);
+          setSavedTlsEnabled(domainCfg.tls_enabled);
+          setSavedDomain(domainCfg.domain);
         }
         if (domainCfg.public_ip) {
           patch.ip = domainCfg.public_ip;
@@ -506,6 +511,16 @@ export default function App() {
         if (Object.keys(patch).length > 0) {
           setServerConfig(prev => ({ ...prev, ...patch }));
         }
+      } catch {}
+
+      // 加载面板公网访问端口（NAT 映射场景）
+      try {
+        const portCfg = await settingsApi.getPanelPort();
+        setTempDashboardPort(portCfg.port || '');
+        setGlobalSettings(prev => ({
+          ...prev,
+          dashboardPort: portCfg.port ? Number(portCfg.port) : 0,
+        }));
       } catch {}
 
       // 加载用户信息
@@ -807,12 +822,17 @@ export default function App() {
         await settingsApi.setDomain(tempDomain);
       }
       // 保存面板端口
-      await settingsApi.setPanelPort(String(tempDashboardPort));
-      // 处理 TLS 开关
+      await settingsApi.setPanelPort(tempDashboardPort.trim());
+      // 处理 TLS 开关（仅在状态变化或域名变化时触发，避免重复申请证书）
       if (enableAutoHttps && tempDomain) {
-        await settingsApi.enableTls(tempDomain);
-      } else if (!enableAutoHttps) {
+        if (!savedTlsEnabled || tempDomain !== savedDomain) {
+          await settingsApi.enableTls(tempDomain);
+          setSavedTlsEnabled(true);
+          setSavedDomain(tempDomain);
+        }
+      } else if (!enableAutoHttps && savedTlsEnabled) {
         await settingsApi.disableTls();
+        setSavedTlsEnabled(false);
       }
       setServerConfig(prev => ({
         ...prev,
@@ -820,7 +840,7 @@ export default function App() {
       }));
       setGlobalSettings(prev => ({
         ...prev,
-        dashboardPort: tempDashboardPort,
+        dashboardPort: tempDashboardPort ? Number(tempDashboardPort) : 0,
       }));
       triggerToast(t('全局及系统设置参数已同步写入 frps.ini 系统配置文件!', 'All network options and core bindings successfully written onto frps.ini configuration file!'), 'success');
     } catch (err: any) {
@@ -830,7 +850,7 @@ export default function App() {
 
   const handleDiscardSettings = () => {
     setTempDomain(serverConfig.domain || 'frp.mydomain.com');
-    setTempDashboardPort(globalSettings.dashboardPort || 7500);
+    setTempDashboardPort(globalSettings.dashboardPort ? String(globalSettings.dashboardPort) : '');
     triggerToast(t('放弃未保存修改并返回控制面板概览', 'Discarded unsaved change logs, redirected back to Overview'), 'info');
     changeScreen(Screen.DASHBOARD, 'none');
   };
@@ -2315,14 +2335,16 @@ export default function App() {
                                     {t('管理面板公网端口', 'Dashboard Public Port')}
                                   </label>
                                   <input
-                                    type="number"
+                                    type="text"
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
                                     value={tempDashboardPort}
-                                    onChange={(e) => setTempDashboardPort(Number(e.target.value))}
+                                    onChange={(e) => setTempDashboardPort(e.target.value.replace(/[^0-9]/g, ''))}
                                     className="block w-full rounded border border-slate-300 focus:ring-1 focus:ring-secondary focus:border-secondary bg-white text-on-surface font-mono py-2 px-3 text-sm"
-                                    placeholder="7500"
+                                    placeholder={t('留空表示使用默认端口（8080 或启用 HTTPS 后为 443）', 'Leave empty for default port (8080, or 443 with HTTPS)')}
                                   />
                                   <p className="mt-2 text-xs text-on-surface-variant opacity-85">
-                                    {t('用于访问本 FRP 诊断面板的外部服务开放端口。', 'External ingress port designated to view this diagnostic metrics panel.')}
+                                    {t('NAT 场景下公网映射到本管理面板的外部端口（如 10967 → 内网 8080）。留空表示直连，无需映射。', 'External port mapped to this management panel in NAT scenarios (e.g. 10967 → internal 8080). Leave empty for direct connection.')}
                                   </p>
                                 </div>
                                 

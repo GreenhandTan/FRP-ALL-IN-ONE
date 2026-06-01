@@ -409,16 +409,18 @@ async def get_agent_install_script(
     else:
         ws_scheme = "ws"
 
+    tls_enabled = crud_module.get_config(db, models.ConfigKeys.TLS_ENABLED) == "true"
+    server_domain = (crud_module.get_config(db, models.ConfigKeys.SERVER_DOMAIN) or "").strip()
+    host_name = server_domain if (tls_enabled and server_domain) else server_ip
+
     if panel_access_port:
-        # 显式 NAT 端口配置：使用公网 IP + 配置的端口
-        manager_host = f"{server_ip}:{panel_access_port}"
+        # 显式 NAT 端口配置：使用配置的域名/公网 IP + 配置的端口
+        manager_host = f"{host_name}:{panel_access_port}"
     elif forwarded_host:
         manager_host = forwarded_host
     else:
         # 回退逻辑：启用 HTTPS + 域名时使用域名，否则使用公网 IP
-        tls_enabled = crud_module.get_config(db, models.ConfigKeys.TLS_ENABLED) == "true"
-        server_domain = (crud_module.get_config(db, models.ConfigKeys.SERVER_DOMAIN) or "").strip()
-        manager_host = server_domain if (tls_enabled and server_domain) else server_ip
+        manager_host = host_name
 
     if client_id:
         client = crud_module.get_client(db, client_id=client_id)

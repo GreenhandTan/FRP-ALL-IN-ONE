@@ -37,6 +37,7 @@ class DomainConfig(BaseModel):
 
 class TLSEnableRequest(BaseModel):
     domain: str
+    mode: str = "auto"
 
 
 @router.get("/domain")
@@ -113,18 +114,38 @@ async def enable_tls(
             "message": f"DNS 检查失败：{dns_check['message']}"
         }
 
-    # 自动申请 Let's Encrypt 证书
-    result = tls_manager.issue_cert(domain)
+    # 先生成并部署临时 HTTP Nginx 配置，以便 Let's Encrypt 可以通过 80 端口访问验证挑战
+    temp_http_config = tls_manager.generate_nginx_config(domain, enable_https=False)
+    config_path = f"/app/certs/nginx-{domain}.conf"
+    with open(config_path, "w") as f:
+        f.write(temp_http_config)
+
+    try:
+        # 复制临时配置到 Nginx 容器并重载，使 Nginx 监听 80 并开始代理 9080 端口的 acme 挑战
+        run_podman(
+            ["cp", config_path, "frp-manager-web:/etc/nginx/conf.d/default.conf"],
+            timeout=30
+        )
+        tls_manager.reload_nginx()
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"部署临时 Nginx 挑战代理失败：{str(e)}"
+        }
+
+    # 自动申请 Let's Encrypt 证书（使用 standalone 模式并绑定 9080 端口，前端已通过 80 代理）
+    result = await asyncio.to_thread(tls_manager.issue_cert, domain)
     if not result["success"]:
         return result
     cert_path = result["cert_path"]
     key_path = result["key_path"]
 
-    # 生成 Nginx 配置
-    nginx_config = tls_manager.generate_nginx_config(domain, cert_path, key_path, enable_https=True)
+    # 证书申请成功后，生成正式的 Nginx HTTPS 配置文件（将后端容器路径转换为 Nginx 容器路径）
+    nginx_cert_path = cert_path.replace("/app/certs", "/etc/nginx/certs")
+    nginx_key_path = key_path.replace("/app/certs", "/etc/nginx/certs")
+    nginx_config = tls_manager.generate_nginx_config(domain, nginx_cert_path, nginx_key_path, enable_https=True)
 
-    # 写入 Nginx 配置文件
-    config_path = f"/app/certs/nginx-{domain}.conf"
+    # 覆写配置文件为 HTTPS 版本
     with open(config_path, "w") as f:
         f.write(nginx_config)
 
@@ -156,7 +177,7 @@ async def enable_tls(
     # 保存配置到数据库
     crud.set_config(db, models.ConfigKeys.SERVER_DOMAIN, domain)
     crud.set_config(db, models.ConfigKeys.TLS_ENABLED, "true")
-    crud.set_config(db, models.ConfigKeys.TLS_MODE, "auto")
+    crud.set_config(db, models.ConfigKeys.TLS_MODE, tls_request.mode)
 
     return {
         "success": True,

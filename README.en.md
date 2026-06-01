@@ -324,12 +324,16 @@ In the "Device List" on the dashboard:
 3. Follow the prompt to point domain A record to server's public IP
 4. Click "Check DNS" to verify resolution
 5. Click "Enable HTTPS", the system will automatically:
+   - Temporarily listen on port 80 and reload Nginx
+   - Launch acme.sh standalone challenge on port 9080 (proxied via Nginx 80)
    - Apply for Let's Encrypt certificate
-   - Configure Nginx
+   - Overwrite and deploy final Nginx HTTPS configurations
    - Reload services
 6. Auto-redirect to `https://your-domain`
 
-> **Auto Renewal**: Certificates will be automatically renewed 30 days before expiration, no manual intervention needed.
+> **Auto Renewal**: Certificates will be automatically renewed 30 days before expiration by a background Python daemon task (running every 24 hours), no manual intervention needed.
+> 
+> **Note**: Since certificate verification (HTTP-01 challenge) must go through public port 80, ensure that **port 80** on your server is open to the public in security groups/firewall.
 
 <a id="nat-port-setup"></a>
 
@@ -338,7 +342,7 @@ In the "Device List" on the dashboard:
 > **Use Case**: Your cloud server accesses the management panel through a NAT port mapping rather than a direct public IP, for example:
 > `Public 151.242.85.89:10967` → `Internal server:8080` (panel accessed via NAT)
 
-In this scenario, without extra configuration the generated client install scripts will lack the port number (defaulting to 80), causing Agents to fail connecting to the management panel.
+In this scenario, without extra configuration, the generated client install scripts will use the default port (default `8080`, or `443` if HTTPS is enabled), causing Agents to fail connecting to the management panel (which requires the public NAT-mapped port).
 
 ### How to Configure
 
@@ -358,10 +362,10 @@ The `MANAGER_WS_URL` in generated scripts is determined by the following priorit
 
 | Priority   | Condition                                     | Address Used                      |
 | ---------- | --------------------------------------------- | --------------------------------- |
-| ① Highest  | NAT port explicitly configured in settings    | `ws://PUBLIC_IP:NAT_PORT`         |
+| ① Highest  | NAT port explicitly configured in settings    | If HTTPS active: `wss://domain:NAT_PORT`<br/>Otherwise: `ws://PUBLIC_IP:NAT_PORT` |
 | ②          | Browser request carries Host header with port | `ws://host:port from Host header` |
 | ③          | HTTPS enabled + domain configured             | `wss://domain`                    |
-| ④ Fallback | Otherwise                                     | `ws://PUBLIC_IP`                  |
+| ④ Fallback | Otherwise                                     | `ws://PUBLIC_IP:8080` (or `wss://domain:443` if HTTPS is active) |
 
 > **Normal cloud servers**: No configuration needed. Leave blank and the system uses the public IP automatically.
 
@@ -398,8 +402,9 @@ Quick interpretation:
 
 | Port                      | Protocol | Purpose                          |
 | ------------------------- | -------- | -------------------------------- |
-| 8080                      | TCP      | Web management (HTTP)            |
-| 443                       | TCP      | Web management (HTTPS, optional) |
+| 8080                      | TCP      | Web management (HTTP default port, required before HTTPS setup) |
+| 80                        | TCP      | HTTP redirection and HTTPS certificate challenge verification (required when HTTPS is enabled) |
+| 443                       | TCP      | Web management (HTTPS port, optional) |
 | 7000 (or custom bindPort) | TCP      | frpc control connection          |
 | 49152-65535               | TCP/UDP  | Recommended private port range   |
 

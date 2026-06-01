@@ -47,8 +47,10 @@ class TLSManager:
                         # 解析日期
                         try:
                             expiry = datetime.strptime(expiry_str, "%b %d %H:%M:%S %Y %Z")
-                            info["expires_at"] = expiry.isoformat()
-                            info["days_until_expiry"] = (expiry - datetime.now(timezone.utc)).days
+                            # openssl 输出的时间总是 GMT，强制设为 UTC 避免 naive/aware 混用
+                            expiry_utc = expiry.replace(tzinfo=timezone.utc)
+                            info["expires_at"] = expiry_utc.isoformat()
+                            info["days_until_expiry"] = (expiry_utc - datetime.now(timezone.utc)).days
                         except:
                             pass
                     if "subject=" in line:
@@ -76,7 +78,7 @@ class TLSManager:
                 "--issue",
                 "-d", domain,
                 "--standalone",
-                "--httpport", "8080",  # 使用 8080 端口避免与 Nginx 冲突
+                "--httpport", "9080",  # 使用 9080 端口避免与前端 Nginx (8080) 冲突
                 "--certhome", str(AUTO_CERTS_DIR),
                 "--force"
             ]
@@ -104,7 +106,16 @@ class TLSManager:
                     "--fullchain-file", str(AUTO_CERTS_DIR / f"{domain}.fullchain.crt")
                 ]
                 
-                subprocess.run(install_cmd, capture_output=True, env=env)
+                install_result = subprocess.run(
+                    install_cmd, capture_output=True, text=True, env=env
+                )
+                
+                if install_result.returncode != 0:
+                    return {
+                        "success": False,
+                        "message": f"证书申请成功但安装失败：{install_result.stderr[:200]}",
+                        "cert_path": None
+                    }
                 
                 return {
                     "success": True,
@@ -193,7 +204,7 @@ class TLSManager:
 
     # 用于 acme.sh 独立模式的证书申请挑战
     location /.well-known/acme-challenge/ {{
-        proxy_pass http://127.0.0.1:8080;
+        proxy_pass http://127.0.0.1:9080;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -271,54 +282,63 @@ server {{
 }}
 '''
         else:
-            config = '''server {
+            server_name = domain if domain else "_"
+            config = f'''server {{
     listen 80;
-    server_name _;
+    server_name {server_name};
 
-    location /assets/ {
+    # 用于 acme.sh 独立模式的证书申请挑战
+    location /.well-known/acme-challenge/ {{
+        proxy_pass http://127.0.0.1:9080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }}
+
+    location /assets/ {{
         root /usr/share/nginx/html;
         try_files $uri =404;
         expires 7d;
         add_header Cache-Control "public, max-age=604800, immutable";
-    }
+    }}
 
-    location = /index.html {
+    location = /index.html {{
         root /usr/share/nginx/html;
         add_header Cache-Control "no-store";
-    }
+    }}
 
     # 前端静态文件
-    location / {
+    location / {{
         root /usr/share/nginx/html;
         try_files $uri $uri/ /index.html;
-    }
+    }}
 
     # API 代理
-    location /api/ {
+    location /api/ {{
         proxy_pass http://127.0.0.1:8000;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-    }
+    }}
 
-    location /token {
+    location /token {{
         proxy_pass http://127.0.0.1:8000/token;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }
+    }}
 
-    location /clients {
+    location /clients {{
         proxy_pass http://127.0.0.1:8000/clients;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }
+    }}
 
     # WebSocket 代理
-    location /ws/ {
+    location /ws/ {{
         proxy_pass http://127.0.0.1:8000/ws/;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
@@ -326,8 +346,8 @@ server {{
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_read_timeout 86400;
-    }
-}
+    }}
+}}
 '''
         return config
     
