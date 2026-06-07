@@ -675,7 +675,7 @@ python -m uvicorn main:app --reload
 你需要遵守：
 
 - 保留许可证与版权声明
-- 注明原作者为 **GreenhandTan**
+- 注明原作者为 **newbietan**
 
 ## 安全建议
 
