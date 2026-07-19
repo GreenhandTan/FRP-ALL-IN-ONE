@@ -11,7 +11,7 @@ RUN npm ci
 
 # 复制源码并构建
 COPY . .
-RUN npm run build
+RUN npm run lint && npm run build
 
 # ===========================
 # Stage 2: Serve with Nginx

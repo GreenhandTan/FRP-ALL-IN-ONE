@@ -308,7 +308,9 @@ export default function App() {
       if (clientList) {
         setDevices(prev => {
           // 以 prev 中的实时指标为基准，合并 full_sync 的静态数据
-          const prevMap = new Map(prev.map(d => [d.id, d]));
+          const prevMap = new Map<string, Device>(
+            prev.map((d): [string, Device] => [d.id, d])
+          );
           return clientList.map((c: any) => {
             const fresh = mapClientToDevice(c);
             const old = prevMap.get(fresh.id);
@@ -316,11 +318,11 @@ export default function App() {
             // 保留 WebSocket metrics_update 推送的实时数据，full_sync 仅更新静态字段
             return {
               ...fresh,
-              cpuUsage: old.cpuUsage || fresh.cpuUsage,
-              memUsage: old.memUsage || fresh.memUsage,
-              uploadRate: old.uploadRate || fresh.uploadRate,
-              downloadRate: old.downloadRate || fresh.downloadRate,
-              totalTraffic: old.totalTraffic || fresh.totalTraffic,
+              cpuUsage: old.cpuUsage ?? fresh.cpuUsage,
+              memUsage: old.memUsage ?? fresh.memUsage,
+              uploadRate: old.uploadRate ?? fresh.uploadRate,
+              downloadRate: old.downloadRate ?? fresh.downloadRate,
+              totalTraffic: old.totalTraffic ?? fresh.totalTraffic,
               agentInfo: old.agentInfo ? { ...fresh.agentInfo, ...old.agentInfo } : fresh.agentInfo,
             };
           });

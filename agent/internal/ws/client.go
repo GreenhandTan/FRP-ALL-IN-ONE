@@ -29,7 +29,8 @@ type Client struct {
 	version   string // Agent 版本
 
 	conn         *websocket.Conn
-	mu           sync.Mutex
+	mu           sync.RWMutex
+	writeMu      sync.Mutex
 	isRunning    bool
 	reconnect    bool
 	OnMessage    func(Message)
@@ -50,11 +51,13 @@ func NewClient(serverURL, clientID, token, version string) *Client {
 
 // Connect 连接到服务端
 func (c *Client) Connect() {
+	c.mu.Lock()
 	c.isRunning = true
+	c.mu.Unlock()
 	backoff := 3 * time.Second
 	const maxBackoff = 60 * time.Second
 
-	for c.isRunning && c.reconnect {
+	for c.shouldReconnect() {
 		if err := c.connect(); err != nil {
 			log.Printf("[WebSocket] 连接失败: %v, %v后重试...", err, backoff)
 			time.Sleep(backoff)
@@ -71,7 +74,7 @@ func (c *Client) Connect() {
 		// 连接成功，开始读取消息
 		c.readLoop()
 
-		if c.reconnect {
+		if c.shouldReconnect() {
 			log.Printf("[WebSocket] 连接断开，%v后重连...", backoff)
 			time.Sleep(backoff)
 			backoff = backoff * 2
@@ -80,6 +83,12 @@ func (c *Client) Connect() {
 			}
 		}
 	}
+}
+
+func (c *Client) shouldReconnect() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.isRunning && c.reconnect
 }
 
 func (c *Client) connect() error {
@@ -100,9 +109,15 @@ func (c *Client) connect() error {
 	// 限制单条消息最大 1MB，防止恶意服务端发送超大消息导致 OOM
 	conn.SetReadLimit(1 << 20)
 
+	c.writeMu.Lock()
 	c.mu.Lock()
+	oldConn := c.conn
 	c.conn = conn
 	c.mu.Unlock()
+	if oldConn != nil {
+		oldConn.Close()
+	}
+	c.writeMu.Unlock()
 
 	log.Println("[WebSocket] 连接成功")
 
@@ -129,9 +144,9 @@ func (c *Client) connect() error {
 
 func (c *Client) readLoop() {
 	for {
-		c.mu.Lock()
+		c.mu.RLock()
 		conn := c.conn
-		c.mu.Unlock()
+		c.mu.RUnlock()
 
 		if conn == nil {
 			return
@@ -157,14 +172,6 @@ func (c *Client) readLoop() {
 
 // Send 发送消息到服务端
 func (c *Client) Send(msgType string, data interface{}) error {
-	c.mu.Lock()
-	conn := c.conn
-	c.mu.Unlock()
-
-	if conn == nil {
-		return nil
-	}
-
 	msg := Message{
 		Type: msgType,
 		Data: data,
@@ -175,20 +182,39 @@ func (c *Client) Send(msgType string, data interface{}) error {
 		return err
 	}
 
+	// Gorilla WebSocket 仅允许一个并发 writer。所有写操作（包括 Close
+	// 和重连替换）都通过 writeMu 串行化，避免 concurrent write panic。
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+
+	c.mu.RLock()
+	conn := c.conn
+	c.mu.RUnlock()
+	if conn == nil {
+		return nil
+	}
+
+	if err := conn.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
+		return err
+	}
 	return conn.WriteMessage(websocket.TextMessage, msgBytes)
 }
 
 // Close 关闭连接
 func (c *Client) Close() {
+	c.mu.Lock()
 	c.isRunning = false
 	c.reconnect = false
+	c.mu.Unlock()
 
+	c.writeMu.Lock()
 	c.mu.Lock()
 	if c.conn != nil {
 		c.conn.Close()
 		c.conn = nil
 	}
 	c.mu.Unlock()
+	c.writeMu.Unlock()
 
 	if c.OnDisconnect != nil {
 		c.OnDisconnect()
@@ -197,7 +223,7 @@ func (c *Client) Close() {
 
 // IsConnected 检查是否已连接
 func (c *Client) IsConnected() bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.conn != nil
 }

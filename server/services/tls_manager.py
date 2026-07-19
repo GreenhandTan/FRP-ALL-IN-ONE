@@ -10,7 +10,7 @@ from pathlib import Path
 from core.container_engine import run_podman
 
 # 证书存储路径
-CERTS_DIR = Path("/app/certs")
+CERTS_DIR = Path(os.environ.get("FRP_CERTS_DIR", "/app/certs"))
 AUTO_CERTS_DIR = CERTS_DIR / "auto"
 NGINX_CONFIG_PATH = Path("/etc/nginx/conf.d")
 
@@ -195,9 +195,17 @@ class TLSManager:
                 "message": f"证书续期异常：{str(e)}"
             }
     
-    def generate_nginx_config(self, domain: str, cert_path: str, key_path: str, enable_https: bool = True) -> str:
+    def generate_nginx_config(
+        self,
+        domain: str,
+        cert_path: str = "",
+        key_path: str = "",
+        enable_https: bool = True,
+    ) -> str:
         """生成 Nginx 配置文件"""
         if enable_https:
+            if not cert_path or not key_path:
+                raise ValueError("启用 HTTPS 时必须提供证书和私钥路径")
             config = f'''server {{
     listen 80;
     server_name {domain};

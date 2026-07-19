@@ -127,16 +127,23 @@ class ConnectionManager:
         """获取最近的 client_id 冲突事件列表"""
         return list(self.conflict_events)
     
-    async def disconnect_agent(self, client_id: str):
-        """断开 Agent 连接"""
-        if client_id in self.agent_connections:
-            del self.agent_connections[client_id]
-            logger.info(f"Agent {client_id} 已断开，当前 Agent 数: {len(self.agent_connections)}")
+    async def disconnect_agent(self, client_id: str, websocket: WebSocket | None = None) -> bool:
+        """断开 Agent 连接；旧会话不得清理同 ID 的新连接。"""
+        current = self.agent_connections.get(client_id)
+        if current is None:
+            return False
+        if websocket is not None and current is not websocket:
+            logger.info(f"忽略 Agent {client_id} 旧会话的断开事件")
+            return False
+
+        del self.agent_connections[client_id]
+        logger.info(f"Agent {client_id} 已断开，当前 Agent 数: {len(self.agent_connections)}")
         # 保留系统信息一段时间，标记为离线
         if client_id in self.agent_system_info:
             self.agent_system_info[client_id]["online"] = False
         # 广播客户端下线事件给所有 Dashboard
         await self.broadcast_client_event(client_id, False)
+        return True
     
     def update_agent_system_info(self, client_id: str, system_info: dict):
         """更新 Agent 系统信息"""
@@ -170,7 +177,7 @@ class ConnectionManager:
                 return True
             except Exception as e:
                 logger.warning(f"发送消息到 Agent {client_id} 失败: {e}")
-                await self.disconnect_agent(client_id)
+                await self.disconnect_agent(client_id, ws)
         return False
     
     async def push_config_to_agent(self, client_id: str, config: str) -> bool:
@@ -263,10 +270,10 @@ class ConnectionManager:
             try:
                 await ws.send_json({"type": "ping"})
             except Exception:
-                disconnected.append(client_id)
+                disconnected.append((client_id, ws))
         
-        for client_id in disconnected:
-            await self.disconnect_agent(client_id)
+        for client_id, ws in disconnected:
+            await self.disconnect_agent(client_id, ws)
 
     # ========================
     # 事件驱动广播（新增）
